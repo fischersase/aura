@@ -49,6 +49,7 @@ section { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 
 header { display: flex; align-items: center; gap: 4px; padding: 12px 12px 0 18px; }
 .brand { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 500; }
+.brand .ver { font-size: 11.5px; font-weight: 400; opacity: .6; margin-left: -2px; }
 .spark { width: 18px; height: 18px; }
 .spacer { flex: 1; }
 .card.compact header { display: none; }

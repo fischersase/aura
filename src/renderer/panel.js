@@ -402,6 +402,7 @@ $('screenToggle').onclick = () => {
 
 window.api.getSettings().then((s) => {
   includeScreen = !!s.includeScreenInChat;
+  $('appVer').textContent = s.version ? 'v' + s.version : '';
   $('screenToggle').classList.toggle('on', includeScreen);
 });
 

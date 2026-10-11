@@ -14,6 +14,8 @@ Runs with Google Gemini (API key) or fully local with open models through [Ollam
 
 **Linux (x64):** download **`Aura-x86_64.AppImage`** (any distro, `chmod +x` and run) or **`aura_amd64.deb`** for Debian/Ubuntu. Double-clicking the .deb may just open an archive viewer; install it from a terminal instead: `sudo apt install ~/Downloads/aura_amd64.deb`, then start "Aura" from the app menu. Upgrading from "Gemini Overlay"? Remove the old package with `sudo apt remove windows-gemini`; your settings move over automatically.
 
+**Update on Ubuntu:** in a clone of this repository run `make update`. It downloads the newest `.deb` from the releases (via the GitHub CLI, `gh auth login` once, because the repository is private, or a token in `GITHUB_TOKEN`), installs it and restarts Aura. `make version` shows the installed version. The running version is also shown next to the name in the Aura window, in the Zentrale and in the tray menu.
+
 The setup assistant opens on first start and lets you pick Gemini or local models. The app lives in the system tray (star icon); right-click it for settings, or start "Aura" again.
 
 ## Option A: Gemini (API key, no Google Cloud project needed)

@@ -867,7 +867,7 @@ function applyAutostart() {
 function createTray() {
   const img = nativeImage.createFromPath(path.join(__dirname, '..', 'assets', 'tray.png'));
   tray = new Tray(img);
-  tray.setToolTip('Aura');
+  tray.setToolTip(`Aura ${app.getVersion()}`);
   const s = () => store.load();
   const menu = () => Menu.buildFromTemplate([
     { label: `Aura öffnen\t${s().hotkeyGemini}`, click: () => openPanel() },
@@ -882,6 +882,8 @@ function createTray() {
     { label: 'Aura Zentrale im Browser …', click: () => web.open() },
     { label: 'Einstellungen …', click: () => openSettings() },
     { label: 'Einrichtung erneut starten …', click: () => openSetup() },
+    { type: 'separator' },
+    { label: `Version ${app.getVersion()}`, enabled: false },
     { label: 'Beenden', click: () => app.quit() }
   ]);
   tray.on('click', () => openPanel());

@@ -35,6 +35,8 @@ document.addEventListener('change', async (e) => {
 async function load(force) {
   S = await z.state(force);
   $('ver').textContent = `Version ${S.version}`;
+  $('verBadge').textContent = `Version ${S.version}`;
+  document.title = `Aura Zentrale ${S.version}`;
   $('auraDir').textContent = S.auraDir;
   $('agentOn').checked = S.agentEnabled;
   renderOverview();
