@@ -15,6 +15,9 @@ const agent = require('./agent/loop');
 const agentTools = require('./agent/tools');
 const agentSkills = require('./agent/skills');
 const agentMcp = require('./agent/mcp');
+const secrets = require('./secrets');
+const web = require('./web');
+agentMcp.setResolver(secrets.resolveServerConfig);
 
 const R = (f) => path.join(__dirname, 'renderer', f);
 const ICON = path.join(__dirname, '..', 'assets', 'icon.png');
@@ -63,13 +66,14 @@ const ramblerState = { recording: false, busy: false, saved: null, selection: ''
 if (!app.requestSingleInstanceLock()) app.quit();
 
 // Befehle per Kommandozeile, z. B. für eigene Tastenkürzel in GNOME/KDE:
-//   aura --toggle | --live | --rambler | --settings
+//   aura --toggle | --live | --rambler | --settings | --zentrale | --zentrale-web
 function handleArgs(argv) {
   const has = (f) => argv.includes(f);
   if (has('--toggle')) toggleGemini();
   else if (has('--live')) toggleLive();
   else if (has('--rambler')) toggleRambler();
   else if (has('--settings')) openSettings();
+  else if (has('--zentrale-web')) web.open();
   else if (has('--zentrale')) zentrale.open(ICON);
   else return false;
   return true;
@@ -454,7 +458,8 @@ function budgetError() {
 const CHAT_SYSTEM = (lang) =>
   `Du bist Aura, ein Assistent in einem kompakten Overlay auf einem ${IS_LINUX ? 'Linux-' : 'Windows-'}PC. Antworte kurz, klar und freundlich, ` +
   `standardmäßig auf ${lang}. Nutze Markdown sparsam (kurze Listen, **fett**, \`code\`). ` +
-  'Wenn ein Screenshot beiliegt, beziehe dich konkret auf das, was zu sehen ist.';
+  'Wenn ein Screenshot beiliegt, beziehe dich konkret auf das, was zu sehen ist.'
+  + (store.profilePrompt() ? '\n\n' + store.profilePrompt() : '');
 
 const chatAborts = new Map();
 
@@ -623,7 +628,7 @@ ipcMain.on('agent:openFile', (_e, which) => {
     shell.openPath(f);
   }
 });
-app.on('will-quit', () => agentMcp.closeAll());
+app.on('will-quit', () => { agentMcp.closeAll(); web.stop(); });
 
 // Das Notbremse-Kürzel ist nur aktiv, solange der Agent arbeitet.
 let stopKeyOn = null;
@@ -874,6 +879,7 @@ function createTray() {
       : { label: `Diesen Monat: ≈ ${usageSummary().costUsd.toFixed(2)} $ von ${Number(s().monthlyBudgetUsd).toFixed(2)} $`, enabled: false },
     ...(agentRuns > 0 ? [{ label: `Agent stoppen\t${s().hotkeyStop}`, click: () => stopAgent() }] : []),
     { label: 'Aura Zentrale (Werkzeuge, MCP, Skills) …', click: () => zentrale.open(ICON) },
+    { label: 'Aura Zentrale im Browser …', click: () => web.open() },
     { label: 'Einstellungen …', click: () => openSettings() },
     { label: 'Einrichtung erneut starten …', click: () => openSetup() },
     { label: 'Beenden', click: () => app.quit() }

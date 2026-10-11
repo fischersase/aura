@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:">
+<meta name="referrer" content="no-referrer">
 <title>Aura Zentrale</title>
 <link rel="stylesheet" href="zentrale.css">
 </head>
@@ -10,6 +11,8 @@
 <nav>
   <div class="logo"><img src="../../assets/icon.png" alt="">Aura Zentrale</div>
   <button data-page="overview" class="on">Übersicht</button>
+  <button data-page="profile">Profil</button>
+  <button data-page="secrets">Schlüssel</button>
   <button data-page="tools">Werkzeuge</button>
   <button data-page="servers">MCP-Server</button>
   <button data-page="catalog">MCP-Katalog</button>
@@ -18,6 +21,7 @@
   <button data-page="log">Aktionsprotokoll</button>
   <button data-page="chats">Chats</button>
   <div class="grow"></div>
+  <button id="openWeb" class="app-only" title="Öffnet die Zentrale in deinem Standardbrowser">Im Browser öffnen</button>
   <div id="ver" class="muted small"></div>
 </nav>
 
@@ -32,10 +36,39 @@
       <p class="muted small">Ausgeschaltet antwortet Aura nur im Chat, ohne Werkzeuge.</p>
     </div>
     <div class="card">
+      <h3>Zentrale im Browser</h3>
+      <p class="small">Die Zentrale läuft auch in deinem Browser, nur auf diesem PC (<code>127.0.0.1</code>) und mit einem geheimen Zugangslink, der bei jedem Start von Aura neu erzeugt wird.</p>
+      <p class="small muted" id="webState"></p>
+      <div class="row" style="margin:0"><button id="openWeb2" class="app-only">Im Browser öffnen</button><button id="resetWeb">Alle Browser abmelden</button></div>
+    </div>
+    <div class="card">
       <h3>So funktioniert die Freigabe</h3>
       <p class="small">Jedes Werkzeug hat eine Regel: <b>Standard</b> (ändernde Aktionen fragen, lesende laufen sofort), <b>Immer fragen</b>, <b>Nie fragen</b> oder <b>Aus</b> (das Modell sieht das Werkzeug gar nicht). Die Regeln stellst du unter „Werkzeuge“ und bei jedem MCP-Server ein.</p>
       <p class="small muted">Dateien liegen in <code id="auraDir"></code>. <a href="#" data-open="aura">Ordner öffnen</a></p>
     </div>
+  </section>
+
+  <!-- Profil -->
+  <section id="profile" class="page hidden">
+    <div class="head"><h1>Profil</h1><span class="grow"></span><span id="pStatus" class="muted small"></span><button id="saveProfile" class="primary">Speichern</button></div>
+    <p class="lead">Was Aura über dich wissen darf, damit Antworten besser passen. Das Profil bleibt auf diesem PC und geht nur als Teil der Anweisung an das Modell, das du nutzt.</p>
+    <div class="card form">
+      <label for="pName">Name oder wie Aura dich ansprechen soll</label><input type="text" id="pName" maxlength="200" autocomplete="off">
+      <label for="pLocation">Ort und Zeitzone</label><input type="text" id="pLocation" maxlength="200" placeholder="z. B. Hamburg, MEZ" autocomplete="off">
+      <label for="pOccupation">Beruf oder Rolle</label><input type="text" id="pOccupation" maxlength="200" placeholder="z. B. Produktmanager, Student, Entwickler" autocomplete="off">
+      <label for="pAbout">Über dich</label><textarea id="pAbout" rows="4" maxlength="2000" placeholder="Woran du arbeitest, Interessen, Geräte, Projekte …"></textarea>
+      <label for="pPrefs">Wie Aura antworten soll</label><textarea id="pPrefs" rows="3" maxlength="2000" placeholder="z. B. kurz und direkt, duzen, Code mit Kommentaren, metrische Einheiten"></textarea>
+      <label class="switch" style="margin-top:16px"><input type="checkbox" id="pShare"><span></span> Profil in Chats und Agent-Aufträgen verwenden</label>
+      <p class="muted small">Bei Gemini wird der Text mit jeder Anfrage an Google gesendet, bei Ollama bleibt er lokal. Schreib hier keine Passwörter oder Schlüssel hinein; dafür gibt es „Schlüssel“.</p>
+    </div>
+  </section>
+
+  <!-- Schlüssel -->
+  <section id="secrets" class="page hidden">
+    <div class="head"><h1>Schlüssel</h1><span class="grow"></span><button id="newSecret" class="primary">Schlüssel hinzufügen</button></div>
+    <p class="lead">API-Keys und Tokens für Gemini und MCP-Server. Aura speichert sie verschlüsselt und zeigt sie nie wieder an; du kannst sie nur ersetzen oder löschen. In einem MCP-Server verwendest du sie als <code>${secret:NAME}</code> in Variablen, Headern oder Argumenten.</p>
+    <div id="secretProtection" class="card small"></div>
+    <div id="secretList" class="list"></div>
   </section>
 
   <!-- Eingebaute Werkzeuge -->
@@ -97,6 +130,12 @@
 <div id="dlg" class="dlg hidden"><div class="dlg-box"><h2 id="dlgTitle"></h2><div id="dlgBody"></div>
   <div class="dlg-actions"><span id="dlgError" class="bad small"></span><span class="grow"></span><button id="dlgCancel">Abbrechen</button><button id="dlgOk" class="primary">Speichern</button></div></div></div>
 
+<!-- Browser: Zugang abgelaufen -->
+<div id="noAccess" class="dlg hidden"><div class="dlg-box"><h2>Kein Zugang</h2>
+  <p>Diese Seite braucht einen frischen Zugangslink. Öffne sie über Aura: Tray-Symbol → „Aura Zentrale im Browser“, oder in der Zentrale „Im Browser öffnen“.</p>
+  <p class="muted small">Der Link gilt nur, solange Aura läuft, und wird bei jedem Start neu erzeugt.</p></div></div>
+
+<script src="web-shim.js"></script>
 <script src="zentrale.js"></script>
 </body>
 </html>

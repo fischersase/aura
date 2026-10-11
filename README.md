@@ -85,6 +85,16 @@ One window to manage everything the agent uses: tray menu → *Aura Zentrale*, t
 - **MCP-Katalog:** search the official MCP registry and add a server in one click, including the keys it needs.
 - **Skills:** list, switch on/off, create and edit `SKILL.md` files.
 - **Anweisungen:** edit `AGENTS.md`. **Aktionsprotokoll** and **Chats:** what the agent did, and saved chats.
+- **Profil:** your name, location, role, background and how Aura should answer. Added to the system prompt of chats and agent tasks (can be switched off).
+- **Schlüssel:** API keys and tokens, encrypted with the OS keystore in `secrets.json`. Values go in but never come back out; you can replace or delete them. Use them in `mcp.json` as `${secret:NAME}` in `env`, `headers`, `args` or `url`. Keys typed into a server form (names containing KEY, TOKEN, SECRET, PASSWORD, Authorization) and secret fields from the catalog are moved there automatically.
+
+### In the browser
+
+Tray menu → *Aura Zentrale im Browser*, the button in the Zentrale, or `aura --zentrale-web`. The page is served by Aura itself, only on `127.0.0.1` (port 47800 or the next free one), never on your network:
+
+- Access needs a random 256-bit token that is created on every Aura start. It travels in the URL fragment (never sent to a server or logged), is moved into the tab's session storage and removed from the address bar.
+- Requests are checked for the right `Host` and `Origin` (protects against DNS rebinding and other websites), must be JSON with a `Bearer` token, and pages get a strict Content-Security-Policy.
+- "Alle Browser abmelden" in the Zentrale invalidates all open tabs.
 
 ## Extensions: instructions, skills, MCP servers
 
@@ -159,4 +169,4 @@ npx electron-builder --linux AppImage deb        # Linux packages
 
 ## Privacy and secrets
 
-Your API key is stored only on your computer, encrypted with the OS keystore (Windows DPAPI, Linux keyring) in the app's settings folder. It is never part of this repository; every push is scanned with gitleaks. With Ollama, nothing leaves your computer except the one-time model downloads.
+Your API key and all keys under *Schlüssel* are stored only on your computer, encrypted with the OS keystore (Windows DPAPI, Linux GNOME keyring or KWallet) in the app's settings folder. Without a keyring on Linux, the *Schlüssel* page cannot store keys and says so; install gnome-keyring or KWallet. It is never part of this repository; every push is scanned with gitleaks. With Ollama, nothing leaves your computer except the one-time model downloads.

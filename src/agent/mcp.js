@@ -150,7 +150,12 @@ function readConfig() {
   }
 }
 
-async function connect(name, cfg) {
+// Ersetzt ${secret:NAME} (wird von main.js gesetzt; ohne Electron bleibt die Konfiguration unverändert).
+let resolveConfig = (cfg) => cfg;
+const setResolver = (fn) => { resolveConfig = fn; };
+
+async function connect(name, raw) {
+  const cfg = resolveConfig(raw);
   const conn = cfg.url ? new HttpConn(name, cfg) : new StdioConn(name, cfg);
   await conn.request('initialize', { protocolVersion: PROTOCOL, capabilities: {}, clientInfo: CLIENT }, 30000);
   conn.notify('notifications/initialized');
@@ -176,7 +181,8 @@ async function sync(force = false) {
     next.set('mcp.json', { tools: [], error: 'mcp.json ist kein gültiges JSON: ' + cfg.__error });
   }
   await Promise.all(Object.entries(cfg).filter(([n, c]) => n !== '__error' && c && !c.disabled).map(async ([name, c]) => {
-    const key = JSON.stringify(c);
+    let key = JSON.stringify(c);
+    try { key = require('crypto').createHash('sha256').update(JSON.stringify(resolveConfig(c))).digest('hex'); } catch {}
     const old = servers.get(name);
     if (old && old.cfgKey === key && !old.error) { next.set(name, old); servers.delete(name); return; }
     try {
@@ -245,4 +251,4 @@ function closeAll() {
   loadedMtime = 0;
 }
 
-module.exports = { sync, tools, status, closeAll, configFile };
+module.exports = { sync, tools, status, closeAll, configFile, setResolver };

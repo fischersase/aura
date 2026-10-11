@@ -29,7 +29,7 @@ async function toolset() {
 const MAX_STEPS = 30;
 const IS_WIN = process.platform === 'win32';
 
-const SYSTEM = (lang) => [BASE_SYSTEM(lang), skills.promptAddon()].filter(Boolean).join('\n\n');
+const SYSTEM = (lang) => [BASE_SYSTEM(lang), store.profilePrompt(), skills.promptAddon()].filter(Boolean).join('\n\n');
 
 const BASE_SYSTEM = (lang) => [
   `Du bist Aura, ein Assistent mit Zugriff auf den ${IS_WIN ? 'Windows' : 'Linux'}-PC des Nutzers (Benutzer ${os.userInfo().username}, Benutzerordner ${os.homedir()}).`,

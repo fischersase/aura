@@ -41,28 +41,18 @@ contextBridge.exposeInMainWorld('api', {
   onChatError: on('chat:error'),
   onChatScreen: on('chat:screen'),
 
-  // Aura Zentrale
-  z: {
-    state: (force) => ipcRenderer.invoke('z:state', force),
-    log: () => ipcRenderer.invoke('z:log'),
-    chats: () => ipcRenderer.invoke('z:chats'),
-    deleteChat: (id) => ipcRenderer.invoke('z:deleteChat', id),
-    setPolicy: (tool, policy) => ipcRenderer.invoke('z:setPolicy', { tool, policy }),
-    setAgent: (on) => ipcRenderer.invoke('z:setAgent', on),
-    getServer: (name) => ipcRenderer.invoke('z:getServer', name),
-    saveServer: (o) => ipcRenderer.invoke('z:saveServer', o),
-    removeServer: (name) => ipcRenderer.invoke('z:removeServer', name),
-    toggleServer: (name, enabled) => ipcRenderer.invoke('z:toggleServer', { name, enabled }),
-    searchRegistry: (q) => ipcRenderer.invoke('z:searchRegistry', q),
-    installRegistry: (o) => ipcRenderer.invoke('z:installRegistry', o),
-    toggleSkill: (name, enabled) => ipcRenderer.invoke('z:toggleSkill', { name, enabled }),
-    getSkill: (name) => ipcRenderer.invoke('z:getSkill', name),
-    saveSkill: (o) => ipcRenderer.invoke('z:saveSkill', o),
-    deleteSkill: (name) => ipcRenderer.invoke('z:deleteSkill', name),
-    saveAgentsMd: (t) => ipcRenderer.invoke('z:saveAgentsMd', t),
-    openPath: (which) => ipcRenderer.send('z:openPath', which),
-    openUrl: (url) => ipcRenderer.send('z:openUrl', url)
-  },
+  // Aura Zentrale: gleiche Funktionen wie renderer/web-shim.js im Browser
+  z: (() => {
+    const z = {};
+    for (const n of ['state', 'log', 'chats', 'deleteChat', 'setAgent', 'getServer', 'saveServer', 'removeServer', 'protectServer', 'searchRegistry', 'installRegistry',
+      'getSkill', 'saveSkill', 'deleteSkill', 'saveAgentsMd', 'secrets', 'setSecret', 'setSecretNote', 'deleteSecret', 'profile', 'saveProfile', 'openPath', 'openUrl', 'openWeb', 'webInfo', 'resetWeb']) {
+      z[n] = (arg) => ipcRenderer.invoke('z:' + n, arg);
+    }
+    z.setPolicy = (tool, policy) => ipcRenderer.invoke('z:setPolicy', { tool, policy });
+    z.toggleServer = (name, enabled) => ipcRenderer.invoke('z:toggleServer', { name, enabled });
+    z.toggleSkill = (name, enabled) => ipcRenderer.invoke('z:toggleSkill', { name, enabled });
+    return z;
+  })(),
   openZentrale: () => ipcRenderer.send('zentrale:open'),
 
   // Agent

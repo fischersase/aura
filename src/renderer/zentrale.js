@@ -14,6 +14,8 @@ function show(page) {
   document.querySelectorAll('.page').forEach((p) => p.classList.toggle('hidden', p.id !== page));
   if (page === 'log') renderLog();
   if (page === 'chats') renderChats();
+  if (page === 'secrets') renderSecrets();
+  if (page === 'profile') loadProfile();
   if (page === 'catalog') setTimeout(() => $('q').focus(), 30);
 }
 document.querySelectorAll('nav button[data-page]').forEach((b) => { b.onclick = () => show(b.dataset.page); });
@@ -58,11 +60,21 @@ function renderOverview() {
     ['servers', `${running}/${S.servers.length}`, 'MCP-Server verbunden' + (broken ? `, ${broken} mit Fehler` : '')],
     ['skills', `${S.skills.filter((k) => k.enabled).length}/${S.skills.length}`, 'Skills aktiv'],
     ['instructions', S.agentsMd.replace(/<!--[\s\S]*?-->/g, '').replace(/^#.*$/gm, '').trim() ? 'ja' : '–', 'eigene Anweisungen'],
+    ['secrets', S.secretCount, 'gespeicherte Schlüssel'],
+    ['profile', S.profileName ? esc(S.profileName) : '–', 'Profil'],
     ['overview', S.provider === 'ollama' ? 'lokal' : 'Gemini', esc(S.model)]
   ];
   $('tiles').innerHTML = tiles.map(([p, b, s]) => `<div class="tile" data-go="${p}"><b>${esc(b)}</b><span>${s}</span></div>`).join('');
   $('tiles').querySelectorAll('[data-go]').forEach((t) => { t.onclick = () => show(t.dataset.go); });
+  $('webState').textContent = window.api.web ? 'Du bist gerade im Browser verbunden.' : S.web && S.web.running ? `Läuft unter ${S.web.url}` : 'Noch nicht gestartet; startet beim ersten Öffnen.';
 }
+$('openWeb').onclick = $('openWeb2').onclick = async () => { await z.openWeb(); load(); };
+$('resetWeb').onclick = async () => {
+  if (!confirm('Alle offenen Browser-Tabs der Zentrale abmelden? Danach brauchst du einen neuen Link aus Aura.')) return;
+  await z.resetWeb();
+  load();
+};
+document.addEventListener('aura-unauthorized', () => $('noAccess').classList.remove('hidden'));
 $('agentOn').onchange = async () => { await z.setAgent($('agentOn').checked); load(); };
 
 function renderTools() {
@@ -90,7 +102,8 @@ function renderServers() {
         <span class="title">${esc(s.name)}</span>${state}<span class="badge">${s.type === 'http' ? 'Remote' : 'lokal'}</span>
         ${s.disabled ? '' : `<span class="badge">${s.tools.length} Werkzeuge</span>`}
         <span class="grow"></span><button class="small" data-edit="${esc(s.name)}">Bearbeiten</button><button class="small danger" data-remove="${esc(s.name)}">Entfernen</button></div>
-      <div class="cmd">${esc(s.command)}${s.env.length ? ' · Variablen: ' + esc(s.env.join(', ')) : ''}</div>
+      <div class="cmd">${esc(s.command)}${s.env.length ? ' · Variablen: ' + esc(s.env.join(', ')) : ''}${s.secretRefs.length ? ' · Schlüssel: ' + esc(s.secretRefs.join(', ')) : ''}</div>
+      ${s.plainSecrets.length ? `<div class="warnbox"><span>${esc(s.plainSecrets.join(', '))} steht im Klartext in mcp.json.</span><button class="small" data-protect="${esc(s.name)}">Verschlüsselt speichern</button></div>` : ''}
       ${s.error && !s.disabled ? `<div class="err">${esc(s.error)}</div>` : ''}${tools}</div>`;
   }).join('');
   $('serverList').querySelectorAll('[data-toggle]').forEach((c) => { c.onchange = async () => { c.disabled = true; S = await z.toggleServer(c.dataset.toggle, c.checked); load(); }; });
@@ -98,6 +111,9 @@ function renderServers() {
     b.onclick = async () => { if (confirm(`Server „${b.dataset.remove}“ entfernen?`)) { await z.removeServer(b.dataset.remove); load(); } };
   });
   $('serverList').querySelectorAll('[data-edit]').forEach((b) => { b.onclick = () => serverDialog(b.dataset.edit); });
+  $('serverList').querySelectorAll('[data-protect]').forEach((b) => {
+    b.onclick = async () => { b.disabled = true; const r = await z.protectServer(b.dataset.protect); if (r && r.error) alert(r.error); load(); };
+  });
 }
 
 $('reloadServers').onclick = async () => { $('reloadServers').textContent = 'Verbinde …'; await load(true); $('reloadServers').textContent = 'Neu verbinden'; };
@@ -151,7 +167,7 @@ async function serverDialog(name) {
     </div>
     <label>Ohne Nachfrage erlaubte Werkzeuge (optional, durch Komma getrennt; * = alle)</label>
     <input type="text" id="fAuto" value="${esc(((cfg && cfg.autoApprove) || []).join(', '))}" spellcheck="false">
-    <div class="hint">Schlüssel und Passwörter stehen im Klartext in ~/.aura/mcp.json auf diesem PC.</div>`, async () => {
+    <div class="hint">Werte, die nach Schlüsseln aussehen (Namen mit KEY, TOKEN, SECRET, PASSWORD, Authorization), legt Aura beim Speichern verschlüsselt unter „Schlüssel“ ab; in mcp.json steht dann nur <code>\${secret:NAME}</code>. Gespeicherte Schlüssel trägst du selbst so ein.</div>`, async () => {
     const http = $('fKind').querySelector('.on').dataset.k === 'http';
     const parseKv = (t) => Object.fromEntries(String(t || '').split('\n').map((l) => l.trim()).filter(Boolean).map((l) => { const i = l.indexOf('='); return i > 0 ? [l.slice(0, i).trim(), l.slice(i + 1).trim()] : [l, '']; }));
     const config = {};
@@ -214,12 +230,12 @@ function installDialog(x) {
     <p class="small muted">${esc(x.description)}</p>
     <label>Name in Aura</label><input type="text" id="iName" value="${esc(x.title.replace(/[^A-Za-z0-9_.-]/g, '-'))}" spellcheck="false">
     ${fields || '<p class="small muted">Keine Einstellungen nötig.</p>'}
-    <div class="hint">Wird beim ersten Start über ${x.kind === 'npm' ? 'npx (Node.js nötig)' : x.kind === 'pypi' ? 'uvx (uv nötig)' : x.kind === 'oci' ? 'Docker' : 'das Internet'} geladen. Schlüssel stehen im Klartext in ~/.aura/mcp.json.</div>`, async () => {
+    <div class="hint">Wird beim ersten Start über ${x.kind === 'npm' ? 'npx (Node.js nötig)' : x.kind === 'pypi' ? 'uvx (uv nötig)' : x.kind === 'oci' ? 'Docker' : 'das Internet'} geladen. Geheime Felder speichert Aura verschlüsselt unter „Schlüssel“.</div>`, async () => {
     const env = {};
     for (const el of document.querySelectorAll('[data-env]')) {
       const v = x.env[Number(el.dataset.env)];
       if (v.required && !el.value.trim()) return `${v.name} fehlt.`;
-      env[v.name] = el.value.trim();
+      env[v.name] = { value: el.value.trim(), secret: v.secret || /KEY|TOKEN|SECRET|PASSWORD|AUTH/i.test(v.name) };
     }
     const r = await z.installRegistry({ name: $('iName').value.trim(), server: x.server, env });
     if (r.error) return r.error;
@@ -286,6 +302,89 @@ $('saveMd').onclick = async () => {
   await z.saveAgentsMd($('agentsMd').value);
   mdDirty = false;
   $('mdStatus').textContent = 'Gespeichert';
+  load();
+};
+
+// ---------- Schlüssel ----------
+
+const fmtDate = (ms) => (ms ? new Date(ms).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '');
+
+async function renderSecrets() {
+  const r = await z.secrets();
+  const prot = {
+    strong: ['banner-ok', 'Verschlüsselt mit dem Schlüsselspeicher des Betriebssystems (Windows: DPAPI deines Benutzerkontos, Linux: GNOME-Schlüsselbund bzw. KWallet). Andere Benutzer und Programme ohne Zugriff auf dein Konto können die Datei nicht lesen.'],
+    weak: ['banner-warn', 'Kein Schlüsselbund gefunden: Electron verschlüsselt nur mit einem festen Schlüssel. Installiere bzw. entsperre gnome-keyring oder KWallet und starte Aura neu.'],
+    none: ['banner-bad', 'Verschlüsselung ist hier nicht verfügbar, deshalb nimmt Aura keine neuen Schlüssel an. Unter Linux: gnome-keyring oder KWallet installieren und Aura neu starten.']
+  }[r.protection];
+  $('secretProtection').innerHTML = `<span class="${prot[0]}">${esc(prot[1])}</span>`;
+  $('secretList').innerHTML = r.list.map((k) => {
+    const status = k.builtin ? (k.set ? `<span class="badge ok">gesetzt${k.fromEnv ? ' (Umgebungsvariable)' : ''}</span>` : '<span class="badge">nicht gesetzt</span>')
+      : k.broken ? '<span class="badge bad">nicht lesbar</span>' : '<span class="badge ok">verschlüsselt</span>';
+    const used = k.usedBy.length ? `Genutzt von ${esc(k.usedBy.join(', '))}` : 'Von keinem Server genutzt';
+    return `<div class="item"><div class="name">${esc(k.name)} ${status}${k.hint ? ` <span class="badge">${esc(k.hint)}</span>` : ''}</div>
+      <div class="desc">${k.note ? esc(k.note) + ' · ' : ''}${used}${k.updated ? ' · geändert ' + esc(fmtDate(k.updated)) : ''}</div>
+      <div class="side">${k.builtin ? '' : `<button class="small" data-copy="${esc(k.name)}" title="\${secret:${esc(k.name)}} kopieren">Verweis kopieren</button>`}
+      <button class="small" data-replace="${esc(k.name)}">${k.builtin && !k.set ? 'Festlegen' : 'Ersetzen'}</button>
+      ${k.builtin && !k.set ? '' : `<button class="small danger" data-sdel2="${esc(k.name)}">Löschen</button>`}</div></div>`;
+  }).join('');
+  const list = $('secretList');
+  list.querySelectorAll('[data-copy]').forEach((b) => {
+    b.onclick = async () => {
+      const ref = '${secret:' + b.dataset.copy + '}';
+      try { await navigator.clipboard.writeText(ref); b.textContent = 'Kopiert'; } catch { prompt('Verweis zum Kopieren:', ref); }
+      setTimeout(() => { b.textContent = 'Verweis kopieren'; }, 1500);
+    };
+  });
+  list.querySelectorAll('[data-replace]').forEach((b) => { b.onclick = () => secretDialog(r.list.find((k) => k.name === b.dataset.replace)); });
+  list.querySelectorAll('[data-sdel2]').forEach((b) => {
+    b.onclick = async () => {
+      const k = r.list.find((x) => x.name === b.dataset.sdel2);
+      const warn = k.usedBy.length && !k.builtin ? `\n\nAchtung: ${k.usedBy.join(', ')} nutzt diesen Schlüssel und startet danach nicht mehr.` : '';
+      if (!confirm(`Schlüssel „${k.name}“ endgültig löschen?${warn}`)) return;
+      await z.deleteSecret(k.name);
+      renderSecrets();
+      load();
+    };
+  });
+}
+
+function secretDialog(existing) {
+  dialog(existing ? `Schlüssel „${existing.name}“ ersetzen` : 'Schlüssel hinzufügen', `
+    <label>Name</label><input type="text" id="kName" value="${esc(existing ? existing.name : '')}" placeholder="z. B. GITHUB_TOKEN" spellcheck="false" autocomplete="off"${existing ? ' disabled' : ''}>
+    <label>Wert</label><input type="password" id="kValue" placeholder="${existing ? 'Neuen Wert einfügen' : 'Wert einfügen'}" spellcheck="false" autocomplete="new-password">
+    ${existing && existing.builtin ? '' : `<label>Notiz (optional)</label><input type="text" id="kNote" value="${esc(existing ? existing.note : '')}" placeholder="z. B. GitHub, nur Lesezugriff, läuft im März ab" maxlength="200">`}
+    <div class="hint">Der Wert wird verschlüsselt gespeichert und danach nie wieder angezeigt.${existing && existing.builtin ? ' Er ersetzt den Gemini-Key aus den Einstellungen.' : ' Verwende ihn in einem MCP-Server als <code>${secret:NAME}</code>.'}</div>`, async () => {
+    const name = existing ? existing.name : $('kName').value.trim();
+    const value = $('kValue').value;
+    if (!name) return 'Bitte einen Namen eintragen.';
+    if (!value.trim()) return 'Bitte einen Wert einfügen.';
+    const note = $('kNote') ? $('kNote').value.trim() : undefined;
+    const r = await z.setSecret({ name, value, note });
+    $('kValue').value = '';
+    if (r && r.error) return r.error;
+    renderSecrets();
+    load();
+    return null;
+  });
+  setTimeout(() => (existing ? $('kValue') : $('kName')).focus(), 30);
+}
+$('newSecret').onclick = () => secretDialog(null);
+
+// ---------- Profil ----------
+
+const PROFILE_FIELDS = { pName: 'name', pLocation: 'location', pOccupation: 'occupation', pAbout: 'about', pPrefs: 'preferences' };
+async function loadProfile() {
+  const p = await z.profile();
+  for (const [id, key] of Object.entries(PROFILE_FIELDS)) $(id).value = p[key] || '';
+  $('pShare').checked = !!p.share;
+  $('pStatus').textContent = '';
+}
+for (const id of [...Object.keys(PROFILE_FIELDS), 'pShare']) $(id).addEventListener('input', () => { $('pStatus').textContent = 'Nicht gespeichert'; });
+$('saveProfile').onclick = async () => {
+  const p = { share: $('pShare').checked };
+  for (const [id, key] of Object.entries(PROFILE_FIELDS)) p[key] = $(id).value.trim();
+  await z.saveProfile(p);
+  $('pStatus').textContent = 'Gespeichert';
   load();
 };
 

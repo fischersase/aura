@@ -31,6 +31,9 @@ const DEFAULTS = {
   apiKeyEnc: ''
 };
 
+// Nutzerprofil: was Aura über dich wissen darf (fließt in die Systemanweisung ein, wenn share an ist).
+const DEFAULT_PROFILE = { name: '', location: '', occupation: '', about: '', preferences: '', share: true };
+
 let cache = null;
 const file = () => path.join(app.getPath('userData'), 'settings.json');
 
@@ -84,9 +87,22 @@ function publicSettings() {
   };
 }
 
+function profilePrompt() {
+  const p = { ...DEFAULT_PROFILE, ...(load().profile || {}) };
+  if (!p.share) return '';
+  const lines = [
+    p.name && `Name: ${p.name}`,
+    p.location && `Ort/Zeitzone: ${p.location}`,
+    p.occupation && `Beruf/Rolle: ${p.occupation}`,
+    p.about && `Über den Nutzer: ${p.about}`,
+    p.preferences && `Wünsche an Antworten: ${p.preferences}`
+  ].filter(Boolean);
+  return lines.length ? 'Profil des Nutzers (selbst angegeben; nutze es, wo es hilft, ohne es ungefragt aufzuzählen):\n' + lines.join('\n') : '';
+}
+
 const isLocal = () => load().provider === 'ollama';
 
 // Startklar: lokal braucht keinen Key, Gemini schon.
 const ready = () => isLocal() || !!getApiKey();
 
-module.exports = { DEFAULTS, load, save, getApiKey, setApiKey, publicSettings, isLocal, ready };
+module.exports = { DEFAULTS, DEFAULT_PROFILE, profilePrompt, load, save, getApiKey, setApiKey, publicSettings, isLocal, ready };

@@ -8,6 +8,7 @@ const tools = require('./agent/tools');
 const skills = require('./agent/skills');
 const mcp = require('./agent/mcp');
 const loop = require('./agent/loop');
+const secrets = require('./secrets');
 
 const REGISTRY = 'https://registry.modelcontextprotocol.io/v0.1/servers';
 let win = null;
@@ -72,6 +73,8 @@ async function state(force) {
     command: c.url ? c.url : [c.command, ...(c.args || [])].join(' '),
     env: Object.keys(c.env || {}),
     disabled: !!c.disabled,
+    plainSecrets: plainSecrets(c),
+    secretRefs: secrets.refsIn(c),
     error: status[name] ? status[name].error : null,
     running: !!(status[name] && !status[name].error),
     tools: mcpTools.filter((t) => t.server === name).map((t) => ({
@@ -84,6 +87,9 @@ async function state(force) {
     provider: s.provider,
     model: s.provider === 'ollama' ? s.ollamaModel : s.chatModel,
     agentEnabled: !!s.agentEnabled,
+    profileName: (s.profile && s.profile.name) || '',
+    secretCount: secrets.list().filter((x) => !x.builtin).length,
+    web: require('./web').info(),
     auraDir: skills.auraDir(),
     builtin,
     servers,
@@ -122,46 +128,90 @@ function configFromRegistry(server, env = {}) {
   return null;
 }
 
-function register() {
-  ipcMain.handle('z:state', (_e, force) => state(force));
-  ipcMain.handle('z:log', () => readLog());
-  ipcMain.handle('z:chats', () => chats.list());
-  ipcMain.handle('z:deleteChat', (_e, id) => chats.remove(id));
+// ---------- Schnittstelle (für das Fenster per IPC und für den Browser per web.js) ----------
+// Jede Methode nimmt höchstens ein Argument und gibt JSON-fähige Daten zurück.
 
-  ipcMain.handle('z:setPolicy', (_e, { tool, policy }) => {
+// Klartext-Geheimnisse in mcp.json finden (env/headers), damit die Oberfläche warnen kann.
+function plainSecrets(c) {
+  const found = [];
+  for (const [k, v] of Object.entries(c.env || {})) if (secrets.looksSecret(k, v)) found.push(k);
+  for (const [k, v] of Object.entries(c.headers || {})) if (secrets.looksSecret(k, v)) found.push(k);
+  return found;
+}
+
+function usedBy() {
+  const map = {};
+  for (const [name, c] of Object.entries(readMcpConfig())) for (const ref of secrets.refsIn(c)) (map[ref] = map[ref] || []).push(name);
+  return map;
+}
+
+const secretNameFor = (server, key) => `${server}_${key}`.toUpperCase().replace(/[^A-Z0-9_]/g, '_').slice(0, 64);
+
+// Werte, die wie Schlüssel aussehen, in die Schlüsselverwaltung verschieben und durch ${secret:…} ersetzen.
+// Ohne Verschlüsselung (Linux ohne Schlüsselbund) bleibt die Konfiguration wie eingegeben; die Oberfläche warnt dann.
+function protectConfig(serverName, cfg) {
+  if (secrets.protection() === 'none') return cfg;
+  const out = JSON.parse(JSON.stringify(cfg));
+  for (const field of ['env', 'headers']) {
+    for (const [k, v] of Object.entries(out[field] || {})) {
+      if (!secrets.looksSecret(k, v)) continue;
+      const n = secretNameFor(serverName, k);
+      secrets.set(n, v, `MCP-Server ${serverName}, ${field === 'env' ? 'Variable' : 'Header'} ${k}`);
+      out[field][k] = '${secret:' + n + '}';
+    }
+  }
+  return out;
+}
+
+const API = {
+  state: (force) => state(force),
+  log: () => readLog(),
+  chats: () => chats.list(),
+  deleteChat: (id) => chats.remove(id),
+
+  setPolicy({ tool, policy }) {
     const p = { ...(store.load().toolPolicy || {}) };
     if (!policy || policy === 'default') delete p[tool]; else p[tool] = policy;
     store.save({ toolPolicy: p });
     return true;
-  });
-  ipcMain.handle('z:setAgent', (_e, on) => { store.save({ agentEnabled: !!on }); return true; });
+  },
+  setAgent(on) { store.save({ agentEnabled: !!on }); return true; },
 
-  ipcMain.handle('z:saveServer', async (_e, { name, oldName, config }) => {
+  async saveServer({ name, oldName, config, protect }) {
     if (!validName(name)) return { error: 'Name nur mit Buchstaben, Ziffern, Punkt, Minus oder Unterstrich (max. 40 Zeichen).' };
     if (!config || (!config.command && !config.url)) return { error: 'Befehl oder URL fehlt.' };
     const all = readMcpConfig();
     if (oldName && oldName !== name) delete all[oldName];
     else if (!oldName && all[name]) return { error: `Es gibt schon einen Server „${name}“.` };
-    all[name] = config;
+    try { all[name] = protect === false ? config : protectConfig(name, config); } catch (e) { return { error: e.message }; }
     writeMcpConfig(all);
     return state(true);
-  });
-  ipcMain.handle('z:getServer', (_e, name) => readMcpConfig()[name] || null);
-  ipcMain.handle('z:removeServer', (_e, name) => {
+  },
+  getServer: (name) => readMcpConfig()[name] || null,
+  removeServer(name) {
     const all = readMcpConfig();
     delete all[name];
     writeMcpConfig(all);
     return state(true);
-  });
-  ipcMain.handle('z:toggleServer', (_e, { name, enabled }) => {
+  },
+  toggleServer({ name, enabled }) {
     const all = readMcpConfig();
     if (!all[name]) return state();
     if (enabled) delete all[name].disabled; else all[name].disabled = true;
     writeMcpConfig(all);
     return state(true);
-  });
+  },
+  // Klartext-Schlüssel eines Servers in die Schlüsselverwaltung verschieben.
+  protectServer(name) {
+    const all = readMcpConfig();
+    if (!all[name]) return { error: 'Server nicht gefunden.' };
+    if (secrets.protection() === 'none') return { error: 'Verschlüsselung ist hier nicht verfügbar. Unter Linux gnome-keyring oder KWallet installieren und Aura neu starten.' };
+    try { all[name] = protectConfig(name, all[name]); } catch (e) { return { error: e.message }; }
+    writeMcpConfig(all);
+    return state(true);
+  },
 
-  ipcMain.handle('z:searchRegistry', async (_e, q) => {
+  async searchRegistry(q) {
     const url = `${REGISTRY}?search=${encodeURIComponent(String(q || '').trim())}&version=latest&limit=50`;
     const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
     if (!res.ok) return { error: `Verzeichnis nicht erreichbar (${res.status})` };
@@ -191,32 +241,44 @@ function register() {
         };
       })
     };
-  });
+  },
 
-  ipcMain.handle('z:installRegistry', async (_e, { name, server, env }) => {
-    const cfg = configFromRegistry(server, env || {});
-    if (!cfg) return { error: 'Für diesen Eintrag kennt Aura keine Startart (nur npm, PyPI, Docker oder Remote).' };
+  // env: { NAME: { value, secret } } oder { NAME: "wert" }. Geheime Werte landen verschlüsselt in der Schlüsselverwaltung.
+  async installRegistry({ name, server, env }) {
     const all = readMcpConfig();
     let n = String(name || server.name.split('/').pop()).replace(/[^A-Za-z0-9_.-]/g, '-').slice(0, 40);
     while (all[n]) n += '-2';
+    const plain = {};
+    try {
+      for (const [k, x] of Object.entries(env || {})) {
+        const value = typeof x === 'object' && x ? String(x.value || '') : String(x || '');
+        if (typeof x === 'object' && x && x.secret && value && secrets.protection() !== 'none') {
+          const sn = secretNameFor(n, k);
+          secrets.set(sn, value, `MCP-Server ${n}, ${k}`);
+          plain[k] = '${secret:' + sn + '}';
+        } else plain[k] = value;
+      }
+    } catch (e) { return { error: e.message }; }
+    const cfg = configFromRegistry(server, plain);
+    if (!cfg) return { error: 'Für diesen Eintrag kennt Aura keine Startart (nur npm, PyPI, Docker oder Remote).' };
     all[n] = cfg;
     writeMcpConfig(all);
     return { name: n, state: await state(true) };
-  });
+  },
 
   // Skills
-  ipcMain.handle('z:toggleSkill', (_e, { name, enabled }) => {
+  toggleSkill({ name, enabled }) {
     const off = new Set(store.load().disabledSkills || []);
     if (enabled) off.delete(name); else off.add(name);
     store.save({ disabledSkills: [...off] });
     return true;
-  });
-  ipcMain.handle('z:getSkill', (_e, name) => {
+  },
+  getSkill(name) {
     const k = skills.list().find((x) => x.name === name);
     if (!k) return null;
     return { name: k.name, dir: k.dir, content: fs.readFileSync(k.file, 'utf8') };
-  });
-  ipcMain.handle('z:saveSkill', (_e, { name, content, isNew }) => {
+  },
+  saveSkill({ name, content, isNew }) {
     const { meta } = skills.frontmatter(String(content || ''));
     const realName = String(meta.name || name || '').trim();
     if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(realName)) return { error: 'Der Name im Kopf (name:) darf nur Kleinbuchstaben, Ziffern und Minus enthalten.' };
@@ -229,29 +291,60 @@ function register() {
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.writeFileSync(target, String(content));
     return { ok: true, name: realName };
-  });
-  ipcMain.handle('z:deleteSkill', (_e, name) => {
+  },
+  deleteSkill(name) {
     const k = skills.list().find((x) => x.name === name);
     // Nur Skills in Auras eigenem Ordner löschen; ~/.agents/skills teilen sich andere Programme.
     if (!k || !k.dir.startsWith(path.join(skills.auraDir(), 'skills'))) return { error: 'Dieser Skill liegt nicht in ~/.aura/skills und wird hier nicht gelöscht.' };
     fs.rmSync(k.dir, { recursive: true, force: true });
     return { ok: true };
-  });
+  },
 
-  ipcMain.handle('z:saveAgentsMd', (_e, text) => {
+  saveAgentsMd(text) {
     fs.mkdirSync(skills.auraDir(), { recursive: true });
     fs.writeFileSync(skills.agentsFile(), String(text || ''));
     return true;
-  });
+  },
 
-  ipcMain.on('z:openPath', (_e, which) => {
+  // Schlüssel: Werte gehen nur hinein, nie heraus.
+  secrets: () => ({ protection: secrets.protection(), list: secrets.list(usedBy()) }),
+  async setSecret({ name, value, note }) {
+    try { secrets.set(String(name || '').trim(), value, note); } catch (e) { return { error: e.message }; }
+    try { await mcp.sync(true); } catch {}
+    return API.secrets();
+  },
+  setSecretNote({ name, note }) { secrets.setNote(name, note); return API.secrets(); },
+  async deleteSecret(name) {
+    secrets.remove(name);
+    try { await mcp.sync(true); } catch {}
+    return API.secrets();
+  },
+
+  // Profil
+  profile: () => ({ ...store.DEFAULT_PROFILE, ...(store.load().profile || {}) }),
+  saveProfile(p) {
+    const clean = {};
+    for (const k of Object.keys(store.DEFAULT_PROFILE)) clean[k] = typeof store.DEFAULT_PROFILE[k] === 'boolean' ? !!(p || {})[k] : String((p || {})[k] || '').slice(0, 2000);
+    store.save({ profile: clean });
+    return API.profile();
+  },
+
+  openPath(which) {
     skills.ensureFiles();
     const p = which === 'mcp' ? mcp.configFile() : which === 'skills' ? path.join(skills.auraDir(), 'skills') : which === 'log' ? loop.logFile() : skills.auraDir();
     if (which === 'mcp' && !fs.existsSync(p)) writeMcpConfig({});
     if (which === 'log' && !fs.existsSync(p)) fs.writeFileSync(p, '');
     shell.openPath(p);
-  });
-  ipcMain.on('z:openUrl', (_e, url) => { if (/^https:\/\//.test(url)) shell.openExternal(url); });
+    return true;
+  },
+  openUrl(url) { if (/^https:\/\//.test(String(url))) shell.openExternal(String(url)); return true; },
+  openWeb: () => require('./web').open(),
+  webInfo: () => require('./web').info(),
+  resetWeb: () => require('./web').resetToken()
+};
+
+function register() {
+  for (const name of Object.keys(API)) ipcMain.handle('z:' + name, (_e, arg) => API[name](arg));
 }
 
-module.exports = { open, register, configFromRegistry };
+module.exports = { open, register, configFromRegistry, API };
