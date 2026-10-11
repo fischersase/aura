@@ -34,6 +34,11 @@ async function request(url, path, opts = {}) {
       const j = await res.json();
       if (j.error) msg = j.error;
     } catch {}
+    const missing = String(msg).match(/model ['"]?([^'"\s]+)['"]? not found/i);
+    if (missing) {
+      msg = `Das Modell ${missing[1]} ist noch nicht heruntergeladen. Einstellungen → Lokale Modelle → „Herunterladen“, ` +
+        `oder im Terminal: ollama pull ${missing[1]}`;
+    }
     throw new OllamaError(msg);
   }
   return res;
