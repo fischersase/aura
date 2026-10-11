@@ -1,7 +1,7 @@
 name: Release
 on:
-  push:
-    tags: ['v*']
+  release:
+    types: [published]
   workflow_dispatch:
 permissions:
   contents: write
@@ -20,12 +20,12 @@ jobs:
         shell: pwsh
         run: Get-ChildItem dist/*-portable.exe | Select-Object -First 1 | Copy-Item -Destination dist/GeminiOverlay.exe
       - uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
+        if: github.event_name == 'release'
         with:
+          tag_name: ${{ github.event.release.tag_name }}
           files: dist/GeminiOverlay.exe
-          generate_release_notes: true
       - uses: actions/upload-artifact@v4
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        if: github.event_name != 'release'
         with:
           name: GeminiOverlay
           path: dist/GeminiOverlay.exe
