@@ -1,0 +1,31 @@
+name: CI
+# Tests für Aura: JavaScript-Syntax und der Python-Agent (agent/).
+# Läuft auf jedem Branch und jedem Pull Request; Releases kommen nur, wenn das hier grün ist.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  agent:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: agent
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run ruff check src tests spikes
+      - run: uv run pytest -q
+
+  js:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm run check

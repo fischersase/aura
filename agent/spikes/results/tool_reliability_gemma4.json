@@ -1,0 +1,362 @@
+[
+ {
+  "model": "gemma4:26b",
+  "tools": "8",
+  "tool_hit": "10/10",
+  "args_ok": "10/10",
+  "median_s": 0.54,
+  "repairs": {
+   "responses": 20,
+   "responses_with_calls": 10
+  },
+  "rows": [
+   {
+    "prompt": "Pausiere bitte die Musik",
+    "want": "media_control",
+    "got": "media_control",
+    "args": {
+     "action": "pause"
+    },
+    "ok": true,
+    "answer": "Musik pausiert.",
+    "s": 0.5
+   },
+   {
+    "prompt": "nächster song",
+    "want": "media_control",
+    "got": "media_control",
+    "args": {
+     "action": "next"
+    },
+    "ok": true,
+    "answer": "Nächster Song wird abgespielt.",
+    "s": 0.54
+   },
+   {
+    "prompt": "Was läuft gerade für ein Lied?",
+    "want": "media_status",
+    "got": "media_status",
+    "args": {},
+    "ok": true,
+    "answer": "Es läuft gerade \"Me Porto Bonito\" von Bad Bunny in Chrome.",
+    "s": 0.54
+   },
+   {
+    "prompt": "öffne antigravity",
+    "want": "launch_app",
+    "got": "launch_app",
+    "args": {
+     "name": "Antigravity"
+    },
+    "ok": true,
+    "answer": "Antigravity wurde geöffnet.",
+    "s": 0.5
+   },
+   {
+    "prompt": "Starte Firefox",
+    "want": "launch_app",
+    "got": "launch_app",
+    "args": {
+     "name": "Firefox"
+    },
+    "ok": true,
+    "answer": "Firefox wurde gestartet.",
+    "s": 0.51
+   },
+   {
+    "prompt": "Welche Fenster sind gerade offen?",
+    "want": "list_windows",
+    "got": "list_windows",
+    "args": {},
+    "ok": true,
+    "answer": "Es ist gerade nur ein Fenster offen: YouTube Music in Google Chrome.",
+    "s": 0.54
+   },
+   {
+    "prompt": "Lies mir ~/notizen.txt vor",
+    "want": "read_file",
+    "got": "read_file",
+    "args": {
+     "path": "~/notizen.txt"
+    },
+    "ok": true,
+    "answer": "In deiner Datei steht: \"Einkaufsliste: Milch, Brot\".",
+    "s": 0.6
+   },
+   {
+    "prompt": "Finde alle PDFs in meinem Downloads-Ordner",
+    "want": "find_files",
+    "got": "find_files",
+    "args": {
+     "folder": "Downloads",
+     "pattern": "*.pdf"
+    },
+    "ok": true,
+    "answer": "Ich habe eine PDF-Datei in deinem Downloads-Ordner gefunden: `rechnung.pdf`.",
+    "s": 0.63
+   },
+   {
+    "prompt": "Mach die Lautstärke auf 30 Prozent",
+    "want": "volume",
+    "got": "volume",
+    "args": {
+     "level": 30
+    },
+    "ok": true,
+    "answer": "Die Lautstärke wurde auf 30 % gestellt.",
+    "s": 0.51
+   },
+   {
+    "prompt": "Wie wird das Wetter morgen in Berlin?",
+    "want": "web_search",
+    "got": "web_search",
+    "args": {
+     "query": "Wetter Berlin morgen"
+    },
+    "ok": true,
+    "answer": "In Berlin wird es morgen regnerisch bei etwa 14 °C.",
+    "s": 0.64
+   }
+  ]
+ },
+ {
+  "model": "gemma4:26b",
+  "tools": "12",
+  "tool_hit": "10/10",
+  "args_ok": "10/10",
+  "median_s": 0.66,
+  "repairs": {
+   "responses": 20,
+   "responses_with_calls": 10
+  },
+  "rows": [
+   {
+    "prompt": "Pausiere bitte die Musik",
+    "want": "media_control",
+    "got": "media_control",
+    "args": {
+     "action": "pause"
+    },
+    "ok": true,
+    "answer": "Musik pausiert.",
+    "s": 0.65
+   },
+   {
+    "prompt": "nächster song",
+    "want": "media_control",
+    "got": "media_control",
+    "args": {
+     "action": "next"
+    },
+    "ok": true,
+    "answer": "Nächster Song läuft.",
+    "s": 0.62
+   },
+   {
+    "prompt": "Was läuft gerade für ein Lied?",
+    "want": "media_status",
+    "got": "media_status",
+    "args": {},
+    "ok": true,
+    "answer": "Gerade läuft „Me Porto Bonito“ von Bad Bunny in Chrome.",
+    "s": 0.68
+   },
+   {
+    "prompt": "öffne antigravity",
+    "want": "launch_app",
+    "got": "launch_app",
+    "args": {
+     "name": "Antigravity"
+    },
+    "ok": true,
+    "answer": "Antigravity wurde geöffnet.",
+    "s": 0.68
+   },
+   {
+    "prompt": "Starte Firefox",
+    "want": "launch_app",
+    "got": "launch_app",
+    "args": {
+     "name": "Firefox"
+    },
+    "ok": true,
+    "answer": "Firefox wurde gestartet.",
+    "s": 0.63
+   },
+   {
+    "prompt": "Welche Fenster sind gerade offen?",
+    "want": "list_windows",
+    "got": "list_windows",
+    "args": {},
+    "ok": true,
+    "answer": "Es ist gerade nur ein Fenster offen: **YouTube Music** im Browser **Google Chrome**.",
+    "s": 0.65
+   },
+   {
+    "prompt": "Lies mir ~/notizen.txt vor",
+    "want": "read_file",
+    "got": "read_file",
+    "args": {
+     "path": "/home/user/notizen.txt"
+    },
+    "ok": true,
+    "answer": "Einkaufsliste: Milch, Brot",
+    "s": 0.66
+   },
+   {
+    "prompt": "Finde alle PDFs in meinem Downloads-Ordner",
+    "want": "find_files",
+    "got": "find_files",
+    "args": {
+     "folder": "~/Downloads",
+     "pattern": "*.pdf"
+    },
+    "ok": true,
+    "answer": "Ich habe eine PDF-Datei in deinem Downloads-Ordner gefunden: `rechnung.pdf`.",
+    "s": 0.72
+   },
+   {
+    "prompt": "Mach die Lautstärke auf 30 Prozent",
+    "want": "volume",
+    "got": "volume",
+    "args": {
+     "level": 30
+    },
+    "ok": true,
+    "answer": "Die Lautstärke wurde auf 30 % gesetzt.",
+    "s": 0.6
+   },
+   {
+    "prompt": "Wie wird das Wetter morgen in Berlin?",
+    "want": "web_search",
+    "got": "web_search",
+    "args": {
+     "query": "Wetter Berlin morgen"
+    },
+    "ok": true,
+    "answer": "Morgen wird es in Berlin regnerisch bei etwa 14 °C.",
+    "s": 0.77
+   }
+  ]
+ },
+ {
+  "model": "gemma4:26b",
+  "tools": "20",
+  "tool_hit": "10/10",
+  "args_ok": "10/10",
+  "median_s": 0.72,
+  "repairs": {
+   "responses": 20,
+   "responses_with_calls": 10
+  },
+  "rows": [
+   {
+    "prompt": "Pausiere bitte die Musik",
+    "want": "media_control",
+    "got": "media_control",
+    "args": {
+     "action": "pause"
+    },
+    "ok": true,
+    "answer": "Musik pausiert.",
+    "s": 0.76
+   },
+   {
+    "prompt": "nächster song",
+    "want": "media_control",
+    "got": "media_control",
+    "args": {
+     "action": "next"
+    },
+    "ok": true,
+    "answer": "Nächster Song wird abgespielt.",
+    "s": 0.66
+   },
+   {
+    "prompt": "Was läuft gerade für ein Lied?",
+    "want": "media_status",
+    "got": "media_status",
+    "args": {},
+    "ok": true,
+    "answer": "Gerade läuft \"Me Porto Bonito\" von Bad Bunny in Chrome.",
+    "s": 0.69
+   },
+   {
+    "prompt": "öffne antigravity",
+    "want": "launch_app",
+    "got": "launch_app",
+    "args": {
+     "name": "Antigravity"
+    },
+    "ok": true,
+    "answer": "Antigravity wurde geöffnet.",
+    "s": 0.67
+   },
+   {
+    "prompt": "Starte Firefox",
+    "want": "launch_app",
+    "got": "launch_app",
+    "args": {
+     "name": "Firefox"
+    },
+    "ok": true,
+    "answer": "Firefox wurde gestartet.",
+    "s": 0.7
+   },
+   {
+    "prompt": "Welche Fenster sind gerade offen?",
+    "want": "list_windows",
+    "got": "list_windows",
+    "args": {},
+    "ok": true,
+    "answer": "Aktuell ist nur ein Fenster offen: YouTube Music in Google Chrome.",
+    "s": 0.72
+   },
+   {
+    "prompt": "Lies mir ~/notizen.txt vor",
+    "want": "read_file",
+    "got": "read_file",
+    "args": {
+     "path": "/home/user/notizen.txt"
+    },
+    "ok": true,
+    "answer": "In deiner Datei `~/notizen.txt` steht: \"Einkaufsliste: Milch, Brot\".",
+    "s": 0.8
+   },
+   {
+    "prompt": "Finde alle PDFs in meinem Downloads-Ordner",
+    "want": "find_files",
+    "got": "find_files",
+    "args": {
+     "folder": "Downloads",
+     "pattern": "*.pdf"
+    },
+    "ok": true,
+    "answer": "Ich habe eine PDF-Datei in deinem Downloads-Ordner gefunden: `rechnung.pdf`.",
+    "s": 0.79
+   },
+   {
+    "prompt": "Mach die Lautstärke auf 30 Prozent",
+    "want": "volume",
+    "got": "volume",
+    "args": {
+     "level": 30
+    },
+    "ok": true,
+    "answer": "Die Lautstärke wurde auf 30 % gesetzt.",
+    "s": 0.68
+   },
+   {
+    "prompt": "Wie wird das Wetter morgen in Berlin?",
+    "want": "web_search",
+    "got": "web_search",
+    "args": {
+     "query": "Wetter Berlin morgen"
+    },
+    "ok": true,
+    "answer": "Morgen wird es in Berlin regnerisch bei etwa 14 °C.",
+    "s": 0.8
+   }
+  ]
+ }
+]
