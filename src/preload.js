@@ -41,6 +41,8 @@ contextBridge.exposeInMainWorld('api', {
   agentApproval: (stepId, ok) => ipcRenderer.send('agent:approval', { stepId, ok }),
   stopAgent: () => ipcRenderer.send('agent:stop'),
   openAgentLog: () => ipcRenderer.send('agent:openLog'),
+  agentExtensions: (force) => ipcRenderer.invoke('agent:extensions', force),
+  openAgentFile: (which) => ipcRenderer.send('agent:openFile', which),
 
   // Live
   liveConfig: () => ipcRenderer.invoke('live:config'),

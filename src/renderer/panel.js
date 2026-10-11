@@ -231,8 +231,9 @@ window.api.onChatError(({ id, message }) => {
 
 const TOOL_NAMES = {
   run_command: 'Befehl', find_files: 'Suche', list_folder: 'Ordner', read_file: 'Lesen',
-  write_file: 'Schreiben', open: 'Öffnen', screenshot: 'Bildschirmfoto'
+  write_file: 'Schreiben', open: 'Öffnen', screenshot: 'Bildschirmfoto', activate_skill: 'Skill'
 };
+const toolName = (t) => TOOL_NAMES[t] || (t.startsWith('mcp_') ? 'MCP' : t);
 const STEP_STATE = { ask: 'Wartet auf deine Freigabe', run: 'Läuft …', ok: 'Erledigt', error: 'Fehlgeschlagen', denied: 'Abgelehnt' };
 
 function stepEl(step) {
@@ -242,7 +243,7 @@ function stepEl(step) {
     el.className = 'step';
     el.dataset.id = step.id;
     el.innerHTML = '<div class="line"><i></i><b></b><span></span></div>';
-    el.querySelector('b').textContent = TOOL_NAMES[step.tool] || step.tool;
+    el.querySelector('b').textContent = toolName(step.tool);
     el.querySelector('span').textContent = step.label;
     el.querySelector('span').title = step.label;
     streaming.el.querySelector('.steps').appendChild(el);
@@ -268,7 +269,8 @@ window.api.onAgentApprove((step) => {
   const box = document.createElement('div');
   box.className = 'approve';
   box.innerHTML = '<div class="q"></div><pre></pre><div class="btns"><button class="deny">Ablehnen</button><button class="allow">Ausführen</button></div>';
-  box.querySelector('.q').textContent = step.tool === 'write_file' ? 'Aura möchte diese Datei schreiben:' : step.tool === 'open' ? 'Aura möchte dieses Programm starten:' : 'Aura möchte diesen Befehl ausführen:';
+  box.querySelector('.q').textContent = step.tool === 'write_file' ? 'Aura möchte diese Datei schreiben:' : step.tool === 'open' ? 'Aura möchte dieses Programm starten:'
+    : step.tool.startsWith('mcp_') ? 'Aura möchte dieses Werkzeug nutzen:' : 'Aura möchte diesen Befehl ausführen:';
   box.querySelector('pre').textContent = step.label + (step.detail ? '\n\n' + step.detail : '');
   const answer = (ok) => { box.remove(); window.api.agentApproval(step.id, ok); };
   box.querySelector('.allow').onclick = () => answer(true);

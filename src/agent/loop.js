@@ -6,12 +6,26 @@ const path = require('path');
 const { app } = require('electron');
 const gemini = require('../gemini');
 const ollama = require('../ollama');
-const { TOOLS, byName } = require('./tools');
+const { TOOLS } = require('./tools');
+const skills = require('./skills');
+const mcp = require('./mcp');
+
+// Werkzeuge für einen Auftrag: eingebaute, activate_skill (falls Skills da) und MCP-Server.
+async function toolset() {
+  try { await mcp.sync(); } catch {}
+  const list = [...TOOLS];
+  const sk = skills.tool();
+  if (sk) list.push(sk);
+  list.push(...mcp.tools());
+  return { list, byName: Object.fromEntries(list.map((t) => [t.name, t])) };
+}
 
 const MAX_STEPS = 30;
 const IS_WIN = process.platform === 'win32';
 
-const SYSTEM = (lang) => [
+const SYSTEM = (lang) => [BASE_SYSTEM(lang), skills.promptAddon()].filter(Boolean).join('\n\n');
+
+const BASE_SYSTEM = (lang) => [
   `Du bist Aura, ein Assistent mit Zugriff auf den ${IS_WIN ? 'Windows' : 'Linux'}-PC des Nutzers (Benutzer ${os.userInfo().username}, Benutzerordner ${os.homedir()}).`,
   `Antworte kurz, klar und freundlich, standardmäßig auf ${lang}. Markdown sparsam.`,
   'Wenn der Nutzer etwas am PC erledigt haben will (Programm oder Ordner öffnen, Dateien finden, Befehle, Systeminfos), erledige es selbst mit deinen Werkzeugen, statt eine Anleitung zu schreiben.',
@@ -35,8 +49,8 @@ function log(entry) {
 
 // ---------- Ein Werkzeug ausführen ----------
 
-async function execute(name, args, { approve, onStep, signal, ctx }) {
-  const tool = byName[name];
+async function execute(name, args, { tools, approve, onStep, signal, ctx }) {
+  const tool = tools.byName[name];
   const step = { id: Math.random().toString(36).slice(2), tool: name, label: '' };
   if (!tool) {
     return { result: { error: `Unbekanntes Werkzeug ${name}` } };
@@ -66,24 +80,26 @@ async function execute(name, args, { approve, onStep, signal, ctx }) {
   let image = null;
   if (result.image) {
     image = result.image;
-    result = { ...result, image: undefined, note: 'Bildschirmfoto liegt bei.' };
+    result = { ...result, image: undefined, note: 'Bild liegt bei.' };
   }
   return { result, image };
 }
 
 // ---------- Gemini ----------
 
-const geminiDecls = () => TOOLS.map((t) => ({ name: t.name, description: t.description, parametersJsonSchema: t.parameters }));
+const geminiDecls = (tools) => tools.list.map((t) => ({ name: t.name, description: t.description, parametersJsonSchema: t.parameters }));
 let geminiCombined = true; // Google-Suche und eigene Funktionen zusammen; fällt zurück, falls das Modell es nicht kann
 
 async function runGemini({ apiKey, model, history, language, onText, onStep, onUsage, approve, signal, ctx }) {
   const contents = JSON.parse(JSON.stringify(history));
+  const set = await toolset();
+  const system = SYSTEM(language);
   for (let i = 0; i < MAX_STEPS; i++) {
-    const tools = [{ functionDeclarations: geminiDecls() }];
+    const tools = [{ functionDeclarations: geminiDecls(set) }];
     if (geminiCombined) tools.push({ googleSearch: {} });
     let res;
     try {
-      res = await gemini.streamChat({ apiKey, model, history: contents, system: SYSTEM(language), tools, onText, signal });
+      res = await gemini.streamChat({ apiKey, model, history: contents, system, tools, onText, signal });
     } catch (err) {
       if (geminiCombined && /tool|search|function/i.test(String(err.message))) {
         geminiCombined = false;
@@ -100,10 +116,10 @@ async function runGemini({ apiKey, model, history, language, onText, onStep, onU
     const replies = [];
     const images = [];
     for (const c of calls) {
-      const { result, image } = await execute(c.functionCall.name, c.functionCall.args, { approve, onStep, signal, ctx });
+      const { result, image } = await execute(c.functionCall.name, c.functionCall.args, { tools: set, approve, onStep, signal, ctx });
       if (signal.aborted) return;
       replies.push({ functionResponse: { name: c.functionCall.name, ...(c.functionCall.id ? { id: c.functionCall.id } : {}), response: result } });
-      if (image) images.push({ inlineData: { mimeType: 'image/jpeg', data: image } });
+      if (image) images.push({ inlineData: { mimeType: image.startsWith('iVBOR') ? 'image/png' : 'image/jpeg', data: image } });
     }
     contents.push({ role: 'user', parts: [...replies, ...images] });
   }
@@ -112,14 +128,15 @@ async function runGemini({ apiKey, model, history, language, onText, onStep, onU
 
 // ---------- Ollama ----------
 
-const ollamaTools = () => TOOLS.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));
+const ollamaTools = (tools) => tools.list.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));
 
 async function runOllama({ url, model, history, language, onText, onStep, approve, signal, ctx }) {
   const messages = ollama.toMessages(history, SYSTEM(language));
+  const set = await toolset();
   for (let i = 0; i < MAX_STEPS; i++) {
     let res;
     try {
-      res = await ollama.chatFull({ url, model, messages, tools: ollamaTools(), signal, onText });
+      res = await ollama.chatFull({ url, model, messages, tools: ollamaTools(set), signal, onText });
     } catch (err) {
       // Modelle ohne Werkzeug-Unterstützung (z. B. deepseek-r1): normal antworten.
       if (/does not support tools/i.test(String(err.message))) {
@@ -137,7 +154,7 @@ async function runOllama({ url, model, history, language, onText, onStep, approv
       const fn = c.function || {};
       let args = fn.arguments;
       if (typeof args === 'string') { try { args = JSON.parse(args); } catch { args = {}; } }
-      const { result, image } = await execute(fn.name, args, { approve, onStep, signal, ctx });
+      const { result, image } = await execute(fn.name, args, { tools: set, approve, onStep, signal, ctx });
       if (signal.aborted) return;
       messages.push({ role: 'tool', tool_name: fn.name, content: JSON.stringify(result) });
       if (image) images.push(image);
@@ -147,4 +164,4 @@ async function runOllama({ url, model, history, language, onText, onStep, approv
   onText('\n\n_(Abgebrochen: zu viele Schritte.)_');
 }
 
-module.exports = { runGemini, runOllama, logFile, SYSTEM };
+module.exports = { runGemini, runOllama, logFile, SYSTEM, toolset };

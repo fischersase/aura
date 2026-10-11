@@ -11,6 +11,8 @@ const keys = require('./keys');
 const usage = require('./usage');
 const agent = require('./agent/loop');
 const agentTools = require('./agent/tools');
+const agentSkills = require('./agent/skills');
+const agentMcp = require('./agent/mcp');
 
 const R = (f) => path.join(__dirname, 'renderer', f);
 const ICON = path.join(__dirname, '..', 'assets', 'icon.png');
@@ -579,6 +581,28 @@ ipcMain.on('agent:openLog', () => {
   if (!fs.existsSync(f)) fs.writeFileSync(f, '');
   shell.openPath(f);
 });
+
+// Erweiterungen: AGENTS.md, Skills-Ordner, MCP-Server.
+ipcMain.handle('agent:extensions', async (_e, force) => {
+  try { await agentMcp.sync(!!force); } catch {}
+  return {
+    skills: agentSkills.list().map((x) => ({ name: x.name, description: x.description })),
+    mcp: agentMcp.status(),
+    hasAgentsMd: !!agentSkills.promptAddon().includes('AGENTS.md'),
+    auraDir: agentSkills.auraDir()
+  };
+});
+ipcMain.on('agent:openFile', (_e, which) => {
+  agentSkills.ensureFiles();
+  if (which === 'agents') shell.openPath(agentSkills.agentsFile());
+  else if (which === 'skills') shell.openPath(path.join(agentSkills.auraDir(), 'skills'));
+  else if (which === 'mcp') {
+    const f = agentMcp.configFile();
+    if (!fs.existsSync(f)) fs.writeFileSync(f, JSON.stringify({ mcpServers: {} }, null, 2) + '\n');
+    shell.openPath(f);
+  }
+});
+app.on('will-quit', () => agentMcp.closeAll());
 
 // Das Notbremse-Kürzel ist nur aktiv, solange der Agent arbeitet.
 let stopKeyOn = null;

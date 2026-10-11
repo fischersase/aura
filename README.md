@@ -73,6 +73,25 @@ Ask in the chat, e.g. "open my downloads folder", "find the invoice from March",
 - Turn it off under Settings → *Agent*.
 - Local models need tool support: `qwen3.6:27b` or `gemma4:31b` on a 24 GB GPU, smaller `gemma4`/`qwen3.5` models also work but make more mistakes. DeepSeek R1 cannot use tools.
 
+## Extensions: instructions, skills, MCP servers
+
+Like Claude Code, Gemini CLI or Codex, Aura reads extensions from `~/.aura` (Windows: `%USERPROFILE%\.aura`). Settings → *Erweiterungen* opens the files and shows what loaded.
+
+- **`AGENTS.md`**: your standing instructions ("my invoices are in ~/Ablage", "answer briefly"). Added to every agent request.
+- **Skills** in `~/.aura/skills/<name>/SKILL.md` or `~/.agents/skills/` ([Agent Skills format](https://agentskills.io): `name` and `description` in the front matter). The model only sees name and description and loads the full skill when it fits the task. Scripts in a skill still go through the approval for commands.
+- **MCP servers** in `~/.aura/mcp.json`, same format as Claude Desktop:
+
+```json
+{
+  "mcpServers": {
+    "playwright": { "command": "npx", "args": ["@playwright/mcp@latest", "--isolated"] },
+    "my-remote": { "url": "https://example.com/mcp", "headers": { "Authorization": "Bearer …" } }
+  }
+}
+```
+
+  MCP tools marked read-only by the server run directly; all others ask first. Add `"autoApprove": ["tool_name"]` to a server to skip the question for specific tools. Only install skills and servers from sources you trust: published skill stores have contained malware.
+
 ## Shortcuts (configurable)
 
 | Shortcut | Action |

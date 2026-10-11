@@ -94,6 +94,27 @@ window.api.onUsage(showUsage);
 
 $('close').onclick = () => window.close();
 $('openLog').onclick = () => window.api.openAgentLog();
+$('openAgents').onclick = () => window.api.openAgentFile('agents');
+$('openSkills').onclick = () => window.api.openAgentFile('skills');
+$('openMcp').onclick = () => window.api.openAgentFile('mcp');
+
+async function showExtensions(force) {
+  const el = $('extStatus');
+  el.textContent = 'Lade …';
+  const x = await window.api.agentExtensions(force === true);
+  el.innerHTML = '';
+  const line = (text, cls) => { const d = document.createElement('div'); d.textContent = text; if (cls) d.className = cls; el.appendChild(d); };
+  line(x.hasAgentsMd ? 'AGENTS.md: wird verwendet' : 'AGENTS.md: leer');
+  line(x.skills.length ? `Skills: ${x.skills.map((s) => s.name).join(', ')}` : 'Skills: keine');
+  if (!x.mcp.length) line('MCP-Server: keine');
+  x.mcp.forEach((m) => line(m.error ? `MCP ${m.name}: Fehler – ${m.error}` : `MCP ${m.name}: ${m.tools} Werkzeuge`, m.error ? 'bad' : 'ok'));
+  const hint = document.createElement('div');
+  hint.className = 'hint';
+  hint.textContent = `Ordner: ${x.auraDir}`;
+  el.appendChild(hint);
+}
+$('reloadExt').onclick = () => showExtensions(true);
+showExtensions();
 document.addEventListener('click', (e) => {
   const a = e.target.closest('a[data-url]');
   if (a) { e.preventDefault(); window.api.openExternal(a.dataset.url); }

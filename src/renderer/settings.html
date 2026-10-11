@@ -95,6 +95,19 @@
   </section>
 
   <section>
+    <h2>Erweiterungen</h2>
+    <div class="hint">Wie bei Claude Code oder Gemini CLI: eigene Anweisungen, Skills (Ordner mit <code>SKILL.md</code>, Format von agentskills.io)
+      und MCP-Server (<code>mcp.json</code> im Format von Claude Desktop). Installiere nur Skills und Server aus Quellen, denen du vertraust.</div>
+    <div class="row" style="margin-top:10px">
+      <button id="openAgents">Anweisungen (AGENTS.md)</button>
+      <button id="openSkills">Skills-Ordner</button>
+      <button id="openMcp">MCP-Server</button>
+    </div>
+    <div id="extStatus" class="status"></div>
+    <div class="row"><span></span><button id="reloadExt">Neu laden</button></div>
+  </section>
+
+  <section>
     <h2>Tastenkürzel</h2>
     <div class="hint">Feld anklicken und die gewünschte Kombination drücken. Rücktaste = Kürzel entfernen.</div>
     <label for="hotkeyGemini">Aura öffnen / schließen</label>
