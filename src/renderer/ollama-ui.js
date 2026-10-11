@@ -17,6 +17,12 @@ function OllamaPanel(root, settings) {
     <div class="row"><select class="ol-model"></select><button type="button" class="ol-pull">Herunterladen</button></div>
     <div class="ol-hint hint"></div>
     <div class="ol-progress hidden"><b><i></i></b><span></span></div>
+    <label>Gedächtnis pro Auftrag (Kontextlänge)</label>
+    <select class="ol-ctx">
+      <option value="8192">8.192 Tokens (wenig Speicher)</option>
+      <option value="16384">16.384 Tokens (Standard)</option>
+      <option value="32768">32.768 Tokens (24 GB Grafikspeicher, besser für den Agenten)</option>
+    </select>
     <label>Spracherkennung (läuft in der App, lädt beim ersten Diktat)</label>
     <select class="ol-whisper">${WHISPER_MODELS.map((m) => `<option value="${m.id}">${m.label}</option>`).join('')}</select>
     <div class="hint">Live wird lokal zum Wechselgespräch: du sprichst, das Modell sieht ein Bildschirmfoto, antwortet und liest vor.
@@ -29,6 +35,7 @@ function OllamaPanel(root, settings) {
 
   q('.ol-url').value = settings.ollamaUrl || 'http://127.0.0.1:11434';
   q('.ol-whisper').value = settings.whisperModel || WHISPER_MODELS[1].id;
+  q('.ol-ctx').value = String(settings.ollamaContext || 16384);
   if (settings.platform === 'linux') q('.ol-linux').classList.remove('hidden');
 
   function fillModels(selected) {
@@ -99,7 +106,8 @@ function OllamaPanel(root, settings) {
     values: () => ({
       ollamaUrl: q('.ol-url').value.trim() || 'http://127.0.0.1:11434',
       ollamaModel: q('.ol-model').value,
-      whisperModel: q('.ol-whisper').value
+      whisperModel: q('.ol-whisper').value,
+      ollamaContext: Number(q('.ol-ctx').value) || 16384
     })
   };
 }

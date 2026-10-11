@@ -66,11 +66,14 @@ Ask in the chat, e.g. "open my downloads folder", "find the invoice from March",
 | Run command | PowerShell on Windows, bash on Linux | yes, unless it only reads (`ls`, `df`, `Get-ChildItem` …) |
 | Write file | create, replace or append | yes |
 | Screenshot | lets the model look at your screen | no |
+| Click, type, press keys | operate programs with mouse and keyboard, checking a fresh screenshot after each step | yes (or *Alle erlauben* for the rest of the task) |
 
-- Approve or decline right in the Aura window; declining is passed back to the model.
+- Approve or decline right in the Aura window; declining is passed back to the model. *Alle erlauben* approves the remaining steps of the current task only.
+- Mouse and keyboard on Linux need `xdotool` (X11) or `ydotool`/`wtype` (Wayland).
 - **Emergency stop:** the stop button, or Ctrl+Alt+Esc while Aura is working, cancels the task and ends commands it started.
 - Every action is logged: tray menu → *Aktionsprotokoll öffnen* (`agent-log.jsonl` in the settings folder).
 - Turn it off under Settings → *Agent*.
+- Local models get a 16k context by default (Settings → *Lokale Modelle*; choose 32k on a 24 GB GPU).
 - Local models need tool support: `qwen3.6:27b` or `gemma4:31b` on a 24 GB GPU, smaller `gemma4`/`qwen3.5` models also work but make more mistakes. DeepSeek R1 cannot use tools.
 
 ## Extensions: instructions, skills, MCP servers

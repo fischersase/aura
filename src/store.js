@@ -14,6 +14,7 @@ const DEFAULTS = {
   provider: 'gemini', // 'gemini' (API-Key) oder 'ollama' (lokal)
   ollamaUrl: 'http://127.0.0.1:11434',
   ollamaModel: 'gemma4:e4b', // Chat, Rambler-Nachbearbeitung und Live bei provider 'ollama'
+  ollamaContext: 16384, // Kontextlänge für Agent-Aufträge (Tokens); mit 24 GB Grafikspeicher geht auch 32768
   whisperModel: 'onnx-community/whisper-small', // lokale Spracherkennung
   chatModel: 'gemini-3.8-flash',
   ramblerModel: 'gemini-3.8-flash',

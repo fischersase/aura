@@ -456,6 +456,7 @@ ipcMain.handle('settings:save', (_e, patch) => {
   const { apiKey, ...rest } = patch || {};
   if (apiKey !== undefined) store.setApiKey(apiKey);
   store.save(rest);
+  ollama.setContextSize(store.load().ollamaContext);
   const failed = registerHotkeys();
   applyAutostart();
   broadcastUsage();
@@ -529,9 +530,11 @@ let agentRuns = 0;
 async function runAgent(sender, id, ctrl, contents, onText) {
   const s = store.load();
   const send = (ch, data) => { if (!sender.isDestroyed()) sender.send(ch, data); };
+  let allowAll = false; // „Alle erlauben“ gilt bis zum Ende dieses Auftrags
   const approve = (step) => new Promise((resolve) => {
     if (ctrl.signal.aborted) return resolve(false);
-    approvals.set(step.id, resolve);
+    if (allowAll) return resolve(true);
+    approvals.set(step.id, (ok) => { if (ok === 'all') allowAll = true; resolve(!!ok); });
     ctrl.signal.addEventListener('abort', () => { approvals.delete(step.id); resolve(false); }, { once: true });
     send('agent:approve', { chatId: id, ...step });
     if (panel && !panelOpen) openPanel();
@@ -543,7 +546,16 @@ async function runAgent(sender, id, ctrl, contents, onText) {
     onStep: (step) => send('agent:step', { chatId: id, ...step }),
     approve,
     signal: ctrl.signal,
-    ctx: { screenshot: () => screenshotJpeg(currentDisplay) }
+    ctx: {
+      screenshot: () => screenshotJpeg(currentDisplay),
+      // 0–1000 im Bildschirmfoto → echte Bildschirm-Pixel
+      toScreen: (x, y) => {
+        const d = currentDisplay || displayUnderCursor();
+        const dip = { x: d.bounds.x + (x / 1000) * d.bounds.width, y: d.bounds.y + (y / 1000) * d.bounds.height };
+        if (process.platform === 'win32') return screen.dipToScreenPoint(dip);
+        return { x: dip.x * d.scaleFactor, y: dip.y * d.scaleFactor };
+      }
+    }
   };
   agentRuns++;
   registerStopHotkey();
@@ -566,7 +578,7 @@ async function runAgent(sender, id, ctrl, contents, onText) {
 
 ipcMain.on('agent:approval', (_e, { stepId, ok }) => {
   const r = approvals.get(stepId);
-  if (r) { approvals.delete(stepId); r(!!ok); }
+  if (r) { approvals.delete(stepId); r(ok === 'all' ? 'all' : !!ok); }
 });
 
 // Notbremse: alle laufenden Aufträge abbrechen und gestartete Befehle beenden.
@@ -847,6 +859,7 @@ function createTray() {
 }
 
 app.whenReady().then(() => {
+  ollama.setContextSize(store.load().ollamaContext);
   // Mikrofon für Live/Rambler erlauben.
   session.defaultSession.setPermissionRequestHandler((_wc, perm, cb) => cb(perm === 'media' || perm === 'display-capture'));
   session.defaultSession.setPermissionCheckHandler((_wc, perm) => perm === 'media' || perm === 'display-capture');

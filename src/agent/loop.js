@@ -32,7 +32,8 @@ const BASE_SYSTEM = (lang) => [
   'Ändernde Aktionen (Befehle, die etwas verändern, Dateien schreiben) zeigt die App dem Nutzer selbst zur Freigabe; frage dafür nicht zusätzlich im Chat nach, sondern rufe das Werkzeug direkt auf.',
   'Lehnt der Nutzer ab, akzeptiere das und schlage höchstens eine Alternative vor. Lösche oder überschreibe nichts, worum er nicht gebeten hat.',
   'Prüfe Ergebnisse kurz und sage am Ende in ein bis zwei Sätzen, was du getan hast. Gib keine Zugangsdaten oder Schlüssel aus Dateien wieder.',
-  'Wenn ein Bildschirmfoto beiliegt, beziehe dich konkret darauf.'
+  'Wenn ein Bildschirmfoto beiliegt, beziehe dich konkret darauf.',
+  'Programme bedienen kannst du mit screenshot, click (Koordinaten 0 bis 1000 im Bildschirmfoto), type_text und press_keys. Nutze das nur, wenn es nicht einfacher mit open, run_command oder Dateien geht, und prüfe nach jedem Schritt das neue Bildschirmfoto.'
 ].join(' ');
 
 // ---------- Aktionsprotokoll ----------
@@ -121,7 +122,7 @@ async function runGemini({ apiKey, model, history, language, onText, onStep, onU
       replies.push({ functionResponse: { name: c.functionCall.name, ...(c.functionCall.id ? { id: c.functionCall.id } : {}), response: result } });
       if (image) images.push({ inlineData: { mimeType: image.startsWith('iVBOR') ? 'image/png' : 'image/jpeg', data: image } });
     }
-    contents.push({ role: 'user', parts: [...replies, ...images] });
+    contents.push({ role: 'user', parts: [...replies, ...images.slice(-1)] }); // nur das neueste Bild
   }
   onText('\n\n_(Abgebrochen: zu viele Schritte.)_');
 }
@@ -130,13 +131,13 @@ async function runGemini({ apiKey, model, history, language, onText, onStep, onU
 
 const ollamaTools = (tools) => tools.list.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));
 
-async function runOllama({ url, model, history, language, onText, onStep, approve, signal, ctx }) {
+async function runOllama({ url, model, numCtx, history, language, onText, onStep, approve, signal, ctx }) {
   const messages = ollama.toMessages(history, SYSTEM(language));
   const set = await toolset();
   for (let i = 0; i < MAX_STEPS; i++) {
     let res;
     try {
-      res = await ollama.chatFull({ url, model, messages, tools: ollamaTools(set), signal, onText });
+      res = await ollama.chatFull({ url, model, messages, tools: ollamaTools(set), numCtx, signal, onText });
     } catch (err) {
       // Modelle ohne Werkzeug-Unterstützung (z. B. deepseek-r1): normal antworten.
       if (/does not support tools/i.test(String(err.message))) {
@@ -159,7 +160,7 @@ async function runOllama({ url, model, history, language, onText, onStep, approv
       messages.push({ role: 'tool', tool_name: fn.name, content: JSON.stringify(result) });
       if (image) images.push(image);
     }
-    if (images.length) messages.push({ role: 'user', content: 'Bildschirmfoto:', images });
+    if (images.length) messages.push({ role: 'user', content: 'Bildschirmfoto:', images: images.slice(-1) }); // nur das neueste
   }
   onText('\n\n_(Abgebrochen: zu viele Schritte.)_');
 }

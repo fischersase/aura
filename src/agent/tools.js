@@ -7,6 +7,8 @@ const fsp = fs.promises;
 const os = require('os');
 const path = require('path');
 
+const input = require('./input');
+
 const IS_WIN = process.platform === 'win32';
 const MAX_OUT = 12000; // Zeichen, die ans Modell zurückgehen
 const running = new Set(); // laufende Befehle, für die Notbremse
@@ -430,6 +432,52 @@ const TOOLS = [
     run: async (_a, ctx) => ({ ok: true, image: await ctx.screenshot() })
   }
 ];
+
+// ---------- Programme bedienen (Maus und Tastatur) ----------
+
+const settle = (ms = 700) => new Promise((r) => setTimeout(r, ms));
+const coord = { type: 'number', description: '0 bis 1000 im letzten Bildschirmfoto' };
+
+// Nach jeder Eingabe ein frisches Bildschirmfoto, damit das Modell das Ergebnis sieht.
+async function withShot(result, ctx) {
+  if (result.error) return result;
+  await settle();
+  try { return { ...result, image: await ctx.screenshot() }; } catch { return result; }
+}
+
+TOOLS.push(
+  {
+    name: 'click',
+    description: 'Klickt mit der Maus auf eine Stelle des Bildschirms. x und y von 0 bis 1000 bezogen auf das letzte Bildschirmfoto (0,0 = oben links). Vorher immer ein Bildschirmfoto machen. Danach kommt automatisch ein neues Bildschirmfoto zurück.',
+    parameters: {
+      type: 'object',
+      properties: { x: coord, y: coord, button: { type: 'string', enum: ['left', 'right'] }, double: { type: 'boolean', description: 'Doppelklick' }, what: { type: 'string', description: 'Worauf geklickt wird, z. B. "Speichern-Knopf"' } },
+      required: ['x', 'y', 'what']
+    },
+    changes: () => true,
+    label: (a) => `${a.what || 'Stelle'} (${Math.round(a.x)}, ${Math.round(a.y)})${a.double ? ', doppelt' : ''}${a.button === 'right' ? ', rechts' : ''}`,
+    run: async (a, ctx) => {
+      const p = ctx.toScreen(Number(a.x), Number(a.y));
+      return withShot(await input.click(p.x, p.y, { button: a.button, double: !!a.double }), ctx);
+    }
+  },
+  {
+    name: 'type_text',
+    description: 'Tippt Text in das gerade aktive Eingabefeld (vorher hineinklicken). Zeilenumbrüche werden zu Enter.',
+    parameters: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] },
+    changes: () => true,
+    label: (a) => clip(a.text, 200),
+    run: async (a, ctx) => withShot(await input.typeText(a.text), ctx)
+  },
+  {
+    name: 'press_keys',
+    description: 'Drückt eine Taste oder Tastenkombination im aktiven Fenster, z. B. "enter", "ctrl+s", "alt+tab", "ctrl+shift+t", "f5".',
+    parameters: { type: 'object', properties: { keys: { type: 'string' } }, required: ['keys'] },
+    changes: () => true,
+    label: (a) => a.keys,
+    run: async (a, ctx) => withShot(await input.pressKeys(a.keys), ctx)
+  }
+);
 
 const byName = Object.fromEntries(TOOLS.map((t) => [t.name, t]));
 

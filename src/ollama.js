@@ -15,6 +15,9 @@ const RECOMMENDED = [
 
 class OllamaError extends Error {}
 
+let contextSize = 16384;
+const setContextSize = (n) => { contextSize = Math.max(2048, Number(n) || 16384); };
+
 const base = (url) => String(url || DEFAULT_URL).replace(/\/+$/, '');
 
 async function request(url, path, opts = {}) {
@@ -101,10 +104,13 @@ async function chat(opts) {
 }
 
 // Wie chat, aber mit Werkzeugen: liefert Text und die Werkzeugaufrufe des Modells.
-async function chatFull({ url, model, messages, format, tools, signal, onText }) {
+async function chatFull({ url, model, messages, format, tools, numCtx, signal, onText }) {
   const body = { model, messages, stream: true, think: false, keep_alive: '30m' };
   if (format) body.format = format;
   if (tools && tools.length) body.tools = tools;
+  // Agent: System-Prompt, Werkzeugliste und Ergebnisse passen nicht in Ollamas kleinen Standard-Kontext.
+  // Immer derselbe Wert, sonst lädt Ollama das Modell bei jedem Wechsel (Chat/Live/Rambler) neu.
+  body.options = { num_ctx: numCtx || contextSize };
   let res;
   try {
     res = await request(url, '/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal });
@@ -206,4 +212,4 @@ async function liveTurn({ url, model, language, history, question, jpeg, signal 
   return { say: String(j.say || '').trim(), point };
 }
 
-module.exports = { DEFAULT_URL, RECOMMENDED, OllamaError, version, listModels, pull, streamChat, chatFull, toMessages, rambler, liveTurn };
+module.exports = { setContextSize, DEFAULT_URL, RECOMMENDED, OllamaError, version, listModels, pull, streamChat, chatFull, toMessages, rambler, liveTurn };
