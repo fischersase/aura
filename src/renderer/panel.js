@@ -66,6 +66,10 @@ window.api.onPanelClose(() => closeAnim());
 // Klicks auf die transparenten Bereiche des Fensters gehen an die App dahinter.
 card.addEventListener('mouseenter', () => window.api.ignoreMouse(false));
 card.addEventListener('mouseleave', () => window.api.ignoreMouse(true));
+// Unter Linux kommen Klicks neben die Karte im (durchsichtigen) Fenster an: wie ein Klick daneben schließen.
+document.addEventListener('mousedown', (e) => {
+  if (!card.contains(e.target) && !live && !streaming) window.api.hidePanel();
+});
 
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {

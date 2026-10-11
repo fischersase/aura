@@ -676,6 +676,9 @@ ipcMain.on('overlay:idle', () => {
 });
 
 ipcMain.on('panel:ignoreMouse', (_e, ignore) => {
+  // Linux kann Mausbewegungen nicht durchreichen ("forward" gibt es nur unter Windows/macOS):
+  // einmal durchlässig, käme nie wieder ein Klick im Fenster an. Dort bleibt das Fenster klickbar.
+  if (IS_LINUX) return;
   if (panel && !panel.isDestroyed()) panel.setIgnoreMouseEvents(!!ignore, { forward: true });
 });
 

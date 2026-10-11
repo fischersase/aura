@@ -334,13 +334,13 @@ async function open({ target }) {
     return { opened: t };
   }
   const looksLikePath = /[\\/]/.test(t) || /^~/.test(t) || /^[a-z]:/i.test(t) || /\.[a-z0-9]{1,5}$/i.test(t);
-  if (looksLikePath) {
-    const p = expand(t);
+  {
+    const p = expand(t); // auch ein bloßer Name, falls es ihn im Benutzerordner gibt
     if (fs.existsSync(p)) {
       const err = await shell.openPath(p);
       return err ? { error: err } : { opened: p };
     }
-    if (/[\\/]/.test(t)) return { error: `Pfad nicht gefunden: ${p}` };
+    if (looksLikePath && /[\\/]/.test(t)) return { error: `Pfad nicht gefunden: ${p}` };
   }
   return launchApp(t);
 }
