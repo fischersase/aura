@@ -80,3 +80,10 @@ $('stop').onclick = stopRecording;
 $('cancel').onclick = () => { closeMic(); chunks = []; window.api.ramblerCancel(); };
 $('undo').onclick = () => window.api.ramblerUndo();
 $('full').onclick = () => window.api.ramblerFull();
+
+// Lokales Whisper lädt beim ersten Diktat sein Modell herunter.
+window.api.onSttProgress((p) => {
+  const label = $('label');
+  if (!label.classList.contains('shimmer')) return;
+  label.textContent = `Lade Spracherkennung … ${Math.round((p.loaded / p.total) * 100)} %`;
+});

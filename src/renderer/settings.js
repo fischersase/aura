@@ -1,6 +1,7 @@
 const $ = (id) => document.getElementById(id);
-const FIELDS = ['monthlyBudgetUsd', 'hotkeyGemini', 'hotkeyRambler', 'hotkeyLive', 'chatModel', 'liveModel', 'ramblerModel', 'liveVoice', 'language', 'liveFps', 'panelCorner'];
+const FIELDS = ['provider', 'monthlyBudgetUsd', 'hotkeyGemini', 'hotkeyRambler', 'hotkeyLive', 'chatModel', 'liveModel', 'ramblerModel', 'liveVoice', 'language', 'liveFps', 'panelCorner'];
 let keyTouched = false;
+let olPanel = null;
 
 function status(el, text, ok) {
   el.textContent = text;
@@ -14,7 +15,17 @@ async function load() {
   $('glowStay').checked = !!s.glowStay;
   $('apiKey').placeholder = s.hasApiKey ? '•••••••• (gespeichert)' : 'AIza…';
   if (!s.hasApiKey) status($('keyStatus'), 'Bitte zuerst einen Gemini API-Key eintragen.', false);
+  if (!olPanel) olPanel = OllamaPanel($('ollamaBox'), s);
+  $('linuxKeys').classList.toggle('hidden', s.platform !== 'linux');
+  applyProvider();
 }
+
+function applyProvider() {
+  const local = $('provider').value === 'ollama';
+  document.body.classList.toggle('local', local);
+  if (local && olPanel) olPanel.check();
+}
+$('provider').addEventListener('change', applyProvider);
 
 // Tastenkombination aufnehmen → Electron-Accelerator ("Control+Alt+G")
 const KEYMAP = { ' ': 'Space', ArrowUp: 'Up', ArrowDown: 'Down', ArrowLeft: 'Left', ArrowRight: 'Right', Escape: 'Escape', Enter: 'Return' };
@@ -54,6 +65,7 @@ $('save').onclick = async () => {
   patch.autostart = $('autostart').checked;
   patch.glowStay = $('glowStay').checked;
   if (keyTouched) patch.apiKey = $('apiKey').value;
+  if (olPanel) Object.assign(patch, olPanel.values());
   const hk = [patch.hotkeyGemini, patch.hotkeyRambler, patch.hotkeyLive].filter(Boolean);
   if (new Set(hk).size !== hk.length) {
     status($('hotkeyStatus'), 'Zwei Funktionen haben dasselbe Kürzel.', false);
@@ -67,16 +79,16 @@ $('save').onclick = async () => {
   } else {
     status($('hotkeyStatus'), '');
   }
-  status($('saveStatus'), r.settings.hasApiKey ? 'Gespeichert.' : 'Gespeichert, aber noch kein API-Key.', r.settings.hasApiKey);
-  function showUsage(u) {
+  const ready = r.settings.provider === 'ollama' || r.settings.hasApiKey;
+  status($('saveStatus'), ready ? 'Gespeichert.' : 'Gespeichert, aber noch kein API-Key.', ready);
+};
+
+function showUsage(u) {
   const f = (v) => v.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   status($('usageLine'), `Diesen Monat geschätzt: ${f(u.costUsd)} $${u.budgetUsd ? ' von ' + f(u.budgetUsd) + ' $' : ''} (${u.requests} Anfragen)`, !u.overBudget);
 }
 window.api.getUsage().then(showUsage);
 window.api.onUsage(showUsage);
-
-load();
-};
 
 $('close').onclick = () => window.close();
 document.addEventListener('click', (e) => {

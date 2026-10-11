@@ -2,9 +2,11 @@ const {
   app, BrowserWindow, globalShortcut, ipcMain, screen, Tray, Menu, clipboard,
   desktopCapturer, session, nativeImage, shell
 } = require('electron');
+const fs = require('fs');
 const path = require('path');
 const store = require('./store');
 const gemini = require('./gemini');
+const ollama = require('./ollama');
 const keys = require('./keys');
 const usage = require('./usage');
 
@@ -16,14 +18,42 @@ const MARGIN = 4; // + 12 px Schattenrand im Panel-Fenster = 16 px Abstand
 const RAMBLER_W = 420;
 const RAMBLER_H = 92;
 
-let overlay, panel, ramblerBar, settingsWin, setupWin, tray;
+const IS_LINUX = process.platform === 'linux';
+
+// SharedArrayBuffer: Whisper rechnet mit mehreren Threads.
+// GlobalShortcutsPortal: globale Kürzel unter Wayland (GNOME/KDE fragen einmal nach).
+const features = ['SharedArrayBuffer'];
+if (IS_LINUX) {
+  features.push('GlobalShortcutsPortal');
+  app.commandLine.appendSwitch('enable-speech-dispatcher'); // Vorlesen bei lokalem Live
+}
+app.commandLine.appendSwitch('enable-features', features.join(','));
+
+let overlay, panel, ramblerBar, settingsWin, setupWin, sttWin, tray;
 let panelOpen = false;
 let liveActive = false;
 let currentDisplay = null;
 const ramblerState = { recording: false, busy: false, saved: null, selection: '', last: null };
 
 if (!app.requestSingleInstanceLock()) app.quit();
-app.on('second-instance', () => (store.load().setupDone ? openSettings() : openSetup()));
+
+// Befehle per Kommandozeile, z. B. für eigene Tastenkürzel in GNOME/KDE:
+//   gemini-overlay --toggle | --live | --rambler | --settings
+function handleArgs(argv) {
+  const has = (f) => argv.includes(f);
+  if (has('--toggle')) toggleGemini();
+  else if (has('--live')) toggleLive();
+  else if (has('--rambler')) toggleRambler();
+  else if (has('--settings')) openSettings();
+  else return false;
+  return true;
+}
+
+app.on('second-instance', (_e, argv) => {
+  if (!app.isReady() || handleArgs(argv)) return;
+  if (store.load().setupDone) openSettings();
+  else openSetup();
+});
 
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
@@ -165,7 +195,7 @@ function glow(mode) {
 }
 
 function openPanel({ startLive = false } = {}) {
-  if (!store.getApiKey()) {
+  if (!store.ready()) {
     openSetup();
     return;
   }
@@ -228,7 +258,7 @@ function ramblerSend(channel, data) {
 
 async function toggleRambler() {
   if (ramblerState.busy) return;
-  if (!store.getApiKey()) { openSetup(); return; }
+  if (!store.ready()) { openSetup(); return; }
   if (ramblerState.recording) {
     ramblerState.recording = false;
     ramblerSend('rambler:stop');
@@ -239,9 +269,10 @@ async function toggleRambler() {
     // Markierten Text holen: Zwischenablage sichern, Strg+C senden, lesen, wiederherstellen.
     const saved = saveClipboard();
     clipboard.clear();
-    await keys.send('^c');
+    const sent = await keys.send('^c');
     await sleep(120);
-    const selection = clipboard.readText();
+    const selection = sent ? clipboard.readText() : '';
+    ramblerState.canType = sent;
     restoreClipboard(saved);
     ramblerState.selection = selection;
     placeRamblerBar();
@@ -253,12 +284,16 @@ async function toggleRambler() {
   }
 }
 
+// Fügt Text ins aktive Feld ein. Ohne Tastenwerkzeug (Linux ohne xdotool/wtype)
+// bleibt er in der Zwischenablage; Rückgabe false = selbst einfügen.
 async function pasteText(text) {
   const saved = saveClipboard();
   clipboard.writeText(text);
-  await keys.send('^v');
+  const sent = await keys.send('^v');
+  if (!sent) return false;
   await sleep(350);
   restoreClipboard(saved);
+  return true;
 }
 
 function hideRamblerBarSoon(ms) {
@@ -276,18 +311,30 @@ ipcMain.on('rambler:audio', async (_e, { wavBase64 }) => {
     const over = budgetError();
     if (over) throw new Error(over);
     const s = store.load();
-    const out = await gemini.rambler({
-      apiKey: store.getApiKey(),
-      model: s.ramblerModel,
-      wavBase64,
-      selection: ramblerState.selection,
-      language: s.language
-    });
-    usage.addTokens(s.ramblerModel, out.usage);
-    broadcastUsage();
+    let out;
+    if (store.isLocal()) {
+      const transcript = await transcribe(wavBase64);
+      if (!transcript) throw new Error('Nichts verstanden.');
+      out = await ollama.rambler({ url: s.ollamaUrl, model: s.ollamaModel, transcript, selection: ramblerState.selection, language: s.language });
+    } else {
+      out = await gemini.rambler({
+        apiKey: store.getApiKey(),
+        model: s.ramblerModel,
+        wavBase64,
+        selection: ramblerState.selection,
+        language: s.language
+      });
+      usage.addTokens(s.ramblerModel, out.usage);
+      broadcastUsage();
+    }
     if (!out.text) throw new Error('Nichts verstanden.');
-    await pasteText(out.text);
+    const pasted = await pasteText(out.text);
     ramblerState.last = { ...out, fullAvailable: !ramblerState.selection };
+    if (!pasted) {
+      ramblerSend('rambler:state', { state: 'error', message: 'In der Zwischenablage – mit Strg+V einfügen (xdotool/wtype fehlt)' });
+      hideRamblerBarSoon(7000);
+      return;
+    }
     ramblerSend('rambler:state', { state: 'done', fullAvailable: !ramblerState.selection });
     hideRamblerBarSoon(7000);
   } catch (err) {
@@ -338,7 +385,7 @@ async function screenshotJpeg(display, maxWidth = 1600) {
 // ---------- Kosten ----------
 
 function usageSummary() {
-  return usage.summary(store.load().monthlyBudgetUsd);
+  return { ...usage.summary(store.load().monthlyBudgetUsd), local: store.isLocal() };
 }
 
 function broadcastUsage() {
@@ -348,6 +395,7 @@ function broadcastUsage() {
 }
 
 function budgetError() {
+  if (store.isLocal()) return null; // lokale Modelle kosten nichts
   const u = usageSummary();
   if (!u.overBudget) return null;
   return `Monatsbudget von ${u.budgetUsd.toFixed(2)} $ erreicht (geschätzt ${u.costUsd.toFixed(2)} $). ` +
@@ -357,7 +405,7 @@ function budgetError() {
 // ---------- IPC ----------
 
 const CHAT_SYSTEM = (lang) =>
-  'Du bist Gemini in einem kompakten Overlay auf einem Windows-PC. Antworte kurz, klar und freundlich, ' +
+  `Du bist Gemini in einem kompakten Overlay auf einem ${IS_LINUX ? 'Linux-' : 'Windows-'}PC. Antworte kurz, klar und freundlich, ` +
   `standardmäßig auf ${lang}. Nutze Markdown sparsam (kurze Listen, **fett**, \`code\`). ` +
   'Wenn ein Screenshot beiliegt, beziehe dich konkret auf das, was zu sehen ist.';
 
@@ -371,6 +419,8 @@ ipcMain.handle('settings:save', (_e, patch) => {
   store.save(rest);
   const failed = registerHotkeys();
   applyAutostart();
+  broadcastUsage();
+  preloadStt().catch(() => {});
   return { settings: store.publicSettings(), failedHotkeys: failed };
 });
 
@@ -401,16 +451,21 @@ ipcMain.on('chat:send', async (e, { id, history, includeScreen }) => {
       contents[contents.length - 1].parts.unshift({ inlineData: { mimeType: 'image/jpeg', data: jpeg } });
       e.sender.send('chat:screen', { id, jpeg });
     }
-    const res = await gemini.streamChat({
-      apiKey: store.getApiKey(),
-      model: s.chatModel,
-      history: contents,
-      system: CHAT_SYSTEM(s.language),
-      signal: ctrl.signal,
-      onText: (t) => e.sender.send('chat:chunk', { id, text: t })
-    });
-    usage.addTokens(s.chatModel, res.usage);
-    broadcastUsage();
+    const onText = (t) => e.sender.send('chat:chunk', { id, text: t });
+    if (store.isLocal()) {
+      await ollama.streamChat({ url: s.ollamaUrl, model: s.ollamaModel, history: contents, system: CHAT_SYSTEM(s.language), signal: ctrl.signal, onText });
+    } else {
+      const res = await gemini.streamChat({
+        apiKey: store.getApiKey(),
+        model: s.chatModel,
+        history: contents,
+        system: CHAT_SYSTEM(s.language),
+        signal: ctrl.signal,
+        onText
+      });
+      usage.addTokens(s.chatModel, res.usage);
+      broadcastUsage();
+    }
     e.sender.send('chat:done', { id });
   } catch (err) {
     if (err.name === 'AbortError') e.sender.send('chat:done', { id });
@@ -437,7 +492,9 @@ ipcMain.handle('live:config', () => {
   const over = budgetError();
   if (over) return { error: over };
   const s = store.load();
+  if (store.isLocal()) return { provider: 'ollama', model: s.ollamaModel, language: s.language };
   return {
+    provider: 'gemini',
     apiKey: store.getApiKey(),
     model: s.liveModel,
     voice: s.liveVoice,
@@ -475,6 +532,108 @@ ipcMain.on('panel:ignoreMouse', (_e, ignore) => {
   if (panel && !panel.isDestroyed()) panel.setIgnoreMouseEvents(!!ignore, { forward: true });
 });
 
+// ---------- Lokal: Whisper und Ollama ----------
+
+let sttReady = null;
+const sttJobs = new Map();
+let sttSeq = 0;
+
+function ensureStt() {
+  if (sttWin && !sttWin.isDestroyed()) return sttReady;
+  sttWin = new BrowserWindow({
+    show: false,
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, backgroundThrottling: false }
+  });
+  sttReady = new Promise((resolve) => ipcMain.once('stt:ready', resolve));
+  sttWin.loadFile(R('stt.html'));
+  sttWin.on('closed', () => {
+    sttWin = null;
+    sttJobs.forEach((j) => j.reject(new Error('Spracherkennung beendet.')));
+    sttJobs.clear();
+  });
+  return sttReady;
+}
+
+// Lädt das Whisper-Modell vorab, damit die erste Spracheingabe nicht warten muss.
+async function preloadStt() {
+  if (!store.isLocal()) return;
+  await ensureStt();
+  sttWin.webContents.send('stt:preload', { model: store.load().whisperModel });
+}
+
+async function transcribe(wavBase64) {
+  await ensureStt();
+  const id = ++sttSeq;
+  return new Promise((resolve, reject) => {
+    sttJobs.set(id, { resolve, reject });
+    sttWin.webContents.send('stt:request', { id, wavBase64, model: store.load().whisperModel });
+  });
+}
+
+ipcMain.on('stt:result', (_e, { id, text, error }) => {
+  const job = sttJobs.get(id);
+  if (!job) return;
+  sttJobs.delete(id);
+  if (error) job.reject(new Error('Spracherkennung: ' + error));
+  else job.resolve(text);
+});
+
+// Fortschritt beim ersten Laden des Whisper-Modells an Rambler und Panel weitergeben.
+ipcMain.on('stt:progress', (_e, p) => {
+  for (const w of [ramblerBar, panel, settingsWin, setupWin]) if (w && !w.isDestroyed()) w.webContents.send('stt:progress', p);
+});
+
+const liveAborts = new Map();
+
+// Ein Durchgang von lokalem Live: Sprache → Text (Whisper) → Antwort mit Bildschirmfoto (Ollama).
+ipcMain.handle('live:turn', async (_e, { id, wavBase64, history, screen: withScreen }) => {
+  const ctrl = new AbortController();
+  liveAborts.set(id, ctrl);
+  try {
+    const question = await transcribe(wavBase64);
+    if (!question || question.length < 2) return { empty: true };
+    if (panel && !panel.isDestroyed()) panel.webContents.send('live:heard', { id, text: question });
+    const jpeg = withScreen ? await screenshotJpeg(currentDisplay, 1280) : null;
+    const s = store.load();
+    const out = await ollama.liveTurn({ url: s.ollamaUrl, model: s.ollamaModel, language: s.language, history, question, jpeg, signal: ctrl.signal });
+    return { question, ...out };
+  } catch (err) {
+    if (err.name === 'AbortError') return { aborted: true };
+    return { error: String(err.message || err) };
+  } finally {
+    liveAborts.delete(id);
+  }
+});
+
+ipcMain.on('live:abortTurn', () => liveAborts.forEach((c) => c.abort()));
+
+ipcMain.handle('ollama:status', async (_e, url) => {
+  const u = url || store.load().ollamaUrl;
+  try {
+    const v = await ollama.version(u);
+    const models = await ollama.listModels(u);
+    return { ok: true, version: v, models, recommended: ollama.RECOMMENDED };
+  } catch (err) {
+    return { ok: false, message: String(err.message || err), recommended: ollama.RECOMMENDED };
+  }
+});
+
+let pullCtrl = null;
+ipcMain.handle('ollama:pull', async (e, { url, name }) => {
+  pullCtrl = new AbortController();
+  try {
+    await ollama.pull(url || store.load().ollamaUrl, name, (p) => {
+      if (!e.sender.isDestroyed()) e.sender.send('ollama:progress', { name, status: p.status, completed: p.completed, total: p.total });
+    }, pullCtrl.signal);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, message: err.name === 'AbortError' ? 'Abgebrochen.' : String(err.message || err) };
+  } finally {
+    pullCtrl = null;
+  }
+});
+ipcMain.on('ollama:abortPull', () => pullCtrl && pullCtrl.abort());
+
 // ---------- Hotkeys, Tray, Autostart ----------
 
 function registerHotkeys() {
@@ -495,8 +654,29 @@ function registerHotkeys() {
   return failed;
 }
 
+// Linux: Eintrag in ~/.config/autostart (AppImage-Pfad, sonst das installierte Programm).
+function applyAutostartLinux(on) {
+  const dir = path.join(app.getPath('appData'), 'autostart');
+  const file = path.join(dir, 'gemini-overlay.desktop');
+  if (!on) { fs.rmSync(file, { force: true }); return; }
+  const exe = process.env.APPIMAGE || process.execPath;
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(file, [
+    '[Desktop Entry]',
+    'Type=Application',
+    'Name=Gemini Overlay',
+    `Exec="${exe}"`,
+    'X-GNOME-Autostart-enabled=true',
+    ''
+  ].join('\n'));
+}
+
 function applyAutostart() {
   if (!app.isPackaged) return; // Im Entwicklungsmodus nicht die electron.exe eintragen.
+  if (IS_LINUX) {
+    try { applyAutostartLinux(!!store.load().autostart); } catch (err) { console.warn('Autostart:', err.message); }
+    return;
+  }
   // Die portable .exe entpackt sich in einen Temp-Ordner; eingetragen wird die Original-Datei.
   const exe = process.env.PORTABLE_EXECUTABLE_FILE || process.execPath;
   app.setLoginItemSettings({ openAtLogin: !!store.load().autostart, path: exe });
@@ -512,7 +692,9 @@ function createTray() {
     { label: `Gemini Live\t${s().hotkeyLive}`, click: () => toggleLive() },
     { label: `Rambler: ${s().hotkeyRambler} im Textfeld`, enabled: false },
     { type: 'separator' },
-    { label: `Diesen Monat: ≈ ${usageSummary().costUsd.toFixed(2)} $ von ${Number(s().monthlyBudgetUsd).toFixed(2)} $`, enabled: false },
+    store.isLocal()
+      ? { label: `Lokal über Ollama: ${s().ollamaModel}`, enabled: false }
+      : { label: `Diesen Monat: ≈ ${usageSummary().costUsd.toFixed(2)} $ von ${Number(s().monthlyBudgetUsd).toFixed(2)} $`, enabled: false },
     { label: 'Einstellungen …', click: () => openSettings() },
     { label: 'Einrichtung erneut starten …', click: () => openSetup() },
     { label: 'Beenden', click: () => app.quit() }
@@ -540,8 +722,9 @@ app.whenReady().then(() => {
   const failed = registerHotkeys();
   applyAutostart();
 
-  if (!store.load().setupDone || !store.getApiKey()) openSetup();
-  else if (failed.length) openSettings();
+  if (!store.load().setupDone || !store.ready()) openSetup();
+  else if (!handleArgs(process.argv) && failed.length) openSettings();
+  preloadStt().catch(() => {});
   screen.on('display-removed', () => { currentDisplay = null; });
 });
 

@@ -296,7 +296,8 @@ async function startLiveMode() {
   turnEls = { you: null, gem: null };
   $('liveMute').classList.remove('muted');
   $('liveScreen').classList.add('on');
-  live = new LiveSession(liveUi);
+  const cfg = await window.api.liveConfig();
+  live = cfg.provider === 'ollama' ? new LocalLiveSession(liveUi) : new LiveSession(liveUi);
   window.api.setLiveActive(true);
   try {
     await live.start({ screen: true });
@@ -324,6 +325,14 @@ window.api.onLiveStop((reason) => stopLiveMode(reason));
 const costEl = $('cost');
 function showUsage(u) {
   if (!u) return;
+  costEl.classList.toggle('local', !!u.local);
+  if (u.local) {
+    costEl.querySelector('span').textContent = 'lokal · 0 $';
+    costEl.querySelector('i').style.width = '0%';
+    costEl.classList.remove('warn', 'over');
+    costEl.title = 'Läuft lokal über Ollama, ohne Kosten. Klick = Einstellungen';
+    return;
+  }
   const fmt = (v) => v.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   costEl.querySelector('span').textContent = u.budgetUsd > 0 ? `≈ ${fmt(u.costUsd)} $ / ${fmt(u.budgetUsd)} $` : `≈ ${fmt(u.costUsd)} $`;
   costEl.querySelector('i').style.width = Math.min(100, u.ratio * 100).toFixed(1) + '%';

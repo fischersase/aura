@@ -1,6 +1,7 @@
 // Sendet Tastendrücke (Strg+C, Strg+V, Strg+Z) an das aktive Fenster.
-// Ein dauerhaft laufender PowerShell-Prozess vermeidet native Node-Module.
-const { spawn } = require('child_process');
+// Windows: ein dauerhaft laufender PowerShell-Prozess (keine nativen Node-Module).
+// Linux: xdotool (X11) bzw. wtype oder ydotool (Wayland), falls installiert.
+const { spawn, execFile } = require('child_process');
 
 const SCRIPT = [
   'Add-Type -AssemblyName System.Windows.Forms;',
@@ -41,13 +42,44 @@ function ensure() {
   return proc;
 }
 
-// keys im SendKeys-Format: '^c' = Strg+C, '^v' = Strg+V, '^z' = Strg+Z
+// ---------- Linux ----------
+
+const run = (cmd, args) => new Promise((resolve) => {
+  execFile(cmd, args, { timeout: 3000 }, (err) => resolve(!err));
+});
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Linux-Tastencodes für ydotool: KEY_LEFTCTRL=29, C=46, V=47, Z=44
+const YDO = { c: 46, v: 47, z: 44 };
+let linuxTool; // zuletzt funktionierendes Werkzeug merken
+
+async function sendLinux(key) {
+  const letter = key.replace('^', '');
+  const wayland = process.env.XDG_SESSION_TYPE === 'wayland' || !!process.env.WAYLAND_DISPLAY;
+  const tools = {
+    xdotool: () => run('xdotool', ['key', '--clearmodifiers', `ctrl+${letter}`]),
+    wtype: () => run('wtype', ['-M', 'ctrl', letter, '-m', 'ctrl']),
+    ydotool: () => run('ydotool', ['key', '29:1', `${YDO[letter]}:1`, `${YDO[letter]}:0`, '29:0'])
+  };
+  const order = linuxTool ? [linuxTool] : wayland ? ['wtype', 'ydotool', 'xdotool'] : ['xdotool', 'ydotool'];
+  // Kurz warten, damit die Finger vom Kürzel (Strg+Alt+D) weg sind.
+  await sleep(wayland ? 250 : 80);
+  for (const t of order) {
+    if (await tools[t]()) { linuxTool = t; return true; }
+  }
+  linuxTool = undefined;
+  return false;
+}
+
+// keys im SendKeys-Format: '^c' = Strg+C, '^v' = Strg+V, '^z' = Strg+Z.
+// Liefert false, wenn keine Tasten gesendet werden konnten.
 function send(keys) {
+  if (process.platform === 'linux') return sendLinux(keys);
   const p = ensure();
-  if (!p) return Promise.resolve();
+  if (!p) return Promise.resolve(false);
   return new Promise((resolve) => {
-    const t = setTimeout(resolve, 3000);
-    queue.push(() => { clearTimeout(t); resolve(); });
+    const t = setTimeout(() => resolve(true), 3000);
+    queue.push(() => { clearTimeout(t); resolve(true); });
     p.stdin.write(keys + '\n');
   });
 }

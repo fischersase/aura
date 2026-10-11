@@ -50,6 +50,23 @@ contextBridge.exposeInMainWorld('api', {
   onPointerClear: on('pointer:clear'),
   overlayIdle: () => ipcRenderer.send('overlay:idle'),
 
+  // Lokal (Ollama + Whisper)
+  ollamaStatus: (url) => ipcRenderer.invoke('ollama:status', url),
+  ollamaPull: (url, name) => ipcRenderer.invoke('ollama:pull', { url, name }),
+  abortPull: () => ipcRenderer.send('ollama:abortPull'),
+  onOllamaProgress: on('ollama:progress'),
+  liveTurn: (payload) => ipcRenderer.invoke('live:turn', payload),
+  abortLiveTurn: () => ipcRenderer.send('live:abortTurn'),
+  onLiveHeard: on('live:heard'),
+  onSttProgress: on('stt:progress'),
+
+  // Spracherkennungs-Fenster
+  sttReady: () => ipcRenderer.send('stt:ready'),
+  sttResult: (r) => ipcRenderer.send('stt:result', r),
+  sttProgress: (p) => ipcRenderer.send('stt:progress', p),
+  onSttRequest: on('stt:request'),
+  onSttPreload: on('stt:preload'),
+
   // Rambler
   onRamblerStart: on('rambler:start'),
   onRamblerStop: on('rambler:stop'),

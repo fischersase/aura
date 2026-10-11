@@ -1,16 +1,18 @@
-# Gemini Overlay for Windows
+# Gemini Overlay for Windows and Linux
 
 Gemini the way it works on a Googlebook: a glowing screen edge, a small rounded Gemini window in the corner, Gemini Live that sees your screen and points where to click, and Rambler dictation in any text field.
 
+Runs with Google Gemini (API key) or fully local with open models through [Ollama](https://ollama.com) (Gemma 4, Qwen, DeepSeek, …).
+
 ## Install
 
-1. Download **`GeminiOverlay.exe`** from the [latest release](https://github.com/fischersase/windows-gemini/releases/latest).
-2. Run it. Windows SmartScreen may warn because the file is unsigned: click **More info → Run anyway**.
-3. The setup assistant opens and walks you through the API key and budget.
+**Windows:** download **`GeminiOverlay.exe`** from the [latest release](https://github.com/fischersase/windows-gemini/releases/latest) and run it. SmartScreen may warn because the file is unsigned: click **More info → Run anyway**.
 
-The app lives in the system tray (star icon). Right-click it for settings, or start "Gemini Overlay" again from the Start menu.
+**Linux (x64):** download **`GeminiOverlay-x86_64.AppImage`** (any distro, `chmod +x` and run) or **`gemini-overlay_amd64.deb`** (Debian/Ubuntu: `sudo apt install ./gemini-overlay_amd64.deb`).
 
-## API key (no Google Cloud project needed)
+The setup assistant opens on first start and lets you pick Gemini or local models. The app lives in the system tray (star icon); right-click it for settings, or start "Gemini Overlay" again.
+
+## Option A: Gemini (API key, no Google Cloud project needed)
 
 1. Open [Google AI Studio → API keys](https://aistudio.google.com/apikey) and click **Create API key**. AI Studio creates a project for you.
 2. If asked, click **Set up billing** for that project. Google AI Pro subscribers get $10/month in credits: activate them under [Google Developer Program benefits](https://developers.google.com/program/my-benefits).
@@ -18,12 +20,34 @@ The app lives in the system tray (star icon). Right-click it for settings, or st
 
 To replace the key later: tray icon → right-click → **Settings** → paste the new key → **Test** → **Save**.
 
-## Budget (default: $10/month)
+### Budget (default: $10/month)
 
 - **In the app:** set the monthly budget in the setup assistant or in Settings. The Gemini window shows the estimated cost for the current month, and requests stop once the budget is reached. Set it to `0` for no limit.
 - **At Google (recommended):** open [AI Studio → Spend](https://aistudio.google.com/spend), pick the project of your key, then **Monthly spend cap → Edit spend cap**. Google bills with up to ~10 minutes delay, so small overruns are possible.
 
 The in-app number is an estimate based on token usage; AI Studio shows the real figures.
+
+## Option B: local models with Ollama (free, private)
+
+1. Install [Ollama](https://ollama.com/download) (Linux: `curl -fsSL https://ollama.com/install.sh | sh`) and make sure it runs.
+2. In the setup assistant (or Settings → *KI-Modell*) choose **Lokal über Ollama**, pick a model and click **Herunterladen**.
+
+| Model | Good for | Rough hardware |
+| --- | --- | --- |
+| `gemma4:e4b` (default) | chat, dictation, Live with screen | 16 GB RAM or 8 GB VRAM |
+| `gemma4:e2b` | weaker PCs | 8 GB RAM |
+| `qwen3.5:9b`, `qwen3-vl:8b` | chat, Live; Qwen3-VL is good at pointing | 16 GB RAM or 8 GB VRAM |
+| `gemma4:26b` | best quality | 24 GB VRAM or 32 GB RAM |
+| `deepseek-r1:8b` | text only (no screen) | 16 GB RAM |
+
+Any other Ollama model you have installed shows up in the list too. Kimi is only available as a cloud model.
+
+What changes locally:
+
+- **Speech recognition** runs inside the app with Whisper ([transformers.js](https://github.com/huggingface/transformers.js)); the model downloads once on first use. Ollama itself cannot take audio.
+- **Rambler:** Whisper transcribes, the local model cleans up the text or applies your spoken instruction to the selection.
+- **Gemini Live** becomes turn-based: you talk, it hears the pause, the model looks at a screenshot, answers out loud (system voices) and can point at the screen. Talk over it to interrupt. It is slower than Gemini Live and pointing is less precise.
+- No costs, no budget; the window shows "lokal · 0 $".
 
 ## Shortcuts (configurable)
 
@@ -33,16 +57,25 @@ The in-app number is an estimate based on token usage; AI Studio shows the real 
 | Ctrl+Alt+L | Gemini Live with screen sharing |
 | Ctrl+Alt+D | Rambler: dictate into the focused text field; press again to finish |
 
+### Linux notes
+
+- On **Wayland**, global shortcuts go through the desktop portal (GNOME/KDE ask once). If one does not work, add a custom shortcut in your system settings that runs `gemini-overlay --toggle`, `--live` or `--rambler` (with the AppImage, use the path to the `.AppImage` file).
+- Rambler types via `xdotool` (X11) or `wtype` / `ydotool` (Wayland). Without them the text stays in the clipboard for Ctrl+V.
+- Screen sharing on Wayland asks for permission through the system dialog.
+- Read-aloud for local Live needs `speech-dispatcher` with a voice (e.g. `espeak-ng`).
+- The tray icon needs AppIndicator support (on GNOME: the "AppIndicator" extension).
+
 ## Build from source
 
 Requires [Node.js](https://nodejs.org) 22+.
 
 ```
-npm install
-npm start                 # run
-npx electron-builder --win portable   # build GeminiOverlay-*-portable.exe
+npm ci --ignore-scripts && node scripts/vendor.js && node node_modules/electron/install.js
+npm start                                        # run
+npx electron-builder --win portable             # Windows .exe
+npx electron-builder --linux AppImage deb        # Linux packages
 ```
 
 ## Privacy and secrets
 
-Your API key is stored only on your PC, encrypted with Windows DPAPI (`%APPDATA%\Gemini Overlay\settings.json`). It is never part of this repository; every push is scanned with gitleaks.
+Your API key is stored only on your computer, encrypted with the OS keystore (Windows DPAPI, Linux keyring) in the app's settings folder. It is never part of this repository; every push is scanned with gitleaks. With Ollama, nothing leaves your computer except the one-time model downloads.

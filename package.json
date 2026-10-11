@@ -1,20 +1,25 @@
 {
   "name": "windows-gemini",
   "productName": "Gemini Overlay",
-  "version": "0.2.0",
-  "description": "Gemini, Gemini Live und Rambler im Googlebook-Stil für Windows",
+  "version": "0.3.0",
+  "description": "Gemini, Gemini Live und Rambler im Googlebook-Stil für Windows und Linux, mit Gemini oder lokalen Modellen über Ollama",
   "main": "src/main.js",
-  "author": "Sebastian",
+  "author": {
+    "name": "fischersase",
+    "email": "121428169+fischersase@users.noreply.github.com"
+  },
   "license": "MIT",
   "private": true,
   "scripts": {
     "start": "electron .",
-    "check": "node --check src/main.js && node --check src/preload.js && node --check src/gemini.js && node --check src/keys.js && node --check src/store.js",
-    "dist": "electron-builder --win zip portable",
-    "dist:zip": "electron-builder --win zip",
-    "dist:portable": "electron-builder --win portable"
+    "postinstall": "node scripts/vendor.js",
+    "check": "for f in src/*.js src/renderer/*.js scripts/*.js; do node --check \"$f\" || exit 1; done",
+    "dist": "electron-builder --win portable",
+    "dist:win": "electron-builder --win portable",
+    "dist:linux": "electron-builder --linux AppImage deb"
   },
   "devDependencies": {
+    "@huggingface/transformers": "4.3.1",
     "electron": "44.7.0",
     "electron-builder": "26.15.3"
   },
@@ -35,6 +40,31 @@
     },
     "portable": {
       "artifactName": "GeminiOverlay-${version}-portable.exe"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "assets/icon.png",
+      "category": "Utility",
+      "executableName": "gemini-overlay",
+      "synopsis": "Gemini overlay with Live and dictation",
+      "maintainer": "fischersase <121428169+fischersase@users.noreply.github.com>",
+      "artifactName": "GeminiOverlay-${version}-${arch}.${ext}"
+    },
+    "deb": {
+      "depends": [
+        "libnotify4",
+        "libxtst6",
+        "libnss3",
+        "xdotool"
+      ],
+      "recommends": [
+        "wtype",
+        "speech-dispatcher"
+      ]
     }
-  }
+  },
+  "homepage": "https://github.com/fischersase/windows-gemini"
 }

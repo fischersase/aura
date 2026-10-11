@@ -1,5 +1,5 @@
-// Einstellungen in %APPDATA%/Gemini Overlay/settings.json.
-// Der API-Key wird mit Windows DPAPI (Electron safeStorage) verschlüsselt abgelegt.
+// Einstellungen in %APPDATA%/Gemini Overlay/settings.json (Linux: ~/.config/Gemini Overlay).
+// Der API-Key wird mit Electron safeStorage verschlüsselt (Windows DPAPI, unter Linux der Schlüsselbund).
 const fs = require('fs');
 const path = require('path');
 const { app, safeStorage } = require('electron');
@@ -9,6 +9,10 @@ const DEFAULTS = {
   hotkeyGemini: 'Control+Alt+Space', // Strg+Alt+G belegt Google Drive für Desktop
   hotkeyRambler: 'Control+Alt+D',
   hotkeyLive: 'Control+Alt+L',
+  provider: 'gemini', // 'gemini' (API-Key) oder 'ollama' (lokal)
+  ollamaUrl: 'http://127.0.0.1:11434',
+  ollamaModel: 'gemma4:e4b', // Chat, Rambler-Nachbearbeitung und Live bei provider 'ollama'
+  whisperModel: 'onnx-community/whisper-small', // lokale Spracherkennung
   chatModel: 'gemini-3.8-flash',
   ramblerModel: 'gemini-3.8-flash',
   liveModel: 'gemini-3.8-live',
@@ -68,7 +72,12 @@ function setApiKey(key) {
 // Einstellungen ohne Geheimnisse, für die Oberfläche.
 function publicSettings() {
   const { apiKeyEnc, ...rest } = load();
-  return { ...rest, hasApiKey: !!getApiKey() };
+  return { ...rest, hasApiKey: !!getApiKey(), platform: process.platform };
 }
 
-module.exports = { DEFAULTS, load, save, getApiKey, setApiKey, publicSettings };
+const isLocal = () => load().provider === 'ollama';
+
+// Startklar: lokal braucht keinen Key, Gemini schon.
+const ready = () => isLocal() || !!getApiKey();
+
+module.exports = { DEFAULTS, load, save, getApiKey, setApiKey, publicSettings, isLocal, ready };

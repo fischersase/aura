@@ -139,3 +139,4 @@ button svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke
 .cost.warn { color: #fdd663; } .cost.warn i { background: #fbbc04; }
 .cost.over { color: #f28b82; } .cost.over i { background: #ea4335; }
 .card.compact .cost b { width: 48px; }
+.cost.local b { display: none; }

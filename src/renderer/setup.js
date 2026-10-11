@@ -1,9 +1,17 @@
 const $ = (id) => document.getElementById(id);
-const steps = [...document.querySelectorAll('.step')];
-const dots = [...document.querySelectorAll('.dots i')];
+const stepEls = Object.fromEntries([...document.querySelectorAll('.step')].map((s) => [s.dataset.step, s]));
+const FLOWS = {
+  gemini: ['welcome', 'provider', 'key', 'budget', 'done'],
+  ollama: ['welcome', 'provider', 'ollama', 'done']
+};
+let provider = 'gemini';
 let step = 0;
 let keyOk = false;
 let hasKey = false;
+let olPanel = null;
+let settings = {};
+
+const flow = () => FLOWS[provider];
 
 function status(el, text, ok) {
   el.textContent = text;
@@ -12,12 +20,23 @@ function status(el, text, ok) {
 
 function show(i) {
   step = i;
-  steps.forEach((s, n) => s.classList.toggle('on', n === i));
-  dots.forEach((d, n) => d.classList.toggle('on', n <= i));
+  const name = flow()[i];
+  Object.entries(stepEls).forEach(([n, el]) => el.classList.toggle('on', n === name));
+  document.querySelector('.dots').innerHTML = flow().map((_, n) => `<i class="${n <= i ? 'on' : ''}"></i>`).join('');
   $('back').style.visibility = i === 0 ? 'hidden' : 'visible';
-  $('next').textContent = i === 0 ? "Los geht's" : i === steps.length - 1 ? 'Fertig' : 'Weiter';
-  if (i === 1) setTimeout(() => $('apiKey').focus(), 50);
+  $('next').textContent = i === 0 ? "Los geht's" : i === flow().length - 1 ? 'Fertig' : 'Weiter';
+  if (name === 'key') setTimeout(() => $('apiKey').focus(), 50);
+  if (name === 'ollama') {
+    if (!olPanel) olPanel = OllamaPanel($('ollamaBox'), settings);
+    olPanel.check();
+  }
 }
+
+function pickProvider(p) {
+  provider = p;
+  document.querySelectorAll('[data-provider]').forEach((b) => b.classList.toggle('on', b.dataset.provider === p));
+}
+document.querySelectorAll('[data-provider]').forEach((b) => { b.onclick = () => pickProvider(b.dataset.provider); });
 
 async function testKey() {
   const key = $('apiKey').value.trim();
@@ -37,12 +56,18 @@ $('apiKey').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('next'
 
 $('back').onclick = () => show(Math.max(0, step - 1));
 $('next').onclick = async () => {
-  if (step === 1 && !keyOk && !(await testKey())) return;
-  if (step === 2) {
+  const name = flow()[step];
+  if (name === 'provider') await window.api.saveSettings({ provider });
+  if (name === 'key' && !keyOk && !(await testKey())) return;
+  if (name === 'budget') {
     const v = Math.max(0, Number($('budget').value.replace(',', '.')) || 0);
     await window.api.saveSettings({ monthlyBudgetUsd: v });
   }
-  if (step === steps.length - 1) {
+  if (name === 'ollama') {
+    // Ohne laufendes Ollama oder geladenes Modell trotzdem weiter: die App erklärt es beim ersten Versuch.
+    await window.api.saveSettings(olPanel.values());
+  }
+  if (step === flow().length - 1) {
     await window.api.saveSettings({ autostart: $('autostart').checked });
     window.api.setupDone();
     return;
@@ -56,10 +81,13 @@ document.addEventListener('click', (e) => {
 });
 
 window.api.getSettings().then((s) => {
+  settings = s;
   hasKey = s.hasApiKey;
+  pickProvider(s.provider === 'ollama' ? 'ollama' : 'gemini');
   if (hasKey) $('apiKey').placeholder = '•••••••• (gespeichert – leer lassen zum Behalten)';
   $('budget').value = String(s.monthlyBudgetUsd ?? 10);
   $('autostart').checked = s.autostart !== false;
+  $('linuxDone').classList.toggle('hidden', s.platform !== 'linux');
   const pretty = (a) => (a || '–').replace('Control', 'Strg').replace('Space', 'Leertaste');
   $('kG').textContent = pretty(s.hotkeyGemini);
   $('kL').textContent = pretty(s.hotkeyLive);

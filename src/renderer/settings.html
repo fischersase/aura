@@ -31,6 +31,12 @@
   .status { margin-top: 8px; font-size: 13px; min-height: 18px; }
   .ok { color: #81c995; } .bad { color: #f28b82; }
   a { color: var(--link); }
+  .hidden { display: none !important; }
+  code { font-size: 12px; background: rgba(127,127,127,.15); padding: 1px 5px; border-radius: 5px; }
+  .ol-progress { display: flex; gap: 10px; align-items: center; margin-top: 8px; font-size: 12.5px; color: var(--muted); }
+  .ol-progress b { flex: 1; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+  .ol-progress i { display: block; height: 100%; width: 0; background: var(--blue); transition: width .3s; }
+  body.local .gem-only, body:not(.local) .ol-only { display: none; }
   footer { display: flex; justify-content: flex-end; gap: 8px; position: sticky; bottom: 0; padding: 12px 0; background: var(--bg); }
 </style>
 </head>
@@ -40,6 +46,20 @@
   <p class="lead">Gemini, Gemini Live und Rambler im Googlebook-Stil.</p>
 
   <section>
+    <h2>KI-Modell</h2>
+    <label for="provider">Womit soll die App arbeiten?</label>
+    <select id="provider">
+      <option value="gemini">Gemini (Google, per API-Key, kostet nach Nutzung)</option>
+      <option value="ollama">Lokal über Ollama (Gemma, Qwen, DeepSeek …, kostenlos, braucht gute Hardware)</option>
+    </select>
+  </section>
+
+  <section class="ol-only">
+    <h2>Lokale Modelle</h2>
+    <div id="ollamaBox"></div>
+  </section>
+
+  <section class="gem-only">
     <h2>Gemini API</h2>
     <label for="apiKey">API-Key</label>
     <div class="row">
@@ -55,7 +75,7 @@
     </div>
   </section>
 
-  <section>
+  <section class="gem-only">
     <h2>Kosten</h2>
     <div id="usageLine" class="status"></div>
     <label for="monthlyBudgetUsd">Monatsbudget in USD (die App stoppt Anfragen, wenn es erreicht ist; 0 = kein Limit)</label>
@@ -74,10 +94,13 @@
     <label for="hotkeyLive">Gemini Live mit Bildschirm</label>
     <input id="hotkeyLive" class="hotkey" type="text" readonly>
     <div id="hotkeyStatus" class="status"></div>
+    <div id="linuxKeys" class="hint hidden">Linux: Falls ein Kürzel nicht greift (Wayland), lege es in den Systemeinstellungen als eigenes Tastenkürzel an,
+      mit dem Befehl <code>gemini-overlay --toggle</code>, <code>--live</code> oder <code>--rambler</code>
+      (beim AppImage den Pfad zur .AppImage-Datei statt <code>gemini-overlay</code>). Rambler braucht <code>xdotool</code> (X11) oder <code>wtype</code>/<code>ydotool</code> (Wayland).</div>
   </section>
 
-  <section>
-    <h2>Modelle und Sprache</h2>
+  <section class="gem-only">
+    <h2>Gemini-Modelle</h2>
     <label for="chatModel">Chat-Modell</label>
     <input id="chatModel" type="text" spellcheck="false">
     <label for="liveModel">Live-Modell</label>
@@ -86,10 +109,14 @@
     <input id="ramblerModel" type="text" spellcheck="false">
     <label for="liveVoice">Live-Stimme (leer = Standard, z. B. Kore, Puck, Aoede)</label>
     <input id="liveVoice" type="text" spellcheck="false">
+  </section>
+
+  <section>
+    <h2>Sprache</h2>
     <label for="language">Bevorzugte Sprache</label>
     <input id="language" type="text">
-    <label for="liveFps">Bildschirmbilder pro Sekunde bei Live</label>
-    <select id="liveFps">
+    <label for="liveFps" class="gem-only">Bildschirmbilder pro Sekunde bei Live</label>
+    <select id="liveFps" class="gem-only">
       <option value="0.5">0,5 (sparsam)</option>
       <option value="1">1 (Standard)</option>
       <option value="2">2</option>
@@ -106,7 +133,7 @@
       <option value="top-left">Oben links</option>
     </select>
  <div class="check"><input id="glowStay" type="checkbox"><label for="glowStay" style="margin:0">Bildschirmrand leuchtet, solange Gemini offen ist (sonst nur kurz)</label></div>
-    <div class="check"><input id="autostart" type="checkbox"><label for="autostart" style="margin:0">Mit Windows starten</label></div>
+    <div class="check"><input id="autostart" type="checkbox"><label for="autostart" style="margin:0">Beim Anmelden automatisch starten</label></div>
   </section>
 
   <footer>
@@ -115,6 +142,7 @@
   </footer>
   <div id="saveStatus" class="status" style="text-align:right"></div>
 </main>
+<script src="ollama-ui.js"></script>
 <script src="settings.js"></script>
 </body>
 </html>
