@@ -9,6 +9,8 @@ const gemini = require('./gemini');
 const ollama = require('./ollama');
 const keys = require('./keys');
 const usage = require('./usage');
+const agent = require('./agent/loop');
+const agentTools = require('./agent/tools');
 
 const R = (f) => path.join(__dirname, 'renderer', f);
 const ICON = path.join(__dirname, '..', 'assets', 'icon.png');
@@ -124,8 +126,8 @@ function createPanel() {
   panel.setContentProtection(true);
   panel.loadFile(R('panel.html'));
   panel.on('blur', () => {
-    // Wie auf dem Googlebook: Klick daneben schließt das Fenster, außer Live läuft.
-    if (panelOpen && !liveActive && !panel.webContents.isDevToolsOpened()) closePanel();
+    // Wie auf dem Googlebook: Klick daneben schließt das Fenster, außer Live oder der Agent läuft.
+    if (panelOpen && !liveActive && !agentRuns && !panel.webContents.isDevToolsOpened()) closePanel();
   });
 }
 
@@ -470,7 +472,9 @@ ipcMain.on('chat:send', async (e, { id, history, includeScreen }) => {
       e.sender.send('chat:screen', { id, jpeg });
     }
     const onText = (t) => e.sender.send('chat:chunk', { id, text: t });
-    if (store.isLocal()) {
+    if (s.agentEnabled) {
+      await runAgent(e.sender, id, ctrl, contents, onText);
+    } else if (store.isLocal()) {
       await ollama.streamChat({ url: s.ollamaUrl, model: s.ollamaModel, history: contents, system: CHAT_SYSTEM(s.language), signal: ctrl.signal, onText });
     } else {
       const res = await gemini.streamChat({
@@ -497,6 +501,77 @@ ipcMain.on('chat:abort', (_e, id) => {
   const c = chatAborts.get(id);
   if (c) c.abort();
 });
+
+// ---------- Agent ----------
+
+const approvals = new Map(); // Schritt-ID → resolve(true/false)
+let agentRuns = 0;
+
+async function runAgent(sender, id, ctrl, contents, onText) {
+  const s = store.load();
+  const send = (ch, data) => { if (!sender.isDestroyed()) sender.send(ch, data); };
+  const approve = (step) => new Promise((resolve) => {
+    if (ctrl.signal.aborted) return resolve(false);
+    approvals.set(step.id, resolve);
+    ctrl.signal.addEventListener('abort', () => { approvals.delete(step.id); resolve(false); }, { once: true });
+    send('agent:approve', { chatId: id, ...step });
+    if (panel && !panelOpen) openPanel();
+  });
+  const opts = {
+    history: contents,
+    language: s.language,
+    onText,
+    onStep: (step) => send('agent:step', { chatId: id, ...step }),
+    approve,
+    signal: ctrl.signal,
+    ctx: { screenshot: () => screenshotJpeg(currentDisplay) }
+  };
+  agentRuns++;
+  registerStopHotkey();
+  try {
+    if (store.isLocal()) {
+      await agent.runOllama({ ...opts, url: s.ollamaUrl, model: s.ollamaModel });
+    } else {
+      await agent.runGemini({
+        ...opts,
+        apiKey: store.getApiKey(),
+        model: s.chatModel,
+        onUsage: (u) => { usage.addTokens(s.chatModel, u); broadcastUsage(); }
+      });
+    }
+  } finally {
+    agentRuns--;
+    registerStopHotkey();
+  }
+}
+
+ipcMain.on('agent:approval', (_e, { stepId, ok }) => {
+  const r = approvals.get(stepId);
+  if (r) { approvals.delete(stepId); r(!!ok); }
+});
+
+// Notbremse: alle laufenden Aufträge abbrechen und gestartete Befehle beenden.
+function stopAgent() {
+  for (const c of chatAborts.values()) c.abort();
+  agentTools.killAll();
+  if (panel && !panel.isDestroyed()) panel.webContents.send('agent:stopped');
+}
+ipcMain.on('agent:stop', () => stopAgent());
+ipcMain.on('agent:openLog', () => {
+  const f = agent.logFile();
+  if (!fs.existsSync(f)) fs.writeFileSync(f, '');
+  shell.openPath(f);
+});
+
+// Das Notbremse-Kürzel ist nur aktiv, solange der Agent arbeitet.
+let stopKeyOn = null;
+function registerStopHotkey() {
+  const acc = store.load().hotkeyStop;
+  if (stopKeyOn) { try { globalShortcut.unregister(stopKeyOn); } catch {} stopKeyOn = null; }
+  if (agentRuns > 0 && acc) {
+    try { if (globalShortcut.register(acc, stopAgent)) stopKeyOn = acc; } catch {}
+  }
+}
 
 ipcMain.handle('usage:get', () => usageSummary());
 
@@ -669,6 +744,8 @@ function registerHotkeys() {
   reg(s.hotkeyGemini, toggleGemini, 'Aura');
   reg(s.hotkeyRambler, toggleRambler, 'Rambler');
   reg(s.hotkeyLive, toggleLive, 'Live');
+  stopKeyOn = null;
+  registerStopHotkey();
   return failed;
 }
 
@@ -718,6 +795,8 @@ function createTray() {
     store.isLocal()
       ? { label: `Lokal über Ollama: ${s().ollamaModel}`, enabled: false }
       : { label: `Diesen Monat: ≈ ${usageSummary().costUsd.toFixed(2)} $ von ${Number(s().monthlyBudgetUsd).toFixed(2)} $`, enabled: false },
+    ...(agentRuns > 0 ? [{ label: `Agent stoppen\t${s().hotkeyStop}`, click: () => stopAgent() }] : []),
+    { label: 'Aktionsprotokoll öffnen', click: () => ipcMain.emit('agent:openLog') },
     { label: 'Einstellungen …', click: () => openSettings() },
     { label: 'Einrichtung erneut starten …', click: () => openSetup() },
     { label: 'Beenden', click: () => app.quit() }

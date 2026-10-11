@@ -53,7 +53,7 @@ function resetChat() {
 }
 
 window.api.onPanelOpen(({ startLive, corner }) => {
-  if (!live) resetChat();
+  if (!live && !streaming) resetChat(); // laufender Auftrag bleibt sichtbar
   window.api.getUsage().then(showUsage);
   document.body.classList.toggle('corner-left', /left/.test(corner || ''));
   document.body.classList.toggle('corner-top', /top/.test(corner || ''));
@@ -156,7 +156,7 @@ function addUser(text) {
 function addModel() {
   const el = document.createElement('div');
   el.className = 'msg model thinking';
-  el.innerHTML = '<svg class="spark" viewBox="0 0 24 24"><use href="#spark"/></svg><div class="body"></div>';
+  el.innerHTML = '<svg class="spark" viewBox="0 0 24 24"><use href="#spark"/></svg><div class="content"><div class="steps"></div><div class="body"></div></div>';
   messages.appendChild(el);
   return el;
 }
@@ -210,7 +210,9 @@ window.api.onChatChunk(({ id, text }) => {
 window.api.onChatDone(({ id }) => {
   if (!streaming || streaming.id !== id) return;
   if (streaming.text) history.push({ role: 'model', parts: [{ text: streaming.text }] });
-  else streaming.el.remove();
+  else if (!streaming.el.querySelector('.step')) streaming.el.remove();
+  else streaming.el.classList.remove('thinking');
+  streaming.el.querySelectorAll('.step .approve').forEach((a) => a.remove());
   streaming = null;
   setBusy(false);
 });
@@ -223,6 +225,57 @@ window.api.onChatError(({ id, message }) => {
   history.pop(); // fehlgeschlagene Frage nicht im Verlauf behalten
   streaming = null;
   setBusy(false);
+});
+
+// ---------- Agent: Schritte und Freigaben ----------
+
+const TOOL_NAMES = {
+  run_command: 'Befehl', find_files: 'Suche', list_folder: 'Ordner', read_file: 'Lesen',
+  write_file: 'Schreiben', open: 'Öffnen', screenshot: 'Bildschirmfoto'
+};
+const STEP_STATE = { ask: 'Wartet auf deine Freigabe', run: 'Läuft …', ok: 'Erledigt', error: 'Fehlgeschlagen', denied: 'Abgelehnt' };
+
+function stepEl(step) {
+  let el = streaming.el.querySelector(`.step[data-id="${step.id}"]`);
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'step';
+    el.dataset.id = step.id;
+    el.innerHTML = '<div class="line"><i></i><b></b><span></span></div>';
+    el.querySelector('b').textContent = TOOL_NAMES[step.tool] || step.tool;
+    el.querySelector('span').textContent = step.label;
+    el.querySelector('span').title = step.label;
+    streaming.el.querySelector('.steps').appendChild(el);
+  }
+  return el;
+}
+
+window.api.onAgentStep((step) => {
+  if (!streaming || streaming.id !== step.chatId) return;
+  streaming.el.classList.remove('thinking');
+  const el = stepEl(step);
+  el.className = 'step ' + step.state;
+  el.querySelector('i').title = STEP_STATE[step.state] || '';
+  if (step.state !== 'ask') { const a = el.querySelector('.approve'); if (a) a.remove(); }
+  scrollDown();
+});
+
+window.api.onAgentApprove((step) => {
+  if (!streaming || streaming.id !== step.chatId) { window.api.agentApproval(step.id, false); return; }
+  streaming.el.classList.remove('thinking');
+  const el = stepEl(step);
+  el.className = 'step ask';
+  const box = document.createElement('div');
+  box.className = 'approve';
+  box.innerHTML = '<div class="q"></div><pre></pre><div class="btns"><button class="deny">Ablehnen</button><button class="allow">Ausführen</button></div>';
+  box.querySelector('.q').textContent = step.tool === 'write_file' ? 'Aura möchte diese Datei schreiben:' : step.tool === 'open' ? 'Aura möchte dieses Programm starten:' : 'Aura möchte diesen Befehl ausführen:';
+  box.querySelector('pre').textContent = step.label + (step.detail ? '\n\n' + step.detail : '');
+  const answer = (ok) => { box.remove(); window.api.agentApproval(step.id, ok); };
+  box.querySelector('.allow').onclick = () => answer(true);
+  box.querySelector('.deny').onclick = () => answer(false);
+  el.appendChild(box);
+  scrollDown();
+  box.querySelector('.allow').focus({ preventScroll: true });
 });
 
 function autosize() {

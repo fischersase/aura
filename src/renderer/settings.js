@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-const FIELDS = ['provider', 'monthlyBudgetUsd', 'hotkeyGemini', 'hotkeyRambler', 'hotkeyLive', 'chatModel', 'liveModel', 'ramblerModel', 'liveVoice', 'language', 'liveFps', 'panelCorner'];
+const FIELDS = ['provider', 'monthlyBudgetUsd', 'hotkeyGemini', 'hotkeyRambler', 'hotkeyLive', 'hotkeyStop', 'chatModel', 'liveModel', 'ramblerModel', 'liveVoice', 'language', 'liveFps', 'panelCorner'];
 let keyTouched = false;
 let olPanel = null;
 
@@ -13,6 +13,7 @@ async function load() {
   FIELDS.forEach((f) => { $(f).value = s[f] != null ? String(s[f]) : ''; });
   $('autostart').checked = !!s.autostart;
   $('glowStay').checked = !!s.glowStay;
+  $('agentEnabled').checked = !!s.agentEnabled;
   $('apiKey').placeholder = s.hasApiKey ? '•••••••• (gespeichert)' : 'AIza…';
   if (!s.hasApiKey) status($('keyStatus'), 'Bitte zuerst einen Gemini API-Key eintragen.', false);
   if (!olPanel) olPanel = OllamaPanel($('ollamaBox'), s);
@@ -64,9 +65,10 @@ $('save').onclick = async () => {
   patch.monthlyBudgetUsd = Math.max(0, Number(String(patch.monthlyBudgetUsd).replace(',', '.')) || 0);
   patch.autostart = $('autostart').checked;
   patch.glowStay = $('glowStay').checked;
+  patch.agentEnabled = $('agentEnabled').checked;
   if (keyTouched) patch.apiKey = $('apiKey').value;
   if (olPanel) Object.assign(patch, olPanel.values());
-  const hk = [patch.hotkeyGemini, patch.hotkeyRambler, patch.hotkeyLive].filter(Boolean);
+  const hk = [patch.hotkeyGemini, patch.hotkeyRambler, patch.hotkeyLive, patch.hotkeyStop].filter(Boolean);
   if (new Set(hk).size !== hk.length) {
     status($('hotkeyStatus'), 'Zwei Funktionen haben dasselbe Kürzel.', false);
     return;
@@ -91,6 +93,7 @@ window.api.getUsage().then(showUsage);
 window.api.onUsage(showUsage);
 
 $('close').onclick = () => window.close();
+$('openLog').onclick = () => window.api.openAgentLog();
 document.addEventListener('click', (e) => {
   const a = e.target.closest('a[data-url]');
   if (a) { e.preventDefault(); window.api.openExternal(a.dataset.url); }

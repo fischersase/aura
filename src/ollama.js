@@ -8,6 +8,8 @@ const RECOMMENDED = [
   { name: 'qwen3.5:9b', label: 'Qwen 3.5 9B (Alibaba)', ram: '16 GB RAM oder 8 GB Grafikspeicher', vision: true },
   { name: 'qwen3-vl:8b', label: 'Qwen3-VL 8B (Alibaba, stark beim Zeigen)', ram: '16 GB RAM oder 8 GB Grafikspeicher', vision: true },
   { name: 'gemma4:26b', label: 'Gemma 4 26B (Google, groß)', ram: '24 GB Grafikspeicher oder 32 GB RAM', vision: true },
+  { name: 'qwen3.6:27b', label: 'Qwen 3.6 27B (Alibaba, stark als Agent)', ram: '24 GB Grafikspeicher', vision: true },
+  { name: 'gemma4:31b', label: 'Gemma 4 31B (Google, stark als Agent)', ram: '24 GB Grafikspeicher', vision: true },
   { name: 'deepseek-r1:8b', label: 'DeepSeek R1 8B (nur Text)', ram: '16 GB RAM', vision: false }
 ];
 
@@ -94,9 +96,15 @@ function toMessages(history, system) {
 
 // /api/chat mit Streaming. "think: false" hält Qwen/DeepSeek kurz; Modelle ohne Denkmodus
 // lehnen den Schalter teils ab, dann ohne ihn wiederholen.
-async function chat({ url, model, messages, format, signal, onText }) {
+async function chat(opts) {
+  return (await chatFull(opts)).content;
+}
+
+// Wie chat, aber mit Werkzeugen: liefert Text und die Werkzeugaufrufe des Modells.
+async function chatFull({ url, model, messages, format, tools, signal, onText }) {
   const body = { model, messages, stream: true, think: false, keep_alive: '30m' };
   if (format) body.format = format;
+  if (tools && tools.length) body.tools = tools;
   let res;
   try {
     res = await request(url, '/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal });
@@ -106,6 +114,7 @@ async function chat({ url, model, messages, format, signal, onText }) {
     res = await request(url, '/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal });
   }
   let full = '';
+  const toolCalls = [];
   for await (const j of ndjson(res)) {
     if (j.error) throw new OllamaError(j.error);
     const t = j.message && j.message.content;
@@ -113,8 +122,9 @@ async function chat({ url, model, messages, format, signal, onText }) {
       full += t;
       onText && onText(t);
     }
+    if (j.message && j.message.tool_calls) toolCalls.push(...j.message.tool_calls);
   }
-  return full;
+  return { content: full, toolCalls };
 }
 
 async function streamChat({ url, model, history, system, onText, signal }) {
@@ -196,4 +206,4 @@ async function liveTurn({ url, model, language, history, question, jpeg, signal 
   return { say: String(j.say || '').trim(), point };
 }
 
-module.exports = { DEFAULT_URL, RECOMMENDED, OllamaError, version, listModels, pull, streamChat, rambler, liveTurn };
+module.exports = { DEFAULT_URL, RECOMMENDED, OllamaError, version, listModels, pull, streamChat, chatFull, toMessages, rambler, liveTurn };

@@ -85,6 +85,16 @@
   </section>
 
   <section>
+    <h2>Agent</h2>
+    <div class="check"><input id="agentEnabled" type="checkbox"><label for="agentEnabled" style="margin:0">Aura darf am PC handeln: Programme und Ordner öffnen, Dateien suchen und lesen, Befehle ausführen</label></div>
+    <div class="hint">Lesende Aktionen laufen sofort. Alles, was etwas verändert (Befehle, Dateien schreiben, Programme per Datei starten), musst du im Aura-Fenster erst freigeben.
+      Jede Aktion steht im Aktionsprotokoll.</div>
+    <label for="hotkeyStop">Notbremse (bricht den laufenden Auftrag ab; nur aktiv, solange Aura arbeitet)</label>
+    <input id="hotkeyStop" class="hotkey" type="text" readonly>
+    <div class="row" style="margin-top:10px"><span></span><button id="openLog">Aktionsprotokoll öffnen</button></div>
+  </section>
+
+  <section>
     <h2>Tastenkürzel</h2>
     <div class="hint">Feld anklicken und die gewünschte Kombination drücken. Rücktaste = Kürzel entfernen.</div>
     <label for="hotkeyGemini">Aura öffnen / schließen</label>

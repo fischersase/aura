@@ -34,6 +34,14 @@ contextBridge.exposeInMainWorld('api', {
   onChatError: on('chat:error'),
   onChatScreen: on('chat:screen'),
 
+  // Agent
+  onAgentStep: on('agent:step'),
+  onAgentApprove: on('agent:approve'),
+  onAgentStopped: on('agent:stopped'),
+  agentApproval: (stepId, ok) => ipcRenderer.send('agent:approval', { stepId, ok }),
+  stopAgent: () => ipcRenderer.send('agent:stop'),
+  openAgentLog: () => ipcRenderer.send('agent:openLog'),
+
   // Live
   liveConfig: () => ipcRenderer.invoke('live:config'),
   setLiveActive: (v) => ipcRenderer.send('live:active', v),

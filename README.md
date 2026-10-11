@@ -4,6 +4,8 @@
 
 Gemini the way it works on a Googlebook: a glowing screen edge, a small rounded Gemini window in the corner, Gemini Live that sees your screen and points where to click, and Rambler dictation in any text field.
 
+Aura can also act on your PC: open programs, folders and websites, find and read documents, and run terminal commands. Anything that changes something waits for your OK.
+
 Runs with Google Gemini (API key) or fully local with open models through [Ollama](https://ollama.com) (Gemma 4, Qwen, DeepSeek, …).
 
 ## Install
@@ -40,6 +42,7 @@ The in-app number is an estimate based on token usage; AI Studio shows the real 
 | `gemma4:e2b` | weaker PCs | 8 GB RAM |
 | `qwen3.5:9b`, `qwen3-vl:8b` | chat, Live; Qwen3-VL is good at pointing | 16 GB RAM or 8 GB VRAM |
 | `gemma4:26b` | best quality | 24 GB VRAM or 32 GB RAM |
+| `qwen3.6:27b`, `gemma4:31b` | agent tasks (tools) | 24 GB VRAM |
 | `deepseek-r1:8b` | text only (no screen) | 16 GB RAM |
 
 Any other Ollama model you have installed shows up in the list too. Kimi is only available as a cloud model.
@@ -51,6 +54,25 @@ What changes locally:
 - **Gemini Live** becomes turn-based: you talk, it hears the pause, the model looks at a screenshot, answers out loud (system voices) and can point at the screen. Talk over it to interrupt. It is slower than Gemini Live and pointing is less precise.
 - No costs, no budget; the window shows "lokal · 0 $".
 
+## Agent: Aura acts on your PC
+
+Ask in the chat, e.g. "open my downloads folder", "find the invoice from March", "how much disk space is left?", "start Spotify", "write these notes to ~/notes.txt".
+
+| Tool | What it does | Asks first? |
+| --- | --- | --- |
+| Open | folders, files, websites, installed programs by name (Start menu / app menu) | only for scripts and `.exe` files |
+| Find files | by name or pattern, optionally text files containing a word | no |
+| List folder, read file | text files and PDFs (PDF needs `pdftotext`) | no |
+| Run command | PowerShell on Windows, bash on Linux | yes, unless it only reads (`ls`, `df`, `Get-ChildItem` …) |
+| Write file | create, replace or append | yes |
+| Screenshot | lets the model look at your screen | no |
+
+- Approve or decline right in the Aura window; declining is passed back to the model.
+- **Emergency stop:** the stop button, or Ctrl+Alt+Esc while Aura is working, cancels the task and ends commands it started.
+- Every action is logged: tray menu → *Aktionsprotokoll öffnen* (`agent-log.jsonl` in the settings folder).
+- Turn it off under Settings → *Agent*.
+- Local models need tool support: `qwen3.6:27b` or `gemma4:31b` on a 24 GB GPU, smaller `gemma4`/`qwen3.5` models also work but make more mistakes. DeepSeek R1 cannot use tools.
+
 ## Shortcuts (configurable)
 
 | Shortcut | Action |
@@ -58,6 +80,7 @@ What changes locally:
 | Ctrl+Alt+Space | Open Gemini (new chat each time) |
 | Ctrl+Alt+L | Gemini Live with screen sharing |
 | Ctrl+Alt+D | Rambler: dictate into the focused text field; press again to finish |
+| Ctrl+Alt+Esc | Emergency stop for a running agent task (only active while Aura works) |
 
 ### Linux notes
 

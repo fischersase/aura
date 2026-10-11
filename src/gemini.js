@@ -1,5 +1,5 @@
 // Gemini API (REST) für Text-Chat und Rambler.
-const BASE = 'https://generativelanguage.googleapis.com/v1beta';
+const BASE = process.env.AURA_GEMINI_BASE || 'https://generativelanguage.googleapis.com/v1beta'; // Umgebungsvariable nur für Tests
 
 class GeminiError extends Error {}
 
@@ -14,14 +14,16 @@ async function check(res) {
 }
 
 // Streamt eine Chat-Antwort. onText erhält jeweils das neue Textstück.
-async function streamChat({ apiKey, model, history, system, onText, signal }) {
+// tools: Standard ist die Google-Suche; der Agent übergibt zusätzlich seine Funktionen.
+// Zurück kommen auch alle Teile der Antwort (Funktionsaufrufe samt thoughtSignature).
+async function streamChat({ apiKey, model, history, system, onText, signal, tools = [{ googleSearch: {} }] }) {
   const res = await fetch(`${BASE}/models/${model}:streamGenerateContent?alt=sse`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
     body: JSON.stringify({
       contents: history,
       systemInstruction: system ? { parts: [{ text: system }] } : undefined,
-      tools: [{ googleSearch: {} }]
+      tools
     }),
     signal
   });
@@ -30,6 +32,7 @@ async function streamChat({ apiKey, model, history, system, onText, signal }) {
   let buf = '';
   let full = '';
   let usage = null;
+  const allParts = [];
   for await (const chunk of res.body) {
     buf += decoder.decode(chunk, { stream: true });
     let i;
@@ -42,6 +45,7 @@ async function streamChat({ apiKey, model, history, system, onText, signal }) {
         if (j.usageMetadata) usage = j.usageMetadata;
         const parts = (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
         for (const p of parts) {
+          if (p.functionCall || p.thoughtSignature || (p.text && !p.thought)) allParts.push(p);
           if (p.text && !p.thought) {
             full += p.text;
             onText(p.text);
@@ -50,7 +54,7 @@ async function streamChat({ apiKey, model, history, system, onText, signal }) {
       } catch {}
     }
   }
-  return { text: full, usage };
+  return { text: full, usage, parts: allParts };
 }
 
 const RAMBLER_PROMPT = (language, selection) => selection

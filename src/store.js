@@ -9,6 +9,8 @@ const DEFAULTS = {
   hotkeyGemini: 'Control+Alt+Space', // Strg+Alt+G belegt Google Drive für Desktop
   hotkeyRambler: 'Control+Alt+D',
   hotkeyLive: 'Control+Alt+L',
+  hotkeyStop: 'Control+Alt+Escape', // Notbremse, nur aktiv solange der Agent arbeitet
+  agentEnabled: true, // Aura darf Werkzeuge nutzen (Befehle, Dateien, Programme öffnen)
   provider: 'gemini', // 'gemini' (API-Key) oder 'ollama' (lokal)
   ollamaUrl: 'http://127.0.0.1:11434',
   ollamaModel: 'gemma4:e4b', // Chat, Rambler-Nachbearbeitung und Live bei provider 'ollama'
