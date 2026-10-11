@@ -76,6 +76,16 @@ Ask in the chat, e.g. "open my downloads folder", "find the invoice from March",
 - Local models get a 16k context by default (Settings → *Lokale Modelle*; choose 32k on a 24 GB GPU).
 - Local models need tool support: `qwen3.6:27b` or `gemma4:31b` on a 24 GB GPU, smaller `gemma4`/`qwen3.5` models also work but make more mistakes. DeepSeek R1 cannot use tools.
 
+## Aura Zentrale
+
+One window to manage everything the agent uses: tray menu → *Aura Zentrale*, the grid button in the Aura window, or `aura --zentrale`.
+
+- **Werkzeuge:** every built-in tool with a rule: *Standard* (ask only for changing actions), *Immer fragen*, *Nie fragen* or *Aus* (hidden from the model).
+- **MCP-Server:** status, the tools each server offers (each with the same rule), switch servers on and off, add or edit them with a form.
+- **MCP-Katalog:** search the official MCP registry and add a server in one click, including the keys it needs.
+- **Skills:** list, switch on/off, create and edit `SKILL.md` files.
+- **Anweisungen:** edit `AGENTS.md`. **Aktionsprotokoll** and **Chats:** what the agent did, and saved chats.
+
 ## Extensions: instructions, skills, MCP servers
 
 Like Claude Code, Gemini CLI or Codex, Aura reads extensions from `~/.aura` (Windows: `%USERPROFILE%\.aura`). Settings → *Erweiterungen* opens the files and shows what loaded.

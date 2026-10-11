@@ -95,6 +95,7 @@ window.api.onUsage(showUsage);
 
 $('close').onclick = () => window.close();
 $('openLog').onclick = () => window.api.openAgentLog();
+$('openZentrale').onclick = () => window.api.openZentrale();
 $('openAgents').onclick = () => window.api.openAgentFile('agents');
 $('openSkills').onclick = () => window.api.openAgentFile('skills');
 $('openMcp').onclick = () => window.api.openAgentFile('mcp');

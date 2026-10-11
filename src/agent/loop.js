@@ -9,14 +9,20 @@ const ollama = require('../ollama');
 const { TOOLS } = require('./tools');
 const skills = require('./skills');
 const mcp = require('./mcp');
+const store = require('../store');
+
+// Regel pro Werkzeug aus der Zentrale: 'ask' (immer fragen), 'auto' (nie fragen), 'off' (abgeschaltet).
+// Ohne Regel entscheidet das Werkzeug selbst (ändernde Aktionen fragen).
+const policyOf = (name) => (store.load().toolPolicy || {})[name] || 'default';
 
 // Werkzeuge für einen Auftrag: eingebaute, activate_skill (falls Skills da) und MCP-Server.
 async function toolset() {
   try { await mcp.sync(); } catch {}
-  const list = [...TOOLS];
+  let list = [...TOOLS];
   const sk = skills.tool();
   if (sk) list.push(sk);
   list.push(...mcp.tools());
+  list = list.filter((t) => policyOf(t.name) !== 'off');
   return { list, byName: Object.fromEntries(list.map((t) => [t.name, t])) };
 }
 
@@ -58,7 +64,8 @@ async function execute(name, args, { tools, approve, onStep, signal, ctx }) {
   }
   args = args || {};
   step.label = String(tool.label(args) || '');
-  const changes = tool.changes(args);
+  const policy = policyOf(name);
+  const changes = policy === 'ask' ? true : policy === 'auto' ? false : tool.changes(args);
   if (changes) {
     onStep({ ...step, state: 'ask' });
     const ok = await approve({ ...step, detail: tool.detail ? tool.detail(args) : '' });

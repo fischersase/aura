@@ -57,8 +57,8 @@ function filesIn(dir, base = dir, depth = 0, out = []) {
 }
 
 function activate(name) {
-  const s = list().find((x) => x.name === name);
-  if (!s) return { error: `Skill „${name}“ gibt es nicht. Verfügbar: ${list().map((x) => x.name).join(', ') || 'keine'}` };
+  const s = active().find((x) => x.name === name);
+  if (!s) return { error: `Skill „${name}“ gibt es nicht. Verfügbar: ${active().map((x) => x.name).join(', ') || 'keine'}` };
   const { body } = frontmatter(fs.readFileSync(s.file, 'utf8'));
   return {
     skill: s.name,
@@ -78,12 +78,18 @@ function agentsMd() {
   }
 }
 
+// In der Zentrale ausgeschaltete Skills sieht das Modell nicht.
+function active() {
+  const off = new Set(require('../store').load().disabledSkills || []);
+  return list().filter((s) => !off.has(s.name));
+}
+
 // Ergänzung für den System-Prompt.
 function promptAddon() {
   const parts = [];
   const md = agentsMd();
   if (md) parts.push('Anweisungen des Nutzers (AGENTS.md):\n' + md);
-  const skills = list();
+  const skills = active();
   if (skills.length) {
     parts.push('Verfügbare Skills (vor Gebrauch mit activate_skill laden, wenn einer zur Aufgabe passt):\n' +
       skills.map((s) => `- ${s.name}: ${s.description}`).join('\n'));
@@ -92,7 +98,7 @@ function promptAddon() {
 }
 
 function tool() {
-  const skills = list();
+  const skills = active();
   if (!skills.length) return null;
   return {
     name: 'activate_skill',
@@ -112,4 +118,4 @@ function ensureFiles() {
   }
 }
 
-module.exports = { list, activate, promptAddon, tool, ensureFiles, auraDir, agentsFile, frontmatter };
+module.exports = { list, active, activate, promptAddon, tool, ensureFiles, auraDir, agentsFile, frontmatter };

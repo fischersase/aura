@@ -41,6 +41,30 @@ contextBridge.exposeInMainWorld('api', {
   onChatError: on('chat:error'),
   onChatScreen: on('chat:screen'),
 
+  // Aura Zentrale
+  z: {
+    state: (force) => ipcRenderer.invoke('z:state', force),
+    log: () => ipcRenderer.invoke('z:log'),
+    chats: () => ipcRenderer.invoke('z:chats'),
+    deleteChat: (id) => ipcRenderer.invoke('z:deleteChat', id),
+    setPolicy: (tool, policy) => ipcRenderer.invoke('z:setPolicy', { tool, policy }),
+    setAgent: (on) => ipcRenderer.invoke('z:setAgent', on),
+    getServer: (name) => ipcRenderer.invoke('z:getServer', name),
+    saveServer: (o) => ipcRenderer.invoke('z:saveServer', o),
+    removeServer: (name) => ipcRenderer.invoke('z:removeServer', name),
+    toggleServer: (name, enabled) => ipcRenderer.invoke('z:toggleServer', { name, enabled }),
+    searchRegistry: (q) => ipcRenderer.invoke('z:searchRegistry', q),
+    installRegistry: (o) => ipcRenderer.invoke('z:installRegistry', o),
+    toggleSkill: (name, enabled) => ipcRenderer.invoke('z:toggleSkill', { name, enabled }),
+    getSkill: (name) => ipcRenderer.invoke('z:getSkill', name),
+    saveSkill: (o) => ipcRenderer.invoke('z:saveSkill', o),
+    deleteSkill: (name) => ipcRenderer.invoke('z:deleteSkill', name),
+    saveAgentsMd: (t) => ipcRenderer.invoke('z:saveAgentsMd', t),
+    openPath: (which) => ipcRenderer.send('z:openPath', which),
+    openUrl: (url) => ipcRenderer.send('z:openUrl', url)
+  },
+  openZentrale: () => ipcRenderer.send('zentrale:open'),
+
   // Agent
   onAgentStep: on('agent:step'),
   onAgentApprove: on('agent:approve'),

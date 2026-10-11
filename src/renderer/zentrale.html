@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:">
+<title>Aura Zentrale</title>
+<link rel="stylesheet" href="zentrale.css">
+</head>
+<body>
+<nav>
+  <div class="logo"><img src="../../assets/icon.png" alt="">Aura Zentrale</div>
+  <button data-page="overview" class="on">Übersicht</button>
+  <button data-page="tools">Werkzeuge</button>
+  <button data-page="servers">MCP-Server</button>
+  <button data-page="catalog">MCP-Katalog</button>
+  <button data-page="skills">Skills</button>
+  <button data-page="instructions">Anweisungen</button>
+  <button data-page="log">Aktionsprotokoll</button>
+  <button data-page="chats">Chats</button>
+  <div class="grow"></div>
+  <div id="ver" class="muted small"></div>
+</nav>
+
+<main>
+  <!-- Übersicht -->
+  <section id="overview" class="page">
+    <h1>Übersicht</h1>
+    <p class="lead">Hier siehst und steuerst du, was Aura als Agent darf und womit es arbeitet.</p>
+    <div class="tiles" id="tiles"></div>
+    <div class="card">
+      <label class="switch"><input type="checkbox" id="agentOn"><span></span> Aura darf am PC handeln (Agent)</label>
+      <p class="muted small">Ausgeschaltet antwortet Aura nur im Chat, ohne Werkzeuge.</p>
+    </div>
+    <div class="card">
+      <h3>So funktioniert die Freigabe</h3>
+      <p class="small">Jedes Werkzeug hat eine Regel: <b>Standard</b> (ändernde Aktionen fragen, lesende laufen sofort), <b>Immer fragen</b>, <b>Nie fragen</b> oder <b>Aus</b> (das Modell sieht das Werkzeug gar nicht). Die Regeln stellst du unter „Werkzeuge“ und bei jedem MCP-Server ein.</p>
+      <p class="small muted">Dateien liegen in <code id="auraDir"></code>. <a href="#" data-open="aura">Ordner öffnen</a></p>
+    </div>
+  </section>
+
+  <!-- Eingebaute Werkzeuge -->
+  <section id="tools" class="page hidden">
+    <h1>Eingebaute Werkzeuge</h1>
+    <p class="lead">Diese Werkzeuge bringt Aura mit. Lege pro Werkzeug fest, ob Aura fragen soll.</p>
+    <div id="toolList" class="list"></div>
+  </section>
+
+  <!-- MCP-Server -->
+  <section id="servers" class="page hidden">
+    <div class="head"><h1>MCP-Server</h1><span class="grow"></span>
+      <button id="reloadServers">Neu verbinden</button>
+      <button id="addServer" class="primary">Server hinzufügen</button></div>
+    <p class="lead">MCP-Server geben Aura zusätzliche Werkzeuge, z. B. Browser-Steuerung, Kalender oder eigene Skripte. Gespeichert in <code>~/.aura/mcp.json</code> (<a href="#" data-open="mcp">Datei öffnen</a>).</p>
+    <div id="serverList"></div>
+  </section>
+
+  <!-- Katalog -->
+  <section id="catalog" class="page hidden">
+    <h1>MCP-Katalog</h1>
+    <p class="lead">Suche im offiziellen MCP-Verzeichnis (registry.modelcontextprotocol.io) und füge Server mit einem Klick hinzu. Installiere nur Server, deren Herkunft du vertraust.</p>
+    <form id="searchForm" class="row"><input id="q" type="search" placeholder="z. B. playwright, github, notion, kalender" spellcheck="false"><button class="primary">Suchen</button></form>
+    <div id="results"></div>
+  </section>
+
+  <!-- Skills -->
+  <section id="skills" class="page hidden">
+    <div class="head"><h1>Skills</h1><span class="grow"></span>
+      <button data-open="skills">Ordner öffnen</button>
+      <button id="newSkill" class="primary">Neuer Skill</button></div>
+    <p class="lead">Skills sind Anleitungen (<code>SKILL.md</code>), die Aura bei passenden Aufgaben lädt. Format wie bei Claude, Gemini CLI und Codex (agentskills.io). Ordner: <code>~/.aura/skills</code> und <code>~/.agents/skills</code>.</p>
+    <div id="skillList" class="list"></div>
+  </section>
+
+  <!-- Anweisungen -->
+  <section id="instructions" class="page hidden">
+    <div class="head"><h1>Anweisungen (AGENTS.md)</h1><span class="grow"></span><span id="mdStatus" class="muted small"></span><button id="saveMd" class="primary">Speichern</button></div>
+    <p class="lead">Was Aura immer wissen oder beachten soll, z. B. wo deine Dateien liegen oder wie es antworten soll. Text in <code>&lt;!-- --&gt;</code> wird ignoriert.</p>
+    <textarea id="agentsMd" class="editor" spellcheck="false"></textarea>
+  </section>
+
+  <!-- Protokoll -->
+  <section id="log" class="page hidden">
+    <div class="head"><h1>Aktionsprotokoll</h1><span class="grow"></span><button data-open="log">Datei öffnen</button><button id="reloadLog">Aktualisieren</button></div>
+    <p class="lead">Alles, was Aura als Agent getan hat, neueste zuerst.</p>
+    <div id="logList"></div>
+  </section>
+
+  <!-- Chats -->
+  <section id="chats" class="page hidden">
+    <h1>Chats</h1>
+    <p class="lead">Gespeicherte Chats. Öffnen und weiterschreiben kannst du sie im Aura-Fenster über das Uhr-Symbol.</p>
+    <div id="chatList" class="list"></div>
+  </section>
+</main>
+
+<!-- Dialog -->
+<div id="dlg" class="dlg hidden"><div class="dlg-box"><h2 id="dlgTitle"></h2><div id="dlgBody"></div>
+  <div class="dlg-actions"><span id="dlgError" class="bad small"></span><span class="grow"></span><button id="dlgCancel">Abbrechen</button><button id="dlgOk" class="primary">Speichern</button></div></div></div>
+
+<script src="zentrale.js"></script>
+</body>
+</html>

@@ -85,6 +85,7 @@ document.addEventListener('keydown', (e) => {
 
 $('closeBtn').onclick = () => window.api.hidePanel();
 $('openSettings').onclick = () => window.api.openSettings();
+$('openZentrale').onclick = () => window.api.openZentrale();
 $('newChat').onclick = () => {
   resetChat();
   setCompact();

@@ -218,6 +218,9 @@ function tools() {
         changes: () => !auto,
         label: (a) => `${server}: ${t.name} ${JSON.stringify(a)}`.slice(0, 300),
         mcp: true,
+        server,
+        mcpName: t.name,
+        readOnly: !!readOnly,
         run: async (args) => {
           const r = await s.conn.request('tools/call', { name: t.name, arguments: args || {} }, 300000);
           const { text, images } = textOf(r);

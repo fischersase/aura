@@ -10,6 +10,7 @@ const ollama = require('./ollama');
 const keys = require('./keys');
 const usage = require('./usage');
 const chats = require('./chats');
+const zentrale = require('./zentrale');
 const agent = require('./agent/loop');
 const agentTools = require('./agent/tools');
 const agentSkills = require('./agent/skills');
@@ -69,6 +70,7 @@ function handleArgs(argv) {
   else if (has('--live')) toggleLive();
   else if (has('--rambler')) toggleRambler();
   else if (has('--settings')) openSettings();
+  else if (has('--zentrale')) zentrale.open(ICON);
   else return false;
   return true;
 }
@@ -634,6 +636,8 @@ function registerStopHotkey() {
 }
 
 ipcMain.handle('usage:get', () => usageSummary());
+zentrale.register();
+ipcMain.on('zentrale:open', () => { closePanel(); zentrale.open(ICON); });
 
 // Chat-Verlauf
 ipcMain.handle('chats:list', () => chats.list());
@@ -869,7 +873,7 @@ function createTray() {
       ? { label: `Lokal über Ollama: ${s().ollamaModel}`, enabled: false }
       : { label: `Diesen Monat: ≈ ${usageSummary().costUsd.toFixed(2)} $ von ${Number(s().monthlyBudgetUsd).toFixed(2)} $`, enabled: false },
     ...(agentRuns > 0 ? [{ label: `Agent stoppen\t${s().hotkeyStop}`, click: () => stopAgent() }] : []),
-    { label: 'Aktionsprotokoll öffnen', click: () => ipcMain.emit('agent:openLog') },
+    { label: 'Aura Zentrale (Werkzeuge, MCP, Skills) …', click: () => zentrale.open(ICON) },
     { label: 'Einstellungen …', click: () => openSettings() },
     { label: 'Einrichtung erneut starten …', click: () => openSetup() },
     { label: 'Beenden', click: () => app.quit() }
