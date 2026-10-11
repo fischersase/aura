@@ -9,6 +9,7 @@ const gemini = require('./gemini');
 const ollama = require('./ollama');
 const keys = require('./keys');
 const usage = require('./usage');
+const chats = require('./chats');
 const agent = require('./agent/loop');
 const agentTools = require('./agent/tools');
 const agentSkills = require('./agent/skills');
@@ -23,6 +24,7 @@ const RAMBLER_W = 420;
 const RAMBLER_H = 92;
 
 const IS_LINUX = process.platform === 'linux';
+const WAYLAND = IS_LINUX && (process.env.XDG_SESSION_TYPE === 'wayland' || !!process.env.WAYLAND_DISPLAY);
 
 // Bis v0.3 hieß die App „Gemini Overlay“: Einstellungen, Kostenstand und den Schlüssel für
 // die Verschlüsselung (Local State) einmalig in den neuen Ordner übernehmen.
@@ -118,6 +120,10 @@ function createOverlay() {
 }
 
 function placeOverlay(display) {
+  // Unter Wayland lässt sich ein Fenster nicht zuverlässig klick-durchlässig machen und nicht
+  // „immer im Vordergrund“ halten: das bildschirmgroße Leucht-Fenster würde dort Klicks und
+  // Mausrad im Aura-Fenster abfangen. Deshalb gibt es dort keinen leuchtenden Rand.
+  if (WAYLAND) return;
   overlay.setBounds(display.bounds);
   if (!overlay.isVisible()) overlay.showInactive();
 }
@@ -129,7 +135,7 @@ function createPanel() {
   panel.loadFile(R('panel.html'));
   panel.on('blur', () => {
     // Wie auf dem Googlebook: Klick daneben schließt das Fenster, außer Live oder der Agent läuft.
-    if (panelOpen && !liveActive && !agentRuns && !panel.webContents.isDevToolsOpened()) closePanel();
+    if (panelOpen && !liveActive && !agentRuns && !panelBusy && !panel.webContents.isDevToolsOpened()) closePanel();
   });
 }
 
@@ -628,6 +634,16 @@ function registerStopHotkey() {
 }
 
 ipcMain.handle('usage:get', () => usageSummary());
+
+// Chat-Verlauf
+ipcMain.handle('chats:list', () => chats.list());
+ipcMain.handle('chats:get', (_e, id) => chats.get(id));
+ipcMain.handle('chats:save', (_e, chat) => chats.save(chat));
+ipcMain.handle('chats:delete', (_e, id) => chats.remove(id));
+
+// Solange eine Antwort läuft, schließt ein Fokuswechsel (z. B. Freigabe-Dialog) das Fenster nicht.
+let panelBusy = false;
+ipcMain.on('panel:busy', (_e, v) => { panelBusy = !!v; });
 
 ipcMain.on('live:usage', (_e, secs) => {
   usage.addLive(secs || {});

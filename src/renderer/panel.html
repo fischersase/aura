@@ -26,6 +26,9 @@
         <button type="button" id="screenToggle" class="chip" title="Bildschirm mitschicken">
           <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg><span>Bildschirm</span>
         </button>
+        <button type="button" id="historyBtn" class="chip icon-chip" title="Frühere Chats">
+          <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>
+        </button>
         <span class="spacer"></span>
         <button type="button" id="cost" class="cost"><span>…</span><b><i></i></b></button>
         <button type="button" id="liveBtn" class="live-btn" title="Live">
@@ -36,6 +39,17 @@
         </button>
       </div>
     </form>
+  </section>
+
+  <!-- Frühere Chats -->
+  <section id="historyView" class="hidden">
+    <header>
+      <button id="historyBack" class="icon" title="Zurück"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <span class="brand">Frühere Chats</span>
+      <span class="spacer"></span>
+      <button id="historyClose" class="icon" title="Schließen (Esc)"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </header>
+    <div id="historyList"></div>
   </section>
 
   <!-- Live -->

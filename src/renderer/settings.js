@@ -11,6 +11,7 @@ function status(el, text, ok) {
 async function load() {
   const s = await window.api.getSettings();
   FIELDS.forEach((f) => { $(f).value = s[f] != null ? String(s[f]) : ''; });
+  $('versionLine').textContent = `Version ${s.version}` + (s.session ? ` · Linux (${s.session})` : '');
   $('autostart').checked = !!s.autostart;
   $('glowStay').checked = !!s.glowStay;
   $('agentEnabled').checked = !!s.agentEnabled;

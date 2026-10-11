@@ -25,6 +25,13 @@ contextBridge.exposeInMainWorld('api', {
   onPanelClose: on('panel:close'),
   hidePanel: () => ipcRenderer.send('panel:hide'),
   ignoreMouse: (v) => ipcRenderer.send('panel:ignoreMouse', v),
+  setBusy: (v) => ipcRenderer.send('panel:busy', v),
+
+  // Chat-Verlauf
+  listChats: () => ipcRenderer.invoke('chats:list'),
+  getChat: (id) => ipcRenderer.invoke('chats:get', id),
+  saveChat: (chat) => ipcRenderer.invoke('chats:save', chat),
+  deleteChat: (id) => ipcRenderer.invoke('chats:delete', id),
 
   // Chat
   sendChat: (payload) => ipcRenderer.send('chat:send', payload),

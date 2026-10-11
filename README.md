@@ -122,7 +122,7 @@ Register it in `~/.aura/mcp.json` with `"my-tools": { "command": "node", "args":
 
 | Shortcut | Action |
 | --- | --- |
-| Ctrl+Alt+Space | Open Gemini (new chat each time) |
+| Ctrl+Alt+Space | Open Aura (new chat each time; earlier chats via the clock button) |
 | Ctrl+Alt+L | Gemini Live with screen sharing |
 | Ctrl+Alt+D | Rambler: dictate into the focused text field; press again to finish |
 | Ctrl+Alt+Esc | Emergency stop for a running agent task (only active while Aura works) |
@@ -131,6 +131,7 @@ Register it in `~/.aura/mcp.json` with `"my-tools": { "command": "node", "args":
 
 - On **Wayland**, global shortcuts go through the desktop portal (GNOME/KDE ask once). If one does not work, add a custom shortcut in your system settings that runs `aura --toggle`, `--live` or `--rambler` (with the AppImage, use the path to the `.AppImage` file).
 - Rambler types via `xdotool` (X11) or `wtype` / `ydotool` (Wayland). Without them the text stays in the clipboard for Ctrl+V.
+- On Wayland the glowing screen edge and the Live pointer are off: Wayland cannot keep a full-screen click-through window, and it would block clicks in the Aura window.
 - Screen sharing on Wayland asks for permission through the system dialog. Aura keeps that share open for a few minutes so it does not ask for every screenshot.
 - Read-aloud for local Live needs `speech-dispatcher` with a voice (e.g. `espeak-ng`).
 - The tray icon needs AppIndicator support (on GNOME: the "AppIndicator" extension).

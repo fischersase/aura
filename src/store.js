@@ -75,7 +75,13 @@ function setApiKey(key) {
 // Einstellungen ohne Geheimnisse, für die Oberfläche.
 function publicSettings() {
   const { apiKeyEnc, ...rest } = load();
-  return { ...rest, hasApiKey: !!getApiKey(), platform: process.platform };
+  return {
+    ...rest,
+    hasApiKey: !!getApiKey(),
+    platform: process.platform,
+    version: app.getVersion(),
+    session: process.platform === 'linux' ? (process.env.XDG_SESSION_TYPE || (process.env.WAYLAND_DISPLAY ? 'wayland' : 'x11')) : ''
+  };
 }
 
 const isLocal = () => load().provider === 'ollama';

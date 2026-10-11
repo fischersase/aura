@@ -162,3 +162,18 @@ button svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke
 .approve .btns { display: flex; gap: 8px; justify-content: flex-end; }
 .approve button { font: inherit; font-size: 13px; border: 0; border-radius: 16px; padding: 6px 14px; cursor: pointer; background: var(--bg-3); color: inherit; }
 .approve button.allow { background: #4285F4; color: #fff; }
+
+/* Frühere Chats */
+#historyView { min-height: 360px; }
+#historyList { flex: 1; overflow-y: auto; padding: 8px 10px 14px; min-height: 0; display: flex; flex-direction: column; gap: 2px; }
+#historyList::-webkit-scrollbar { width: 6px; }
+#historyList::-webkit-scrollbar-thumb { background: var(--bg-3); border-radius: 3px; }
+.hist-day { font-size: 12px; color: var(--muted); padding: 10px 10px 4px; }
+.hist-item { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 14px; cursor: pointer; }
+.hist-item:hover, .hist-item.current { background: var(--bg-2); }
+.hist-item .t { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hist-item .p { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+.hist-item .del { width: 28px; height: 28px; opacity: 0; }
+.hist-item:hover .del { opacity: 1; }
+.hist-empty { color: var(--muted); font-size: 14px; padding: 24px 10px; text-align: center; }
+.chip.icon-chip { padding-left: 8px; padding-right: 8px; }

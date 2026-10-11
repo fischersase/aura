@@ -8,6 +8,8 @@ const SPRING = 'cubic-bezier(.34, 1.56, .64, 1)';
 
 let history = [];
 let streaming = null; // { id, el, text }
+const newChatId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+let chatId = newChatId(); // unter dieser ID wird der Chat im Verlauf gespeichert
 let includeScreen = false;
 let live = null;
 
@@ -46,8 +48,10 @@ function resetChat() {
   if (streaming) window.api.abortChat(streaming.id);
   history = [];
   streaming = null;
+  chatId = newChatId();
   messages.innerHTML = '';
   input.value = '';
+  showView('chat');
   autosize();
   setBusy(false);
 }
@@ -74,17 +78,15 @@ document.addEventListener('mousedown', (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     e.preventDefault();
-    window.api.hidePanel();
+    if (!$('historyView').classList.contains('hidden')) showView('chat');
+    else window.api.hidePanel();
   }
 });
 
 $('closeBtn').onclick = () => window.api.hidePanel();
 $('openSettings').onclick = () => window.api.openSettings();
 $('newChat').onclick = () => {
-  if (streaming) window.api.abortChat(streaming.id);
-  history = [];
-  streaming = null;
-  messages.innerHTML = '';
+  resetChat();
   setCompact();
   input.focus();
 };
@@ -165,11 +167,20 @@ function addModel() {
   return el;
 }
 
-function scrollDown() {
-  messages.scrollTop = messages.scrollHeight;
+// Nur mitscrollen, wenn man unten ist; wer hochgescrollt hat, wird nicht nach unten gerissen.
+let stickToBottom = true;
+messages.addEventListener('scroll', () => {
+  stickToBottom = messages.scrollHeight - messages.scrollTop - messages.clientHeight < 40;
+});
+function scrollDown(force) {
+  if (force || stickToBottom) {
+    messages.scrollTop = messages.scrollHeight;
+    stickToBottom = true;
+  }
 }
 
 function setBusy(on) {
+  window.api.setBusy(on);
   card.classList.toggle('busy', on);
   sendBtn.classList.toggle('stop', on);
   sendBtn.disabled = !on && !input.value.trim();
@@ -191,7 +202,7 @@ function send() {
   streaming = { id, el: addModel(), text: '', userEl, userIndex: history.length - 1 };
   setCompact();
   setBusy(true);
-  scrollDown();
+  scrollDown(true);
   window.api.sendChat({ id, history, includeScreen });
 }
 
@@ -219,6 +230,7 @@ window.api.onChatDone(({ id }) => {
   streaming.el.querySelectorAll('.step .approve').forEach((a) => a.remove());
   streaming = null;
   setBusy(false);
+  window.api.saveChat({ id: chatId, history }).catch(() => {});
 });
 
 window.api.onChatError(({ id, message }) => {
@@ -230,6 +242,88 @@ window.api.onChatError(({ id, message }) => {
   streaming = null;
   setBusy(false);
 });
+
+// ---------- Frühere Chats ----------
+
+function showView(name) {
+  $('chatView').classList.toggle('hidden', name !== 'chat');
+  $('historyView').classList.toggle('hidden', name !== 'history');
+  card.classList.toggle('history', name === 'history');
+  if (name === 'history') card.classList.remove('compact');
+  else setCompact();
+  if (name === 'chat') setTimeout(() => input.focus(), 30);
+}
+
+function dayLabel(ts) {
+  const d = new Date(ts);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const diff = Math.round((today - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000);
+  if (diff <= 0) return 'Heute';
+  if (diff === 1) return 'Gestern';
+  if (diff < 7) return d.toLocaleDateString('de-DE', { weekday: 'long' });
+  return d.toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: diff > 300 ? 'numeric' : undefined });
+}
+
+async function showHistory() {
+  showView('history');
+  const list = $('historyList');
+  list.innerHTML = '';
+  const all = await window.api.listChats();
+  if (!all.length) {
+    list.innerHTML = '<div class="hist-empty">Noch keine gespeicherten Chats.</div>';
+    return;
+  }
+  let lastDay = '';
+  for (const c of all) {
+    const day = dayLabel(c.updated);
+    if (day !== lastDay) {
+      const h = document.createElement('div');
+      h.className = 'hist-day';
+      h.textContent = day;
+      list.appendChild(h);
+      lastDay = day;
+    }
+    const el = document.createElement('div');
+    el.className = 'hist-item' + (c.id === chatId ? ' current' : '');
+    el.innerHTML = '<div><div class="t"></div><div class="p"></div></div><button class="icon del" title="Löschen"><svg viewBox="0 0 24 24"><path d="M5 7h14M10 11v6M14 11v6M6 7l1 12h10l1-12M9 7V4h6v3"/></svg></button>';
+    el.querySelector('.t').textContent = c.title;
+    el.querySelector('.p').textContent = new Date(c.updated).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + (c.preview ? ' · ' + c.preview : '');
+    el.onclick = () => loadChat(c.id);
+    el.querySelector('.del').onclick = async (e) => {
+      e.stopPropagation();
+      await window.api.deleteChat(c.id);
+      if (c.id === chatId) chatId = newChatId(); // offener Chat wird beim nächsten Senden neu gespeichert
+      showHistory();
+    };
+    list.appendChild(el);
+  }
+}
+
+async function loadChat(id) {
+  const c = await window.api.getChat(id);
+  if (!c) return showHistory();
+  if (streaming) window.api.abortChat(streaming.id);
+  streaming = null;
+  setBusy(false);
+  chatId = c.id;
+  history = c.history;
+  messages.innerHTML = '';
+  for (const m of history) {
+    const text = m.parts.map((p) => p.text).filter(Boolean).join('\n');
+    if (m.role === 'user') addUser(text);
+    else {
+      const el = addModel();
+      el.classList.remove('thinking');
+      el.querySelector('.body').innerHTML = markdown(text);
+    }
+  }
+  showView('chat');
+  scrollDown(true);
+}
+
+$('historyBtn').onclick = showHistory;
+$('historyBack').onclick = () => showView('chat');
+$('historyClose').onclick = () => window.api.hidePanel();
 
 // ---------- Agent: Schritte und Freigaben ----------
 
@@ -351,6 +445,7 @@ const liveUi = {
 async function startLiveMode() {
   if (live) return;
   $('chatView').classList.add('hidden');
+  $('historyView').classList.add('hidden');
   $('liveView').classList.remove('hidden');
   card.classList.add('live');
   card.classList.remove('compact');
