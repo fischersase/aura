@@ -8,7 +8,7 @@ Runs with Google Gemini (API key) or fully local with open models through [Ollam
 
 **Windows:** download **`GeminiOverlay.exe`** from the [latest release](https://github.com/fischersase/windows-gemini/releases/latest) and run it. SmartScreen may warn because the file is unsigned: click **More info → Run anyway**.
 
-**Linux (x64):** download **`GeminiOverlay-x86_64.AppImage`** (any distro, `chmod +x` and run) or **`gemini-overlay_amd64.deb`** (Debian/Ubuntu: `sudo apt install ./gemini-overlay_amd64.deb`).
+**Linux (x64):** download **`GeminiOverlay-x86_64.AppImage`** (any distro, `chmod +x` and run) or **`gemini-overlay_amd64.deb`** for Debian/Ubuntu. Double-clicking the .deb may just open an archive viewer; install it from a terminal instead: `sudo apt install ~/Downloads/gemini-overlay_amd64.deb`, then start "Gemini Overlay" from the app menu.
 
 The setup assistant opens on first start and lets you pick Gemini or local models. The app lives in the system tray (star icon); right-click it for settings, or start "Gemini Overlay" again.
 
