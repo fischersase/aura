@@ -17,7 +17,7 @@
     "dist": "electron-builder --win portable",
     "dist:win": "electron-builder --win portable",
     "dist:linux": "bash scripts/build-agent.sh && electron-builder --linux AppImage deb",
-    "test": "node --test test/"
+    "test": "node --test test/*.test.js"
   },
   "devDependencies": {
     "@huggingface/transformers": "4.3.1",

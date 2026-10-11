@@ -18,9 +18,12 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
+      # Für Desktop-, Medien- und Einstellungstests: unsichtbarer Bildschirm, D-Bus, GNOME-Schemata, Papierkorb (gio).
+      - run: sudo apt-get update -q && sudo apt-get install -y -q xvfb dbus gsettings-desktop-schemas libglib2.0-bin
+        working-directory: .
       - run: uv sync --locked
-      - run: uv run ruff check src tests spikes
-      - run: uv run pytest -q
+      - run: uv run ruff check src tests spikes evals
+      - run: uv run pytest -q -rs  # -rs: übersprungene Tests mit Grund anzeigen
 
   js:
     runs-on: ubuntu-24.04
