@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'">
-<title>Gemini Overlay – Einrichtung</title>
+<title>Aura – Einrichtung</title>
 <style>
   :root { --bg: #1f1f1f; --card: #2a2b2d; --text: #e3e3e3; --muted: #a8abb0; --blue: #4285F4; --line: rgba(255,255,255,.1);
     font-family: "Google Sans", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; color-scheme: dark; --link: #a8c7fa; }
@@ -48,8 +48,8 @@
   <div class="dots"></div>
 
   <section class="step on" data-step="welcome">
-    <h1><img src="../../assets/icon.png" alt="">Willkommen bei Gemini Overlay</h1>
-    <p>Gemini im Googlebook-Stil: leuchtender Bildschirmrand, kleines Gemini-Fenster, Gemini Live mit Bildschirmfreigabe und Rambler-Diktat.</p>
+    <h1><img src="../../assets/icon.png" alt="">Willkommen bei Aura</h1>
+    <p>Dein Assistent im Googlebook-Stil: leuchtender Bildschirmrand, kleines Fenster für Fragen, Live mit Bildschirmfreigabe und Rambler-Diktat. Mit Gemini oder lokalen Modellen.</p>
     <p>Die Einrichtung dauert etwa zwei Minuten.</p>
   </section>
 
@@ -81,7 +81,7 @@
 
   <section class="step" data-step="budget">
     <h1>Budget festlegen</h1>
-    <p>Die App zählt die geschätzten Kosten pro Monat mit, zeigt sie im Gemini-Fenster an und stoppt Anfragen, sobald das Budget erreicht ist.</p>
+    <p>Die App zählt die geschätzten Kosten pro Monat mit, zeigt sie im Aura-Fenster an und stoppt Anfragen, sobald das Budget erreicht ist.</p>
     <label for="budget">Monatsbudget in USD</label>
     <input id="budget" type="text" inputmode="decimal" value="10">
     <div class="box" style="margin-top:14px">
@@ -97,12 +97,12 @@
   <section class="step" data-step="done">
     <h1>Fertig</h1>
     <div class="box">
-      <div><kbd id="kG"></kbd> Gemini öffnen (jedes Mal ein neuer Chat)</div>
-      <div style="margin-top:6px"><kbd id="kL"></kbd> Gemini Live mit Bildschirm</div>
+      <div><kbd id="kG"></kbd> Aura öffnen (jedes Mal ein neuer Chat)</div>
+      <div style="margin-top:6px"><kbd id="kL"></kbd> Live mit Bildschirm</div>
       <div style="margin-top:6px"><kbd id="kD"></kbd> Rambler: im Textfeld diktieren</div>
     </div>
     <p>Kürzel, Modell und Budget änderst du jederzeit über das Stern-Symbol im Infobereich (Rechtsklick → Einstellungen) oder indem du „Gemini Overlay“ erneut startest.</p>
-    <p id="linuxDone" class="hidden">Linux mit Wayland: Greift ein Kürzel nicht, lege in den Systemeinstellungen ein eigenes Tastenkürzel mit dem Befehl <code>gemini-overlay --toggle</code> (bzw. <code>--live</code>, <code>--rambler</code>) an.</p>
+    <p id="linuxDone" class="hidden">Linux mit Wayland: Greift ein Kürzel nicht, lege in den Systemeinstellungen ein eigenes Tastenkürzel mit dem Befehl <code>aura --toggle</code> (bzw. <code>--live</code>, <code>--rambler</code>) an.</p>
     <div class="check"><input id="autostart" type="checkbox" checked><label for="autostart">Beim Anmelden automatisch starten</label></div>
   </section>
 

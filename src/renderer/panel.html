@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob: mediastream:; connect-src wss://generativelanguage.googleapis.com https://generativelanguage.googleapis.com; worker-src 'self' blob:">
-<title>Gemini</title>
+<title>Aura</title>
 <link rel="stylesheet" href="panel.css">
 </head>
 <body>
@@ -13,7 +13,7 @@
   <!-- Chat -->
   <section id="chatView">
     <header id="chatHeader">
-      <span class="brand"><svg class="spark" viewBox="0 0 24 24"><use href="#spark"/></svg>Gemini</span>
+      <span class="brand"><svg class="spark" viewBox="0 0 24 24"><use href="#spark"/></svg>Aura</span>
       <span class="spacer"></span>
       <button id="newChat" class="icon" title="Neuer Chat"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
       <button id="openSettings" class="icon" title="Einstellungen"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
@@ -21,14 +21,14 @@
     </header>
     <div id="messages"></div>
     <form id="composer" autocomplete="off">
-      <textarea id="input" rows="1" placeholder="Gemini fragen"></textarea>
+      <textarea id="input" rows="1" placeholder="Aura fragen"></textarea>
       <div class="tools">
         <button type="button" id="screenToggle" class="chip" title="Bildschirm mitschicken">
           <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg><span>Bildschirm</span>
         </button>
         <span class="spacer"></span>
         <button type="button" id="cost" class="cost"><span>…</span><b><i></i></b></button>
-        <button type="button" id="liveBtn" class="live-btn" title="Gemini Live">
+        <button type="button" id="liveBtn" class="live-btn" title="Live">
           <svg viewBox="0 0 24 24"><path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4"/></svg>
         </button>
         <button type="submit" id="sendBtn" class="send-btn" title="Senden" disabled>

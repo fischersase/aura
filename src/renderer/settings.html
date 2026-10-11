@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'">
-<title>Gemini Overlay – Einstellungen</title>
+<title>Aura – Einstellungen</title>
 <style>
   :root { --bg: #1f1f1f; --card: #2a2b2d; --text: #e3e3e3; --muted: #a8abb0; --blue: #4285F4; --line: rgba(255,255,255,.1);
     font-family: "Google Sans", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; color-scheme: dark; --link: #a8c7fa; }
@@ -42,8 +42,8 @@
 </head>
 <body>
 <main>
-  <h1><img src="../../assets/icon.png" alt="">Gemini Overlay</h1>
-  <p class="lead">Gemini, Gemini Live und Rambler im Googlebook-Stil.</p>
+  <h1><img src="../../assets/icon.png" alt="">Aura</h1>
+  <p class="lead">Dein Assistent im Googlebook-Stil: Chat, Live und Rambler, mit Gemini oder lokalen Modellen.</p>
 
   <section>
     <h2>KI-Modell</h2>
@@ -87,16 +87,16 @@
   <section>
     <h2>Tastenkürzel</h2>
     <div class="hint">Feld anklicken und die gewünschte Kombination drücken. Rücktaste = Kürzel entfernen.</div>
-    <label for="hotkeyGemini">Gemini öffnen / schließen</label>
+    <label for="hotkeyGemini">Aura öffnen / schließen</label>
     <input id="hotkeyGemini" class="hotkey" type="text" readonly>
     <label for="hotkeyRambler">Rambler (im Textfeld diktieren, markierten Text umschreiben)</label>
     <input id="hotkeyRambler" class="hotkey" type="text" readonly>
-    <label for="hotkeyLive">Gemini Live mit Bildschirm</label>
+    <label for="hotkeyLive">Live mit Bildschirm</label>
     <input id="hotkeyLive" class="hotkey" type="text" readonly>
     <div id="hotkeyStatus" class="status"></div>
     <div id="linuxKeys" class="hint hidden">Linux: Falls ein Kürzel nicht greift (Wayland), lege es in den Systemeinstellungen als eigenes Tastenkürzel an,
-      mit dem Befehl <code>gemini-overlay --toggle</code>, <code>--live</code> oder <code>--rambler</code>
-      (beim AppImage den Pfad zur .AppImage-Datei statt <code>gemini-overlay</code>). Rambler braucht <code>xdotool</code> (X11) oder <code>wtype</code>/<code>ydotool</code> (Wayland).</div>
+      mit dem Befehl <code>aura --toggle</code>, <code>--live</code> oder <code>--rambler</code>
+      (beim AppImage den Pfad zur .AppImage-Datei statt <code>aura</code>). Rambler braucht <code>xdotool</code> (X11) oder <code>wtype</code>/<code>ydotool</code> (Wayland).</div>
   </section>
 
   <section class="gem-only">
@@ -125,14 +125,14 @@
 
   <section>
     <h2>Darstellung und Start</h2>
-    <label for="panelCorner">Position des Gemini-Fensters</label>
+    <label for="panelCorner">Position des Aura-Fensters</label>
     <select id="panelCorner">
       <option value="bottom-right">Unten rechts</option>
       <option value="bottom-left">Unten links</option>
       <option value="top-right">Oben rechts</option>
       <option value="top-left">Oben links</option>
     </select>
- <div class="check"><input id="glowStay" type="checkbox"><label for="glowStay" style="margin:0">Bildschirmrand leuchtet, solange Gemini offen ist (sonst nur kurz)</label></div>
+ <div class="check"><input id="glowStay" type="checkbox"><label for="glowStay" style="margin:0">Bildschirmrand leuchtet, solange Aura offen ist (sonst nur kurz)</label></div>
     <div class="check"><input id="autostart" type="checkbox"><label for="autostart" style="margin:0">Beim Anmelden automatisch starten</label></div>
   </section>
 

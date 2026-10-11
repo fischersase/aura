@@ -1,8 +1,8 @@
 {
-  "name": "windows-gemini",
-  "productName": "Gemini Overlay",
-  "version": "0.3.0",
-  "description": "Gemini, Gemini Live und Rambler im Googlebook-Stil für Windows und Linux, mit Gemini oder lokalen Modellen über Ollama",
+  "name": "aura-desktop",
+  "productName": "Aura",
+  "version": "0.4.0",
+  "description": "Aura: hotkey assistant in Googlebook style for Windows and Linux, with Gemini or local models via Ollama",
   "main": "src/main.js",
   "author": {
     "name": "fischersase",
@@ -24,8 +24,8 @@
     "electron-builder": "26.15.3"
   },
   "build": {
-    "appId": "local.sebastian.gemini-overlay",
-    "productName": "Gemini Overlay",
+    "appId": "local.sebastian.aura",
+    "productName": "Aura",
     "directories": {
       "output": "dist"
     },
@@ -39,7 +39,7 @@
       "signAndEditExecutable": false
     },
     "portable": {
-      "artifactName": "GeminiOverlay-${version}-portable.exe"
+      "artifactName": "Aura-${version}-portable.exe"
     },
     "linux": {
       "target": [
@@ -48,10 +48,10 @@
       ],
       "icon": "assets/icon.png",
       "category": "Utility",
-      "executableName": "gemini-overlay",
-      "synopsis": "Gemini overlay with Live and dictation",
+      "executableName": "aura",
+      "synopsis": "Aura: hotkey assistant with Live and dictation",
       "maintainer": "fischersase <121428169+fischersase@users.noreply.github.com>",
-      "artifactName": "GeminiOverlay-${version}-${arch}.${ext}"
+      "artifactName": "Aura-${version}-${arch}.${ext}"
     },
     "deb": {
       "depends": [

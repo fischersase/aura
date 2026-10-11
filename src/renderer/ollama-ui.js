@@ -19,7 +19,7 @@ function OllamaPanel(root, settings) {
     <div class="ol-progress hidden"><b><i></i></b><span></span></div>
     <label>Spracherkennung (läuft in der App, lädt beim ersten Diktat)</label>
     <select class="ol-whisper">${WHISPER_MODELS.map((m) => `<option value="${m.id}">${m.label}</option>`).join('')}</select>
-    <div class="hint">Gemini Live wird lokal zum Wechselgespräch: du sprichst, das Modell sieht ein Bildschirmfoto, antwortet und liest vor.
+    <div class="hint">Live wird lokal zum Wechselgespräch: du sprichst, das Modell sieht ein Bildschirmfoto, antwortet und liest vor.
       Kimi gibt es nur als Cloud-Modell, DeepSeek lokal nur ohne Bilderkennung.</div>`;
   const q = (c) => root.querySelector(c);
   const st = (text, ok) => { const el = q('.ol-status'); el.textContent = text; el.className = 'ol-status status ' + (ok === undefined ? '' : ok ? 'ok' : 'bad'); };

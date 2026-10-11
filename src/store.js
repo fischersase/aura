@@ -1,4 +1,4 @@
-// Einstellungen in %APPDATA%/Gemini Overlay/settings.json (Linux: ~/.config/Gemini Overlay).
+// Einstellungen in %APPDATA%/Aura/settings.json (Linux: ~/.config/Aura).
 // Der API-Key wird mit Electron safeStorage verschlüsselt (Windows DPAPI, unter Linux der Schlüsselbund).
 const fs = require('fs');
 const path = require('path');

@@ -1,4 +1,6 @@
-# Gemini Overlay for Windows and Linux
+# Aura
+
+*Formerly "Gemini Overlay".* A hotkey assistant for Windows and Linux.
 
 Gemini the way it works on a Googlebook: a glowing screen edge, a small rounded Gemini window in the corner, Gemini Live that sees your screen and points where to click, and Rambler dictation in any text field.
 
@@ -6,11 +8,11 @@ Runs with Google Gemini (API key) or fully local with open models through [Ollam
 
 ## Install
 
-**Windows:** download **`GeminiOverlay.exe`** from the [latest release](https://github.com/fischersase/windows-gemini/releases/latest) and run it. SmartScreen may warn because the file is unsigned: click **More info → Run anyway**.
+**Windows:** download **`Aura.exe`** from the [latest release](https://github.com/fischersase/windows-gemini/releases/latest) and run it. SmartScreen may warn because the file is unsigned: click **More info → Run anyway**.
 
-**Linux (x64):** download **`GeminiOverlay-x86_64.AppImage`** (any distro, `chmod +x` and run) or **`gemini-overlay_amd64.deb`** for Debian/Ubuntu. Double-clicking the .deb may just open an archive viewer; install it from a terminal instead: `sudo apt install ~/Downloads/gemini-overlay_amd64.deb`, then start "Gemini Overlay" from the app menu.
+**Linux (x64):** download **`Aura-x86_64.AppImage`** (any distro, `chmod +x` and run) or **`aura_amd64.deb`** for Debian/Ubuntu. Double-clicking the .deb may just open an archive viewer; install it from a terminal instead: `sudo apt install ~/Downloads/aura_amd64.deb`, then start "Aura" from the app menu. Upgrading from "Gemini Overlay"? Remove the old package with `sudo apt remove windows-gemini`; your settings move over automatically.
 
-The setup assistant opens on first start and lets you pick Gemini or local models. The app lives in the system tray (star icon); right-click it for settings, or start "Gemini Overlay" again.
+The setup assistant opens on first start and lets you pick Gemini or local models. The app lives in the system tray (star icon); right-click it for settings, or start "Aura" again.
 
 ## Option A: Gemini (API key, no Google Cloud project needed)
 
@@ -59,7 +61,7 @@ What changes locally:
 
 ### Linux notes
 
-- On **Wayland**, global shortcuts go through the desktop portal (GNOME/KDE ask once). If one does not work, add a custom shortcut in your system settings that runs `gemini-overlay --toggle`, `--live` or `--rambler` (with the AppImage, use the path to the `.AppImage` file).
+- On **Wayland**, global shortcuts go through the desktop portal (GNOME/KDE ask once). If one does not work, add a custom shortcut in your system settings that runs `aura --toggle`, `--live` or `--rambler` (with the AppImage, use the path to the `.AppImage` file).
 - Rambler types via `xdotool` (X11) or `wtype` / `ydotool` (Wayland). Without them the text stays in the clipboard for Ctrl+V.
 - Screen sharing on Wayland asks for permission through the system dialog.
 - Read-aloud for local Live needs `speech-dispatcher` with a voice (e.g. `espeak-ng`).

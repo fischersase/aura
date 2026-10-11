@@ -20,6 +20,24 @@ const RAMBLER_H = 92;
 
 const IS_LINUX = process.platform === 'linux';
 
+// Bis v0.3 hieß die App „Gemini Overlay“: Einstellungen, Kostenstand und den Schlüssel für
+// die Verschlüsselung (Local State) einmalig in den neuen Ordner übernehmen.
+function migrateFromGeminiOverlay() {
+  try {
+    const next = app.getPath('userData');
+    const prev = path.join(app.getPath('appData'), 'Gemini Overlay');
+    if (prev === next || fs.existsSync(path.join(next, 'settings.json'))) return;
+    if (!fs.existsSync(path.join(prev, 'settings.json'))) return;
+    fs.mkdirSync(next, { recursive: true });
+    for (const f of ['settings.json', 'usage.json', 'Local State']) {
+      if (fs.existsSync(path.join(prev, f))) fs.copyFileSync(path.join(prev, f), path.join(next, f));
+    }
+  } catch (err) {
+    console.warn('Übernahme der alten Einstellungen fehlgeschlagen:', err.message);
+  }
+}
+migrateFromGeminiOverlay();
+
 // SharedArrayBuffer: Whisper rechnet mit mehreren Threads.
 // GlobalShortcutsPortal: globale Kürzel unter Wayland (GNOME/KDE fragen einmal nach).
 const features = ['SharedArrayBuffer'];
@@ -38,7 +56,7 @@ const ramblerState = { recording: false, busy: false, saved: null, selection: ''
 if (!app.requestSingleInstanceLock()) app.quit();
 
 // Befehle per Kommandozeile, z. B. für eigene Tastenkürzel in GNOME/KDE:
-//   gemini-overlay --toggle | --live | --rambler | --settings
+//   aura --toggle | --live | --rambler | --settings
 function handleArgs(argv) {
   const has = (f) => argv.includes(f);
   if (has('--toggle')) toggleGemini();
@@ -142,7 +160,7 @@ function openSetup() {
   setupWin = new BrowserWindow({
     width: 620,
     height: 720,
-    title: 'Gemini Overlay – Einrichtung',
+    title: 'Aura – Einrichtung',
     icon: ICON,
     autoHideMenuBar: true,
     backgroundColor: '#1f1f1f',
@@ -170,7 +188,7 @@ function openSettings() {
   settingsWin = new BrowserWindow({
     width: 560,
     height: 760,
-    title: 'Gemini Overlay – Einstellungen',
+    title: 'Aura – Einstellungen',
     icon: ICON,
     autoHideMenuBar: true,
     backgroundColor: '#1f1f1f',
@@ -405,7 +423,7 @@ function budgetError() {
 // ---------- IPC ----------
 
 const CHAT_SYSTEM = (lang) =>
-  `Du bist Gemini in einem kompakten Overlay auf einem ${IS_LINUX ? 'Linux-' : 'Windows-'}PC. Antworte kurz, klar und freundlich, ` +
+  `Du bist Aura, ein Assistent in einem kompakten Overlay auf einem ${IS_LINUX ? 'Linux-' : 'Windows-'}PC. Antworte kurz, klar und freundlich, ` +
   `standardmäßig auf ${lang}. Nutze Markdown sparsam (kurze Listen, **fett**, \`code\`). ` +
   'Wenn ein Screenshot beiliegt, beziehe dich konkret auf das, was zu sehen ist.';
 
@@ -648,23 +666,24 @@ function registerHotkeys() {
       failed.push(`${name} (${acc})`);
     }
   };
-  reg(s.hotkeyGemini, toggleGemini, 'Gemini');
+  reg(s.hotkeyGemini, toggleGemini, 'Aura');
   reg(s.hotkeyRambler, toggleRambler, 'Rambler');
-  reg(s.hotkeyLive, toggleLive, 'Gemini Live');
+  reg(s.hotkeyLive, toggleLive, 'Live');
   return failed;
 }
 
 // Linux: Eintrag in ~/.config/autostart (AppImage-Pfad, sonst das installierte Programm).
 function applyAutostartLinux(on) {
   const dir = path.join(app.getPath('appData'), 'autostart');
-  const file = path.join(dir, 'gemini-overlay.desktop');
+  const file = path.join(dir, 'aura.desktop');
+  fs.rmSync(path.join(dir, 'gemini-overlay.desktop'), { force: true }); // Name bis v0.3
   if (!on) { fs.rmSync(file, { force: true }); return; }
   const exe = process.env.APPIMAGE || process.execPath;
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(file, [
     '[Desktop Entry]',
     'Type=Application',
-    'Name=Gemini Overlay',
+    'Name=Aura',
     `Exec="${exe}"`,
     'X-GNOME-Autostart-enabled=true',
     ''
@@ -679,17 +698,21 @@ function applyAutostart() {
   }
   // Die portable .exe entpackt sich in einen Temp-Ordner; eingetragen wird die Original-Datei.
   const exe = process.env.PORTABLE_EXECUTABLE_FILE || process.execPath;
+  // Autostart-Einträge der alten „Gemini Overlay“ entfernen, sonst startet die alte Version mit.
+  for (const name of ['electron.app.Gemini Overlay', 'Gemini Overlay']) {
+    app.setLoginItemSettings({ openAtLogin: false, name });
+  }
   app.setLoginItemSettings({ openAtLogin: !!store.load().autostart, path: exe });
 }
 
 function createTray() {
   const img = nativeImage.createFromPath(path.join(__dirname, '..', 'assets', 'tray.png'));
   tray = new Tray(img);
-  tray.setToolTip('Gemini Overlay');
+  tray.setToolTip('Aura');
   const s = () => store.load();
   const menu = () => Menu.buildFromTemplate([
-    { label: `Gemini öffnen\t${s().hotkeyGemini}`, click: () => openPanel() },
-    { label: `Gemini Live\t${s().hotkeyLive}`, click: () => toggleLive() },
+    { label: `Aura öffnen\t${s().hotkeyGemini}`, click: () => openPanel() },
+    { label: `Live\t${s().hotkeyLive}`, click: () => toggleLive() },
     { label: `Rambler: ${s().hotkeyRambler} im Textfeld`, enabled: false },
     { type: 'separator' },
     store.isLocal()
