@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'">
+<title>Gemini Overlay – Einstellungen</title>
+<style>
+  :root { --bg: #1f1f1f; --card: #2a2b2d; --text: #e3e3e3; --muted: #a8abb0; --blue: #4285F4; --line: rgba(255,255,255,.1);
+    font-family: "Google Sans", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; color-scheme: dark; }
+  @media (prefers-color-scheme: light) { :root { --bg: #f8fafd; --card: #fff; --text: #1f1f1f; --muted: #5f6368; --line: rgba(0,0,0,.1); color-scheme: light; } }
+  body { margin: 0; background: var(--bg); color: var(--text); font-size: 14px; }
+  main { max-width: 520px; margin: 0 auto; padding: 24px 20px 40px; }
+  h1 { font-size: 20px; font-weight: 500; margin: 0 0 4px; display: flex; gap: 10px; align-items: center; }
+  h1 img { width: 26px; height: 26px; }
+  p.lead { color: var(--muted); margin: 0 0 20px; }
+  section { background: var(--card); border-radius: 16px; padding: 16px; margin-bottom: 14px; box-shadow: 0 0 0 1px var(--line) inset; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 12px; font-weight: 600; }
+  label { display: block; margin: 10px 0 4px; }
+  .hint { color: var(--muted); font-size: 12.5px; margin-top: 4px; }
+  input[type=text], input[type=password], select {
+    width: 100%; box-sizing: border-box; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line);
+    background: transparent; color: var(--text); font: inherit; }
+  input.hotkey { cursor: pointer; caret-color: transparent; }
+  input.hotkey:focus { outline: 2px solid var(--blue); }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .row > * { flex: 1; }
+  .row > button { flex: 0 0 auto; }
+  button { font: inherit; border: 0; border-radius: 18px; padding: 9px 16px; cursor: pointer; background: rgba(127,127,127,.18); color: var(--text); }
+  button.primary { background: var(--blue); color: #fff; }
+  .check { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
+  .status { margin-top: 8px; font-size: 13px; min-height: 18px; }
+  .ok { color: #81c995; } .bad { color: #f28b82; }
+  a { color: #a8c7fa; }
+  footer { display: flex; justify-content: flex-end; gap: 8px; position: sticky; bottom: 0; padding: 12px 0; background: var(--bg); }
+</style>
+</head>
+<body>
+<main>
+  <h1><img src="../../assets/icon.png" alt="">Gemini Overlay</h1>
+  <p class="lead">Gemini, Gemini Live und Rambler im Googlebook-Stil.</p>
+
+  <section>
+    <h2>Gemini API</h2>
+    <label for="apiKey">API-Key</label>
+    <div class="row">
+      <input id="apiKey" type="password" placeholder="AIza…" spellcheck="false">
+      <button id="testKey">Testen</button>
+    </div>
+    <div id="keyStatus" class="status"></div>
+    <div class="hint">
+      Key anlegen in <a href="#" data-url="https://aistudio.google.com/apikey">Google AI Studio</a>.
+      Mit Google AI Pro bekommst du monatlich 10 $ Cloud-Guthaben für die Gemini API:
+      <a href="#" data-url="https://developers.google.com/program/my-benefits">im Google Developer Program aktivieren</a>
+      und dem Projekt des Keys zuordnen.
+    </div>
+  </section>
+
+  <section>
+    <h2>Tastenkürzel</h2>
+    <div class="hint">Feld anklicken und die gewünschte Kombination drücken. Rücktaste = Kürzel entfernen.</div>
+    <label for="hotkeyGemini">Gemini öffnen / schließen</label>
+    <input id="hotkeyGemini" class="hotkey" type="text" readonly>
+    <label for="hotkeyRambler">Rambler (im Textfeld diktieren, markierten Text umschreiben)</label>
+    <input id="hotkeyRambler" class="hotkey" type="text" readonly>
+    <label for="hotkeyLive">Gemini Live mit Bildschirm</label>
+    <input id="hotkeyLive" class="hotkey" type="text" readonly>
+    <div id="hotkeyStatus" class="status"></div>
+  </section>
+
+  <section>
+    <h2>Modelle und Sprache</h2>
+    <label for="chatModel">Chat-Modell</label>
+    <input id="chatModel" type="text" spellcheck="false">
+    <label for="liveModel">Live-Modell</label>
+    <input id="liveModel" type="text" spellcheck="false">
+    <label for="ramblerModel">Rambler-Modell</label>
+    <input id="ramblerModel" type="text" spellcheck="false">
+    <label for="liveVoice">Live-Stimme (leer = Standard, z. B. Kore, Puck, Aoede)</label>
+    <input id="liveVoice" type="text" spellcheck="false">
+    <label for="language">Bevorzugte Sprache</label>
+    <input id="language" type="text">
+    <label for="liveFps">Bildschirmbilder pro Sekunde bei Live</label>
+    <select id="liveFps">
+      <option value="0.5">0,5 (sparsam)</option>
+      <option value="1">1 (Standard)</option>
+      <option value="2">2</option>
+    </select>
+  </section>
+
+  <section>
+    <h2>Darstellung und Start</h2>
+    <label for="panelCorner">Position des Gemini-Fensters</label>
+    <select id="panelCorner">
+      <option value="bottom-right">Unten rechts</option>
+      <option value="bottom-left">Unten links</option>
+      <option value="top-right">Oben rechts</option>
+      <option value="top-left">Oben links</option>
+    </select>
+ <div class="check"><input id="glowStay" type="checkbox"><label for="glowStay" style="margin:0">Bildschirmrand leuchtet, solange Gemini offen ist (sonst nur kurz)</label></div>
+    <div class="check"><input id="autostart" type="checkbox"><label for="autostart" style="margin:0">Mit Windows starten</label></div>
+  </section>
+
+  <footer>
+    <button id="close">Schließen</button>
+    <button id="save" class="primary">Speichern</button>
+  </footer>
+  <div id="saveStatus" class="status" style="text-align:right"></div>
+</main>
+<script src="settings.js"></script>
+</body>
+</html>

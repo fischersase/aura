@@ -1,0 +1,40 @@
+{
+  "name": "windows-gemini",
+  "productName": "Gemini Overlay",
+  "version": "0.1.0",
+  "description": "Gemini, Gemini Live und Rambler im Googlebook-Stil für Windows",
+  "main": "src/main.js",
+  "author": "Sebastian",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/gemini.js && node --check src/keys.js && node --check src/store.js",
+    "dist": "electron-builder --win zip portable",
+    "dist:zip": "electron-builder --win zip",
+    "dist:portable": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "44.7.0",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "local.sebastian.gemini-overlay",
+    "productName": "Gemini Overlay",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "win": {
+      "icon": "assets/icon.ico",
+      "signAndEditExecutable": false
+    },
+    "portable": {
+      "artifactName": "GeminiOverlay-${version}-portable.exe"
+    }
+  }
+}

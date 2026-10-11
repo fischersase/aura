@@ -1,0 +1,10 @@
+node_modules/
+dist/
+out/
+*.log
+# Niemals Zugangsdaten einchecken
+.env
+.env.*
+settings.json
+*.key
+*.pem

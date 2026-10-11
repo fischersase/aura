@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'">
+<title>Gemini Glow</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; }
+  canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; }
+  .pointer { position: fixed; width: 0; height: 0; pointer-events: none; }
+  .pointer .ring {
+    position: absolute; left: -26px; top: -26px; width: 52px; height: 52px; border-radius: 50%;
+    background: conic-gradient(from 0deg, #4285F4, #EA4335, #FBBC04, #34A853, #4285F4);
+    -webkit-mask: radial-gradient(circle, transparent 20px, #000 21px);
+    animation: spin 2.4s linear infinite, pop 520ms cubic-bezier(.34,1.56,.64,1) both;
+    filter: drop-shadow(0 0 10px rgba(66,133,244,.75));
+  }
+  .pointer .pulse {
+    position: absolute; left: -26px; top: -26px; width: 52px; height: 52px; border-radius: 50%;
+    border: 2px solid rgba(66,133,244,.85); animation: pulse 1.6s ease-out infinite;
+  }
+  .pointer .dot { position: absolute; left: -5px; top: -5px; width: 10px; height: 10px; border-radius: 50%;
+    background: #fff; box-shadow: 0 0 0 3px #4285F4; }
+  .pointer .label {
+    position: absolute; left: 34px; top: -18px; white-space: nowrap; max-width: 360px; overflow: hidden; text-overflow: ellipsis;
+    font: 500 14px/20px "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; color: #e3e3e3;
+    background: rgba(30,31,32,.92); padding: 8px 14px; border-radius: 18px;
+    box-shadow: 0 6px 24px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.08);
+    animation: fadein 300ms ease-out 120ms both;
+  }
+  .pointer.left .label { left: auto; right: 34px; }
+  .pointer.out { animation: fadeout 260ms ease-in forwards; }
+  @keyframes spin { to { transform: rotate(1turn); } }
+  @keyframes pop { from { transform: scale(.2); opacity: 0; } }
+  @keyframes pulse { from { transform: scale(1); opacity: .9; } to { transform: scale(2.1); opacity: 0; } }
+  @keyframes fadein { from { opacity: 0; transform: translateX(-6px); } }
+  @keyframes fadeout { to { opacity: 0; } }
+</style>
+</head>
+<body>
+<canvas id="glow"></canvas>
+<script src="overlay.js"></script>
+</body>
+</html>
