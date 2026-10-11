@@ -34,6 +34,13 @@
     <div class="card">
       <label class="switch"><input type="checkbox" id="agentOn"><span></span> Aura darf am PC handeln (Agent)</label>
       <p class="muted small">Ausgeschaltet antwortet Aura nur im Chat, ohne Werkzeuge.</p>
+      <label class="small" for="agentVersion">Agent-Version
+        <select id="agentVersion">
+          <option value="v1">v1 (bisheriger Agent)</option>
+          <option value="v2">v2 (neu, Google ADK, Testphase)</option>
+        </select>
+      </label>
+      <p class="muted small">v2 arbeitet nur mit lokalen Modellen über Ollama. In der Testphase kann er lesen und Befehle ausführen; alles, was etwas verändert, fragt vorher.</p>
     </div>
     <div class="card">
       <h3>Zentrale im Browser</h3>

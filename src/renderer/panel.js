@@ -204,7 +204,7 @@ function send() {
   setCompact();
   setBusy(true);
   scrollDown(true);
-  window.api.sendChat({ id, history, includeScreen });
+  window.api.sendChat({ id, chatId, history, includeScreen });
 }
 
 window.api.onChatScreen(({ id, jpeg }) => {

@@ -1,10 +1,11 @@
 name: CI
-# Tests für Aura: JavaScript-Syntax und der Python-Agent (agent/).
-# Läuft auf jedem Branch und jedem Pull Request; Releases kommen nur, wenn das hier grün ist.
+# Tests für Aura: der Python-Agent (agent/) und die JavaScript-Seite inklusive Brücke zum Agenten.
+# Läuft auf jedem Branch und jedem Pull Request; release.yml ruft diesen Workflow vor jedem Release auf.
 on:
   push:
   pull_request:
   workflow_dispatch:
+  workflow_call:
 
 jobs:
   agent:
@@ -28,4 +29,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
       - run: npm run check
+      # Für den Ende-zu-Ende-Test der Brücke (startet den echten Python-Agenten mit Drehbuch-Modell).
+      - run: uv sync --locked
+        working-directory: agent
+      - run: npm test

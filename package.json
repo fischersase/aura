@@ -13,10 +13,11 @@
   "scripts": {
     "start": "electron .",
     "postinstall": "node scripts/vendor.js",
-    "check": "for f in src/*.js src/agent/*.js src/renderer/*.js scripts/*.js; do node --check \"$f\" || exit 1; done",
+    "check": "for f in src/*.js src/agent/*.js src/agent2/*.js src/renderer/*.js scripts/*.js test/*.js; do node --check \"$f\" || exit 1; done",
     "dist": "electron-builder --win portable",
     "dist:win": "electron-builder --win portable",
-    "dist:linux": "electron-builder --linux AppImage deb"
+    "dist:linux": "bash scripts/build-agent.sh && electron-builder --linux AppImage deb",
+    "test": "node --test test/"
   },
   "devDependencies": {
     "@huggingface/transformers": "4.3.1",
@@ -51,7 +52,16 @@
       "executableName": "aura",
       "synopsis": "Aura: hotkey assistant with Live and dictation",
       "maintainer": "fischersase <121428169+fischersase@users.noreply.github.com>",
-      "artifactName": "Aura-${version}-${arch}.${ext}"
+      "artifactName": "Aura-${version}-${arch}.${ext}",
+      "extraResources": [
+        {
+          "from": "build/agent-python",
+          "to": "python",
+          "filter": [
+            "**/*"
+          ]
+        }
+      ]
     },
     "deb": {
       "depends": [

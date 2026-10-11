@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/fischersase/aura/protocol/aura-agent.schema.json",
+  "title": "Aura Agent RPC, Protokollversion 1",
+  "description": "JSON-RPC 2.0 über stdin/stdout zwischen Electron (src/agent2) und dem Agenten (agent/). Eine JSON-Zeile pro Nachricht. requests: Electron → Agent. hostRequests: Agent → Electron. notifications: Agent → Electron, ohne Antwort.",
+  "$defs": {
+    "requests": {
+      "initialize": {
+        "params": {
+          "type": "object",
+          "required": ["protocol"],
+          "properties": {
+            "protocol": { "const": 1 },
+            "warmUp": { "type": "boolean" },
+            "settings": {
+              "type": "object",
+              "properties": {
+                "model": { "type": "string" },
+                "ollamaUrl": { "type": "string" },
+                "numCtx": { "type": "integer" },
+                "keepAlive": { "type": "string" },
+                "language": { "type": "string" },
+                "profile": { "type": "string" },
+                "sessionType": { "type": "string" },
+                "dataDir": { "type": "string" },
+                "auraDir": { "type": "string" }
+              }
+            }
+          }
+        },
+        "result": {
+          "type": "object",
+          "required": ["protocol", "version", "model"],
+          "properties": { "protocol": { "const": 1 }, "version": { "type": "string" }, "model": { "type": "string" } }
+        }
+      },
+      "task.start": {
+        "params": {
+          "type": "object",
+          "required": ["taskId", "chatId", "text"],
+          "properties": {
+            "taskId": { "type": "string" },
+            "chatId": { "type": "string", "description": "Chat-ID; der Agent führt pro Chat eine ADK-Sitzung." },
+            "text": { "type": "string" },
+            "images": { "type": "array", "items": { "type": "object", "required": ["data"], "properties": { "mime": { "type": "string" }, "data": { "type": "string", "contentEncoding": "base64" } } } }
+          }
+        },
+        "result": { "type": "object", "required": ["accepted"], "properties": { "accepted": { "const": true } } }
+      },
+      "task.cancel": {
+        "params": { "type": "object", "required": ["taskId"], "properties": { "taskId": { "type": "string" } } },
+        "result": { "type": "object", "required": ["cancelled"], "properties": { "cancelled": { "type": "boolean" } } }
+      },
+      "task.cancelAll": {
+        "params": { "type": "object" },
+        "result": { "type": "object", "required": ["cancelled"], "properties": { "cancelled": { "type": "integer" } } }
+      },
+      "catalog.list": {
+        "params": { "type": "object" },
+        "result": { "type": "object", "required": ["tools"], "properties": { "tools": { "type": "array" } } }
+      },
+      "ping": { "params": { "type": "object" }, "result": { "type": "object" } },
+      "shutdown": { "params": { "type": "object" }, "result": { "type": "object" } }
+    },
+    "hostRequests": {
+      "host.approve": {
+        "params": {
+          "type": "object",
+          "required": ["taskId", "stepId", "tool", "label", "tier"],
+          "properties": {
+            "taskId": { "type": "string" },
+            "stepId": { "type": "string" },
+            "tool": { "type": "string" },
+            "label": { "type": "string" },
+            "tier": { "type": "integer", "minimum": 2, "maximum": 2, "description": "Nur T2 wird gefragt; T0/T1 laufen, T3 ist gesperrt." },
+            "reason": { "type": "string" },
+            "effect": { "type": "string", "description": "Genaue Wirkung (Befehl, Pfad, Diff)." }
+          }
+        },
+        "result": {
+          "type": "object",
+          "required": ["decision"],
+          "properties": { "decision": { "enum": ["once", "task", "deny"], "description": "task = Rest dieses Auftrags ohne Rückfrage." } }
+        }
+      },
+      "host.screenshot": {
+        "params": { "type": "object", "properties": { "maxWidth": { "type": "integer" } } },
+        "result": { "type": "object", "required": ["mime", "data"], "properties": { "mime": { "type": "string" }, "data": { "type": "string" }, "width": { "type": "integer" }, "height": { "type": "integer" } } }
+      }
+    },
+    "notifications": {
+      "task.text": {
+        "type": "object",
+        "required": ["taskId", "delta"],
+        "properties": { "taskId": { "type": "string" }, "delta": { "type": "string" } }
+      },
+      "task.step": {
+        "type": "object",
+        "required": ["taskId", "stepId", "tool", "label", "state"],
+        "properties": {
+          "taskId": { "type": "string" },
+          "stepId": { "type": "string" },
+          "tool": { "type": "string" },
+          "label": { "type": "string" },
+          "state": { "enum": ["ask", "run", "ok", "error", "denied"] },
+          "tier": { "type": "integer", "minimum": 0, "maximum": 3 },
+          "agent": { "type": "string" },
+          "ms": { "type": "integer" }
+        }
+      },
+      "task.done": {
+        "type": "object",
+        "required": ["taskId", "text", "cancelled", "verified", "steps", "ms", "usage"],
+        "properties": {
+          "taskId": { "type": "string" },
+          "text": { "type": "string" },
+          "cancelled": { "type": "boolean" },
+          "verified": { "type": ["boolean", "null"] },
+          "steps": { "type": "integer" },
+          "ms": { "type": "integer" },
+          "usage": { "type": "object", "properties": { "prompt": { "type": "integer" }, "output": { "type": "integer" }, "llm_calls": { "type": "integer" } } }
+        }
+      },
+      "task.error": {
+        "type": "object",
+        "required": ["taskId", "message"],
+        "properties": { "taskId": { "type": "string" }, "message": { "type": "string" } }
+      },
+      "model.status": {
+        "type": "object",
+        "required": ["state", "model"],
+        "properties": { "state": { "enum": ["loading", "ready", "error"] }, "model": { "type": "string" }, "message": { "type": "string" } }
+      }
+    }
+  }
+}

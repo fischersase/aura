@@ -4,12 +4,17 @@ name: Release
 on:
   push:
     branches: [main]
-    paths: ['src/**', 'assets/**', 'scripts/**', 'package.json', 'package-lock.json', '.github/workflows/release.yml']
+    paths: ['src/**', 'assets/**', 'scripts/**', 'agent/src/**', 'agent/pyproject.toml', 'agent/uv.lock', 'package.json', 'package-lock.json', '.github/workflows/release.yml']
   workflow_dispatch:
 permissions:
   contents: write
 jobs:
+  # Ohne grüne Tests kein Release.
+  tests:
+    uses: ./.github/workflows/ci.yml
+
   windows:
+    needs: tests
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -45,8 +50,11 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - uses: astral-sh/setup-uv@v6
       - run: npm ci --ignore-scripts
       - run: node scripts/vendor.js
+      # Agent v2: Python-Laufzeit bündeln, Größe prüfen, Selbsttest im fertigen Bündel (docs/adr/0006).
+      - run: bash scripts/build-agent.sh
       - run: npx electron-builder --linux AppImage deb --x64 --publish never
       - name: Version und Dateinamen
         id: v

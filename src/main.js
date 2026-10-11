@@ -17,6 +17,7 @@ const agentSkills = require('./agent/skills');
 const agentMcp = require('./agent/mcp');
 const secrets = require('./secrets');
 const web = require('./web');
+const { AgentBridge, defaultAuraDir } = require('./agent2/bridge');
 agentMcp.setResolver(secrets.resolveServerConfig);
 
 const R = (f) => path.join(__dirname, 'renderer', f);
@@ -491,7 +492,7 @@ ipcMain.on('open:external', (_e, url) => {
   if (/^https:\/\//.test(url)) shell.openExternal(url);
 });
 
-ipcMain.on('chat:send', async (e, { id, history, includeScreen }) => {
+ipcMain.on('chat:send', async (e, { id, chatId, history, includeScreen }) => {
   const ctrl = new AbortController();
   chatAborts.set(id, ctrl);
   try {
@@ -505,7 +506,9 @@ ipcMain.on('chat:send', async (e, { id, history, includeScreen }) => {
       e.sender.send('chat:screen', { id, jpeg });
     }
     const onText = (t) => e.sender.send('chat:chunk', { id, text: t });
-    if (s.agentEnabled) {
+    if (s.agentEnabled && agentVersion() === 'v2') {
+      await runAgentV2(e.sender, id, chatId || id, ctrl, contents, onText);
+    } else if (s.agentEnabled) {
       await runAgent(e.sender, id, ctrl, contents, onText);
     } else if (store.isLocal()) {
       await ollama.streamChat({ url: s.ollamaUrl, model: s.ollamaModel, history: contents, system: CHAT_SYSTEM(s.language), signal: ctrl.signal, onText });
@@ -594,10 +597,74 @@ ipcMain.on('agent:approval', (_e, { stepId, ok }) => {
   if (r) { approvals.delete(stepId); r(ok === 'all' ? 'all' : !!ok); }
 });
 
+// ---------- Agent v2 (agent/, Python + Google ADK) ----------
+
+const agentVersion = () => process.env.AURA_AGENT_VERSION || store.load().agentVersion || 'v1';
+const v2Senders = new Map(); // Auftrags-ID → Fenster, das den Auftrag geschickt hat
+
+const agentV2 = new AgentBridge({
+  app,
+  settings: () => {
+    const s = store.load();
+    return {
+      model: s.ollamaModel,
+      ollamaUrl: s.ollamaUrl,
+      numCtx: s.ollamaContext, // dieselbe Kontextlänge wie Chat und Rambler, sonst lädt Ollama das Modell neu
+      language: s.language,
+      profile: store.profilePrompt(),
+      sessionType: process.env.XDG_SESSION_TYPE || '',
+      dataDir: path.join(app.getPath('userData'), 'agent'),
+      auraDir: defaultAuraDir()
+    };
+  },
+  host: {
+    // Freigabe über dieselbe Karte im Panel wie beim alten Agenten.
+    approve: (req) => new Promise((resolve) => {
+      const sender = v2Senders.get(req.taskId);
+      if (!sender || sender.isDestroyed()) return resolve({ decision: 'deny' });
+      const answer = (ok) => resolve({ decision: ok === 'all' ? 'task' : ok ? 'once' : 'deny' });
+      answer.taskId = req.taskId;
+      approvals.set(req.stepId, answer);
+      const detail = [req.effect && req.effect !== req.label ? req.effect : '', req.reason ? `Grund: ${req.reason}` : ''].filter(Boolean).join('\n');
+      sender.send('agent:approve', { chatId: req.taskId, id: req.stepId, tool: req.tool, label: req.label, detail });
+      if (panel && !panelOpen) openPanel();
+    }),
+    screenshot: async (maxWidth) => ({ mime: 'image/jpeg', data: await screenshotJpeg(currentDisplay, maxWidth) })
+  }
+});
+
+async function runAgentV2(sender, id, chatId, ctrl, contents, onText) {
+  const send = (ch, data) => { if (!sender.isDestroyed()) sender.send(ch, data); };
+  const last = contents[contents.length - 1] || { parts: [] };
+  const text = last.parts.filter((p) => p.text).map((p) => p.text).join('\n');
+  const images = last.parts.filter((p) => p.inlineData).map((p) => ({ mime: p.inlineData.mimeType, data: p.inlineData.data }));
+  v2Senders.set(id, sender);
+  const onAbort = () => {
+    // Offene Freigaben dieses Auftrags gelten als abgelehnt, dann Not-Aus im Agenten.
+    for (const [stepId, r] of approvals) { if (r.taskId === id) { approvals.delete(stepId); r(false); } }
+    agentV2.cancel(id);
+  };
+  ctrl.signal.addEventListener('abort', onAbort, { once: true });
+  agentRuns++;
+  registerStopHotkey();
+  try {
+    await agentV2.runTask({ taskId: id, chatId, text, images }, {
+      onText,
+      onStep: (st) => send('agent:step', { chatId: id, id: st.stepId, tool: st.tool, label: st.label, state: st.state })
+    });
+  } finally {
+    ctrl.signal.removeEventListener('abort', onAbort);
+    v2Senders.delete(id);
+    agentRuns--;
+    registerStopHotkey();
+  }
+}
+
 // Notbremse: alle laufenden Aufträge abbrechen und gestartete Befehle beenden.
 function stopAgent() {
   for (const c of chatAborts.values()) c.abort();
   agentTools.killAll();
+  agentV2.cancelAll();
   if (panel && !panel.isDestroyed()) panel.webContents.send('agent:stopped');
 }
 ipcMain.on('agent:stop', () => stopAgent());
@@ -628,7 +695,7 @@ ipcMain.on('agent:openFile', (_e, which) => {
     shell.openPath(f);
   }
 });
-app.on('will-quit', () => { agentMcp.closeAll(); web.stop(); });
+app.on('will-quit', () => { agentMcp.closeAll(); web.stop(); agentV2.stop(); });
 
 // Das Notbremse-Kürzel ist nur aktiv, solange der Agent arbeitet.
 let stopKeyOn = null;

@@ -39,6 +39,7 @@ async function load(force) {
   document.title = `Aura Zentrale ${S.version}`;
   $('auraDir').textContent = S.auraDir;
   $('agentOn').checked = S.agentEnabled;
+  $('agentVersion').value = S.agentVersion;
   renderOverview();
   renderTools();
   renderServers();
@@ -78,6 +79,7 @@ $('resetWeb').onclick = async () => {
 };
 document.addEventListener('aura-unauthorized', () => $('noAccess').classList.remove('hidden'));
 $('agentOn').onchange = async () => { await z.setAgent($('agentOn').checked); load(); };
+$('agentVersion').onchange = async () => { await z.setAgentVersion($('agentVersion').value); load(); };
 
 function renderTools() {
   const label = { run_command: 'Befehl ausführen', find_files: 'Dateien suchen', list_folder: 'Ordner anzeigen', read_file: 'Datei lesen', write_file: 'Datei schreiben', open: 'Öffnen', screenshot: 'Bildschirmfoto', click: 'Klicken', type_text: 'Tippen', press_keys: 'Tasten drücken' };
