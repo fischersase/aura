@@ -14,6 +14,12 @@ contextBridge.exposeInMainWorld('api', {
   openSettings: () => ipcRenderer.send('settings:open'),
   openExternal: (url) => ipcRenderer.send('open:external', url),
 
+  // Einrichtung und Kosten
+  setupDone: () => ipcRenderer.send('setup:done'),
+  getUsage: () => ipcRenderer.invoke('usage:get'),
+  onUsage: on('usage:update'),
+  liveUsage: (secs) => ipcRenderer.send('live:usage', secs),
+
   // Panel
   onPanelOpen: on('panel:open'),
   onPanelClose: on('panel:close'),

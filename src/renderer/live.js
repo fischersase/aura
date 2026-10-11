@@ -51,7 +51,10 @@ class LiveSession {
     this.active = true;
     this.screenOn = screen;
     this.cfg = await window.api.liveConfig();
+    if (this.cfg.error) throw new Error(this.cfg.error);
     if (!this.cfg.apiKey) throw new Error('Kein API-Key hinterlegt.');
+    this.usageAcc = { micSec: 0, screenSec: 0, speechSec: 0 };
+    this.usageTimer = setInterval(() => this.flushUsage(), 10000);
     this.player = new PcmPlayer(24000);
     this.mic = await Audio16.openMic((samples, rms) => {
       this.micLevel = rms;
@@ -213,10 +216,26 @@ class LiveSession {
     return this.muted;
   }
 
+  flushUsage() {
+    const a = this.usageAcc;
+    if (!a || (!a.micSec && !a.screenSec && !a.speechSec)) return;
+    window.api.liveUsage({ ...a });
+    this.usageAcc = { micSec: 0, screenSec: 0, speechSec: 0 };
+  }
+
   levelLoop() {
     let last = 0;
+    let prev = performance.now();
     const tick = (now) => {
       if (!this.active) return;
+      // Laufzeit für die Kostenschätzung mitzählen
+      const dt = Math.min(1, (now - prev) / 1000);
+      prev = now;
+      if (this.ready && this.usageAcc) {
+        if (!this.muted) this.usageAcc.micSec += dt;
+        if (this.screenOn) this.usageAcc.screenSec += dt;
+        if (this.player && this.player.speaking) this.usageAcc.speechSec += dt;
+      }
       const out = this.player ? this.player.level() * 4 : 0;
       const inp = this.muted ? 0 : this.micLevel * 6;
       const v = Math.min(1, Math.max(out, inp));
@@ -229,6 +248,8 @@ class LiveSession {
 
   stop(error) {
     if (!this.active) return;
+    clearInterval(this.usageTimer);
+    this.flushUsage();
     this.active = false;
     this.ready = false;
     const ws = this.ws;

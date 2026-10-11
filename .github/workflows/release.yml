@@ -1,0 +1,31 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx electron-builder --win portable --x64 --publish never
+      - name: Rename
+        shell: pwsh
+        run: Get-ChildItem dist/*-portable.exe | Select-Object -First 1 | Copy-Item -Destination dist/GeminiOverlay.exe
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: dist/GeminiOverlay.exe
+          generate_release_notes: true
+      - uses: actions/upload-artifact@v4
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        with:
+          name: GeminiOverlay
+          path: dist/GeminiOverlay.exe

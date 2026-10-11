@@ -6,8 +6,8 @@
 <title>Gemini Overlay – Einstellungen</title>
 <style>
   :root { --bg: #1f1f1f; --card: #2a2b2d; --text: #e3e3e3; --muted: #a8abb0; --blue: #4285F4; --line: rgba(255,255,255,.1);
-    font-family: "Google Sans", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; color-scheme: dark; }
-  @media (prefers-color-scheme: light) { :root { --bg: #f8fafd; --card: #fff; --text: #1f1f1f; --muted: #5f6368; --line: rgba(0,0,0,.1); color-scheme: light; } }
+    font-family: "Google Sans", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; color-scheme: dark; --link: #a8c7fa; }
+  @media (prefers-color-scheme: light) { :root { --bg: #f8fafd; --card: #fff; --text: #1f1f1f; --muted: #5f6368; --line: rgba(0,0,0,.1); color-scheme: light; --link: #0b57d0; } }
   body { margin: 0; background: var(--bg); color: var(--text); font-size: 14px; }
   main { max-width: 520px; margin: 0 auto; padding: 24px 20px 40px; }
   h1 { font-size: 20px; font-weight: 500; margin: 0 0 4px; display: flex; gap: 10px; align-items: center; }
@@ -30,7 +30,7 @@
   .check { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
   .status { margin-top: 8px; font-size: 13px; min-height: 18px; }
   .ok { color: #81c995; } .bad { color: #f28b82; }
-  a { color: #a8c7fa; }
+  a { color: var(--link); }
   footer { display: flex; justify-content: flex-end; gap: 8px; position: sticky; bottom: 0; padding: 12px 0; background: var(--bg); }
 </style>
 </head>
@@ -53,6 +53,15 @@
       <a href="#" data-url="https://developers.google.com/program/my-benefits">im Google Developer Program aktivieren</a>
       und dem Projekt des Keys zuordnen.
     </div>
+  </section>
+
+  <section>
+    <h2>Kosten</h2>
+    <div id="usageLine" class="status"></div>
+    <label for="monthlyBudgetUsd">Monatsbudget in USD (die App stoppt Anfragen, wenn es erreicht ist; 0 = kein Limit)</label>
+    <input id="monthlyBudgetUsd" type="text" inputmode="decimal">
+    <div class="hint">Die App schätzt die Kosten anhand der verbrauchten Tokens. Die echten Zahlen und eine serverseitige Obergrenze findest du unter
+      <a href="#" data-url="https://aistudio.google.com/spend">AI Studio → Spend</a> („Monthly spend cap“).</div>
   </section>
 
   <section>

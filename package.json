@@ -1,7 +1,7 @@
 {
   "name": "windows-gemini",
   "productName": "Gemini Overlay",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Gemini, Gemini Live und Rambler im Googlebook-Stil für Windows",
   "main": "src/main.js",
   "author": "Sebastian",

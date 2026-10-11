@@ -29,6 +29,7 @@ async function streamChat({ apiKey, model, history, system, onText, signal }) {
   const decoder = new TextDecoder();
   let buf = '';
   let full = '';
+  let usage = null;
   for await (const chunk of res.body) {
     buf += decoder.decode(chunk, { stream: true });
     let i;
@@ -38,6 +39,7 @@ async function streamChat({ apiKey, model, history, system, onText, signal }) {
       if (!line.startsWith('data:')) continue;
       try {
         const j = JSON.parse(line.slice(5));
+        if (j.usageMetadata) usage = j.usageMetadata;
         const parts = (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
         for (const p of parts) {
           if (p.text && !p.thought) {
@@ -48,7 +50,7 @@ async function streamChat({ apiKey, model, history, system, onText, signal }) {
       } catch {}
     }
   }
-  return full;
+  return { text: full, usage };
 }
 
 const RAMBLER_PROMPT = (language, selection) => selection
@@ -91,9 +93,9 @@ async function rambler({ apiKey, model, wavBase64, selection, language }) {
   const raw = parts.filter((p) => p.text && !p.thought).map((p) => p.text).join('');
   try {
     const out = JSON.parse(raw);
-    return { transcript: out.transcript || '', text: (out.text || '').trim() };
+    return { transcript: out.transcript || '', text: (out.text || '').trim(), usage: j.usageMetadata };
   } catch {
-    return { transcript: raw, text: raw.trim() };
+    return { transcript: raw, text: raw.trim(), usage: j.usageMetadata };
   }
 }
 

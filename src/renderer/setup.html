@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'">
+<title>Gemini Overlay – Einrichtung</title>
+<style>
+  :root { --bg: #1f1f1f; --card: #2a2b2d; --text: #e3e3e3; --muted: #a8abb0; --blue: #4285F4; --line: rgba(255,255,255,.1);
+    font-family: "Google Sans", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; color-scheme: dark; --link: #a8c7fa; }
+  @media (prefers-color-scheme: light) { :root { --bg: #f8fafd; --card: #fff; --text: #1f1f1f; --muted: #5f6368; --line: rgba(0,0,0,.1); color-scheme: light; --link: #0b57d0; } }
+  body { margin: 0; background: var(--bg); color: var(--text); font-size: 14.5px; line-height: 1.5; }
+  main { max-width: 540px; margin: 0 auto; padding: 28px 24px; }
+  .dots { display: flex; gap: 6px; margin-bottom: 22px; }
+  .dots i { width: 28px; height: 4px; border-radius: 2px; background: var(--line); }
+  .dots i.on { background: linear-gradient(90deg, #4285F4, #9B72CB); }
+  h1 { font-size: 22px; font-weight: 500; margin: 0 0 8px; display: flex; gap: 10px; align-items: center; }
+  h1 img { width: 28px; height: 28px; }
+  p { margin: 0 0 12px; color: var(--muted); }
+  ol { padding-left: 20px; margin: 0 0 14px; } li { margin-bottom: 6px; }
+  .step { display: none; } .step.on { display: block; animation: in .35s cubic-bezier(.34,1.56,.64,1); }
+  @keyframes in { from { opacity: 0; transform: translateY(8px); } }
+  label { display: block; margin: 12px 0 4px; }
+  input[type=text], input[type=password] { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--text); font: inherit; }
+  .row { display: flex; gap: 8px; } .row input { flex: 1; }
+  button { font: inherit; border: 0; border-radius: 20px; padding: 10px 18px; cursor: pointer; background: rgba(127,127,127,.18); color: var(--text); }
+  button.primary { background: var(--blue); color: #fff; }
+  button.link { background: none; color: var(--link); padding: 0; }
+  .status { min-height: 20px; margin-top: 8px; font-size: 13.5px; } .ok { color: #81c995; } .bad { color: #f28b82; }
+  .nav { display: flex; justify-content: space-between; margin-top: 26px; }
+  .box { background: var(--card); border-radius: 14px; padding: 14px 16px; box-shadow: 0 0 0 1px var(--line) inset; margin-bottom: 12px; }
+  kbd { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 1px 7px; font-family: inherit; font-size: 13px; }
+  .check { display: flex; gap: 10px; align-items: center; margin-top: 14px; } .check label { margin: 0; }
+</style>
+</head>
+<body>
+<main>
+  <div class="dots"><i class="on"></i><i></i><i></i><i></i></div>
+
+  <section class="step on" data-step="0">
+    <h1><img src="../../assets/icon.png" alt="">Willkommen bei Gemini Overlay</h1>
+    <p>Gemini im Googlebook-Stil für Windows: leuchtender Bildschirmrand, kleines Gemini-Fenster, Gemini Live mit Bildschirmfreigabe und Rambler-Diktat.</p>
+    <p>Die Einrichtung dauert etwa zwei Minuten. Du brauchst nur ein Google-Konto.</p>
+  </section>
+
+  <section class="step" data-step="1">
+    <h1>1. API-Key holen</h1>
+    <ol>
+      <li><button class="link" data-url="https://aistudio.google.com/apikey">Google AI Studio öffnen</button> und mit deinem Google-Konto anmelden.</li>
+      <li>„API-Schlüssel erstellen“ klicken. AI Studio legt dabei automatisch ein Projekt an, du brauchst kein eigenes Google-Cloud-Projekt.</li>
+      <li>Falls verlangt: bei dem Projekt „Abrechnung einrichten“. Mit Google AI Pro bekommst du monatlich 10 $ Guthaben:
+        <button class="link" data-url="https://developers.google.com/program/my-benefits">hier aktivieren</button>.</li>
+      <li>Den Schlüssel (beginnt mit „AIza“) kopieren und hier einfügen:</li>
+    </ol>
+    <div class="row"><input id="apiKey" type="password" placeholder="AIza…" spellcheck="false"><button id="testKey">Testen</button></div>
+    <div id="keyStatus" class="status"></div>
+  </section>
+
+  <section class="step" data-step="2">
+    <h1>2. Budget festlegen</h1>
+    <p>Die App zählt die geschätzten Kosten pro Monat mit, zeigt sie im Gemini-Fenster an und stoppt Anfragen, sobald das Budget erreicht ist.</p>
+    <label for="budget">Monatsbudget in USD</label>
+    <input id="budget" type="text" inputmode="decimal" value="10">
+    <div class="box" style="margin-top:14px">
+      <b>Empfohlen: zusätzlich eine harte Grenze bei Google setzen</b>
+      <ol style="margin:8px 0 0">
+        <li><button class="link" data-url="https://aistudio.google.com/spend">AI Studio → Spend</button> öffnen und das Projekt deines Keys wählen.</li>
+        <li>„Monthly spend cap“ → „Edit spend cap“ → denselben Betrag eintragen.</li>
+      </ol>
+      <p style="margin:8px 0 0;font-size:13px">Google rechnet mit bis zu 10 Minuten Verzögerung ab, kleine Überschreitungen sind also möglich.</p>
+    </div>
+  </section>
+
+  <section class="step" data-step="3">
+    <h1>3. Fertig</h1>
+    <div class="box">
+      <div><kbd id="kG"></kbd> Gemini öffnen (jedes Mal ein neuer Chat)</div>
+      <div style="margin-top:6px"><kbd id="kL"></kbd> Gemini Live mit Bildschirm</div>
+      <div style="margin-top:6px"><kbd id="kD"></kbd> Rambler: im Textfeld diktieren</div>
+    </div>
+    <p>Kürzel, Modelle und Budget änderst du jederzeit über das Stern-Symbol in der Taskleiste (Rechtsklick → Einstellungen) oder über „Gemini Overlay“ im Startmenü.</p>
+    <div class="check"><input id="autostart" type="checkbox" checked><label for="autostart">Mit Windows starten</label></div>
+  </section>
+
+  <div class="nav">
+    <button id="back">Zurück</button>
+    <button id="next" class="primary">Los geht's</button>
+  </div>
+</main>
+<script src="setup.js"></script>
+</body>
+</html>

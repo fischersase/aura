@@ -6,6 +6,7 @@ const path = require('path');
 const store = require('./store');
 const gemini = require('./gemini');
 const keys = require('./keys');
+const usage = require('./usage');
 
 const R = (f) => path.join(__dirname, 'renderer', f);
 const ICON = path.join(__dirname, '..', 'assets', 'icon.png');
@@ -15,14 +16,14 @@ const MARGIN = 4; // + 12 px Schattenrand im Panel-Fenster = 16 px Abstand
 const RAMBLER_W = 420;
 const RAMBLER_H = 92;
 
-let overlay, panel, ramblerBar, settingsWin, tray;
+let overlay, panel, ramblerBar, settingsWin, setupWin, tray;
 let panelOpen = false;
 let liveActive = false;
 let currentDisplay = null;
 const ramblerState = { recording: false, busy: false, saved: null, selection: '', last: null };
 
 if (!app.requestSingleInstanceLock()) app.quit();
-app.on('second-instance', () => openSettings());
+app.on('second-instance', () => (store.load().setupDone ? openSettings() : openSetup()));
 
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
@@ -106,6 +107,30 @@ function placeRamblerBar() {
   });
 }
 
+function openSetup() {
+  if (setupWin && !setupWin.isDestroyed()) { setupWin.show(); setupWin.focus(); return; }
+  setupWin = new BrowserWindow({
+    width: 620,
+    height: 720,
+    title: 'Gemini Overlay – Einrichtung',
+    icon: ICON,
+    autoHideMenuBar: true,
+    backgroundColor: '#1f1f1f',
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true }
+  });
+  setupWin.loadFile(R('setup.html'));
+  setupWin.on('focus', () => globalShortcut.unregisterAll());
+  setupWin.on('blur', () => registerHotkeys());
+  setupWin.on('closed', () => { setupWin = null; registerHotkeys(); });
+}
+
+ipcMain.on('setup:done', () => {
+  store.save({ setupDone: true });
+  if (setupWin && !setupWin.isDestroyed()) setupWin.close();
+  registerHotkeys();
+  setTimeout(() => openPanel(), 400);
+});
+
 function openSettings() {
   if (settingsWin && !settingsWin.isDestroyed()) {
     settingsWin.show();
@@ -141,7 +166,7 @@ function glow(mode) {
 
 function openPanel({ startLive = false } = {}) {
   if (!store.getApiKey()) {
-    openSettings();
+    openSetup();
     return;
   }
   currentDisplay = displayUnderCursor();
@@ -203,7 +228,7 @@ function ramblerSend(channel, data) {
 
 async function toggleRambler() {
   if (ramblerState.busy) return;
-  if (!store.getApiKey()) { openSettings(); return; }
+  if (!store.getApiKey()) { openSetup(); return; }
   if (ramblerState.recording) {
     ramblerState.recording = false;
     ramblerSend('rambler:stop');
@@ -248,6 +273,8 @@ ipcMain.on('rambler:audio', async (_e, { wavBase64 }) => {
   if (!wavBase64) { ramblerBar.hide(); return; }
   ramblerSend('rambler:state', { state: 'processing' });
   try {
+    const over = budgetError();
+    if (over) throw new Error(over);
     const s = store.load();
     const out = await gemini.rambler({
       apiKey: store.getApiKey(),
@@ -256,6 +283,8 @@ ipcMain.on('rambler:audio', async (_e, { wavBase64 }) => {
       selection: ramblerState.selection,
       language: s.language
     });
+    usage.addTokens(s.ramblerModel, out.usage);
+    broadcastUsage();
     if (!out.text) throw new Error('Nichts verstanden.');
     await pasteText(out.text);
     ramblerState.last = { ...out, fullAvailable: !ramblerState.selection };
@@ -306,6 +335,25 @@ async function screenshotJpeg(display, maxWidth = 1600) {
   return src.thumbnail.toJPEG(75).toString('base64');
 }
 
+// ---------- Kosten ----------
+
+function usageSummary() {
+  return usage.summary(store.load().monthlyBudgetUsd);
+}
+
+function broadcastUsage() {
+  const u = usageSummary();
+  for (const w of [panel, settingsWin]) if (w && !w.isDestroyed()) w.webContents.send('usage:update', u);
+  return u;
+}
+
+function budgetError() {
+  const u = usageSummary();
+  if (!u.overBudget) return null;
+  return `Monatsbudget von ${u.budgetUsd.toFixed(2)} $ erreicht (geschätzt ${u.costUsd.toFixed(2)} $). ` +
+    'Du kannst es in den Einstellungen erhöhen.';
+}
+
 // ---------- IPC ----------
 
 const CHAT_SYSTEM = (lang) =>
@@ -344,6 +392,8 @@ ipcMain.on('chat:send', async (e, { id, history, includeScreen }) => {
   const ctrl = new AbortController();
   chatAborts.set(id, ctrl);
   try {
+    const over = budgetError();
+    if (over) throw new Error(over);
     const s = store.load();
     const contents = JSON.parse(JSON.stringify(history));
     if (includeScreen) {
@@ -351,7 +401,7 @@ ipcMain.on('chat:send', async (e, { id, history, includeScreen }) => {
       contents[contents.length - 1].parts.unshift({ inlineData: { mimeType: 'image/jpeg', data: jpeg } });
       e.sender.send('chat:screen', { id, jpeg });
     }
-    await gemini.streamChat({
+    const res = await gemini.streamChat({
       apiKey: store.getApiKey(),
       model: s.chatModel,
       history: contents,
@@ -359,6 +409,8 @@ ipcMain.on('chat:send', async (e, { id, history, includeScreen }) => {
       signal: ctrl.signal,
       onText: (t) => e.sender.send('chat:chunk', { id, text: t })
     });
+    usage.addTokens(s.chatModel, res.usage);
+    broadcastUsage();
     e.sender.send('chat:done', { id });
   } catch (err) {
     if (err.name === 'AbortError') e.sender.send('chat:done', { id });
@@ -373,7 +425,17 @@ ipcMain.on('chat:abort', (_e, id) => {
   if (c) c.abort();
 });
 
+ipcMain.handle('usage:get', () => usageSummary());
+
+ipcMain.on('live:usage', (_e, secs) => {
+  usage.addLive(secs || {});
+  const u = broadcastUsage();
+  if (u.overBudget && liveActive && panel) panel.webContents.send('live:stop', budgetError());
+});
+
 ipcMain.handle('live:config', () => {
+  const over = budgetError();
+  if (over) return { error: over };
   const s = store.load();
   return {
     apiKey: store.getApiKey(),
@@ -450,7 +512,9 @@ function createTray() {
     { label: `Gemini Live\t${s().hotkeyLive}`, click: () => toggleLive() },
     { label: `Rambler: ${s().hotkeyRambler} im Textfeld`, enabled: false },
     { type: 'separator' },
+    { label: `Diesen Monat: ≈ ${usageSummary().costUsd.toFixed(2)} $ von ${Number(s().monthlyBudgetUsd).toFixed(2)} $`, enabled: false },
     { label: 'Einstellungen …', click: () => openSettings() },
+    { label: 'Einrichtung erneut starten …', click: () => openSetup() },
     { label: 'Beenden', click: () => app.quit() }
   ]);
   tray.on('click', () => openPanel());
@@ -476,7 +540,8 @@ app.whenReady().then(() => {
   const failed = registerHotkeys();
   applyAutostart();
 
-  if (!store.getApiKey() || failed.length) openSettings();
+  if (!store.load().setupDone || !store.getApiKey()) openSetup();
+  else if (failed.length) openSettings();
   screen.on('display-removed', () => { currentDisplay = null; });
 });
 

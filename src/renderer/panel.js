@@ -54,6 +54,7 @@ function resetChat() {
 
 window.api.onPanelOpen(({ startLive, corner }) => {
   if (!live) resetChat();
+  window.api.getUsage().then(showUsage);
   document.body.classList.toggle('corner-left', /left/.test(corner || ''));
   document.body.classList.toggle('corner-top', /top/.test(corner || ''));
   window.api.ignoreMouse(!card.matches(':hover'));
@@ -227,6 +228,7 @@ window.api.onChatError(({ id, message }) => {
 function autosize() {
   input.style.height = 'auto';
   input.style.height = Math.min(140, input.scrollHeight) + 'px';
+  input.style.overflowY = input.scrollHeight > 140 ? 'auto' : 'hidden';
   if (!streaming) sendBtn.disabled = !input.value.trim();
 }
 input.addEventListener('input', autosize);
@@ -306,8 +308,8 @@ async function startLiveMode() {
   }
 }
 
-function stopLiveMode() {
-  if (live) live.stop();
+function stopLiveMode(reason) {
+  if (live) live.stop(typeof reason === 'string' ? reason : undefined);
 }
 
 $('liveBtn').onclick = startLiveMode;
@@ -315,4 +317,19 @@ $('liveEnd').onclick = stopLiveMode;
 $('liveMute').onclick = () => { if (live) $('liveMute').classList.toggle('muted', live.toggleMute()); };
 $('liveScreen').onclick = async () => { if (live) $('liveScreen').classList.toggle('on', await live.toggleScreen()); };
 window.api.onLiveStart(() => startLiveMode());
-window.api.onLiveStop(() => stopLiveMode());
+window.api.onLiveStop((reason) => stopLiveMode(reason));
+
+// ---------- Kosten im laufenden Monat ----------
+
+const costEl = $('cost');
+function showUsage(u) {
+  if (!u) return;
+  const fmt = (v) => v.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  costEl.querySelector('span').textContent = u.budgetUsd > 0 ? `≈ ${fmt(u.costUsd)} $ / ${fmt(u.budgetUsd)} $` : `≈ ${fmt(u.costUsd)} $`;
+  costEl.querySelector('i').style.width = Math.min(100, u.ratio * 100).toFixed(1) + '%';
+  costEl.classList.toggle('warn', u.ratio >= 0.8 && !u.overBudget);
+  costEl.classList.toggle('over', u.overBudget);
+  costEl.title = `Geschätzte Gemini-Kosten im ${u.month} (${u.requests} Anfragen). Genaue Zahlen: AI Studio → Spend. Klick = Einstellungen`;
+}
+window.api.onUsage(showUsage);
+costEl.onclick = () => window.api.openSettings();

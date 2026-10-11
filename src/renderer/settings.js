@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-const FIELDS = ['hotkeyGemini', 'hotkeyRambler', 'hotkeyLive', 'chatModel', 'liveModel', 'ramblerModel', 'liveVoice', 'language', 'liveFps', 'panelCorner'];
+const FIELDS = ['monthlyBudgetUsd', 'hotkeyGemini', 'hotkeyRambler', 'hotkeyLive', 'chatModel', 'liveModel', 'ramblerModel', 'liveVoice', 'language', 'liveFps', 'panelCorner'];
 let keyTouched = false;
 
 function status(el, text, ok) {
@@ -50,6 +50,7 @@ $('save').onclick = async () => {
   const patch = {};
   FIELDS.forEach((f) => { patch[f] = $(f).value.trim(); });
   patch.liveFps = Number(patch.liveFps) || 1;
+  patch.monthlyBudgetUsd = Math.max(0, Number(String(patch.monthlyBudgetUsd).replace(',', '.')) || 0);
   patch.autostart = $('autostart').checked;
   patch.glowStay = $('glowStay').checked;
   if (keyTouched) patch.apiKey = $('apiKey').value;
@@ -67,7 +68,14 @@ $('save').onclick = async () => {
     status($('hotkeyStatus'), '');
   }
   status($('saveStatus'), r.settings.hasApiKey ? 'Gespeichert.' : 'Gespeichert, aber noch kein API-Key.', r.settings.hasApiKey);
-  load();
+  function showUsage(u) {
+  const f = (v) => v.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  status($('usageLine'), `Diesen Monat geschätzt: ${f(u.costUsd)} $${u.budgetUsd ? ' von ' + f(u.budgetUsd) + ' $' : ''} (${u.requests} Anfragen)`, !u.overBudget);
+}
+window.api.getUsage().then(showUsage);
+window.api.onUsage(showUsage);
+
+load();
 };
 
 $('close').onclick = () => window.close();

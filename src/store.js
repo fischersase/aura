@@ -18,6 +18,8 @@ const DEFAULTS = {
   glowStay: true, // Rand leuchtet, solange das Fenster offen ist (false = nur kurz aufleuchten)
   liveFps: 1,
   autostart: true,
+  monthlyBudgetUsd: 10, // lokales Limit; Spend-Cap in AI Studio zusätzlich empfohlen
+  setupDone: false,
   includeScreenInChat: false,
   apiKeyEnc: ''
 };
