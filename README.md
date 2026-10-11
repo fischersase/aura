@@ -10,7 +10,7 @@ Runs with Google Gemini (API key) or fully local with open models through [Ollam
 
 ## Install
 
-**Windows:** download **`Aura.exe`** from the [latest release](https://github.com/fischersase/windows-gemini/releases/latest) and run it. SmartScreen may warn because the file is unsigned: click **More info → Run anyway**.
+**Windows:** download **`Aura.exe`** from the [latest release](https://github.com/fischersase/aura/releases/latest) and run it. SmartScreen may warn because the file is unsigned: click **More info → Run anyway**.
 
 **Linux (x64):** download **`Aura-x86_64.AppImage`** (any distro, `chmod +x` and run) or **`aura_amd64.deb`** for Debian/Ubuntu. Double-clicking the .deb may just open an archive viewer; install it from a terminal instead: `sudo apt install ~/Downloads/aura_amd64.deb`, then start "Aura" from the app menu. Upgrading from "Gemini Overlay"? Remove the old package with `sudo apt remove windows-gemini`; your settings move over automatically.
 
