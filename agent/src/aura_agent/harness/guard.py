@@ -27,6 +27,17 @@ DENIED = ("Der Nutzer hat im Freigabe-Dialog auf „Ablehnen“ geklickt. Die Ak
            "Sag ihm das so und frag nicht erneut nach derselben Aktion.")
 BLOCKED = "Diese Aktion ist gesperrt (Stufe T3: {reason}). Sie wurde NICHT ausgeführt."
 
+# Schleifenwächter: gleicher Aufruf mit gleichen Argumenten innerhalb eines Auftrags.
+REPEAT_WARN = 3
+REPEAT_STOP = 5
+REPEAT_NOTE = ("Hinweis der App: Dieser Aufruf kam jetzt {n}× mit denselben Argumenten. Wiederhole ihn nicht; "
+               "versuche einen anderen Weg oder frag den Nutzer mit ask_user.")
+REPEAT_BLOCK = ("Abgebrochen: derselbe Aufruf zum {n}. Mal. Er wird nicht mehr ausgeführt. "
+                "Wähle einen anderen Weg oder sag dem Nutzer ehrlich, woran es hängt.")
+REFLECT_NOTE = ("Hinweis der App: Das war der {n}. Fehler in Folge. Halte kurz inne: Was ist die Ursache? "
+                "Gibt es einen verlässlicheren Weg (eigenes Werkzeug statt Shell, erst lesen, dann ändern)? "
+                "Wenn etwas unklar ist, frag den Nutzer mit ask_user.")
+
 
 def clip(text: str, limit: int = MAX_RESULT_CHARS) -> str:
   if len(text) <= limit:
@@ -59,6 +70,7 @@ class GuardPlugin(BasePlugin):
     # Aufrufe, die die Hülle selbst beantwortet hat (abgelehnt, gesperrt, unbekannt).
     # ADK ruft danach trotzdem after_tool_callback auf; dort werden sie übersprungen.
     self._answered: set[str] = set()
+    self._tiers: dict[str, Tier] = {}
 
   async def before_tool_callback(
       self, *, tool: BaseTool, tool_args: dict[str, Any], tool_context: ToolContext
@@ -79,8 +91,17 @@ class GuardPlugin(BasePlugin):
       self._started[step_id] = time.monotonic()
       return None
 
+    key = tool.name + json.dumps(tool_args, sort_keys=True, default=str)
+    task.call_counts[key] = task.call_counts.get(key, 0) + 1
+    if task.call_counts[key] >= REPEAT_STOP:
+      task.audit.write("loop_detected", task=task.task_id, tool=tool.name, count=task.call_counts[key])
+      self._answered.add(step_id)
+      task.step(step_id, tool.name, tool.name, "error")
+      return {"error": REPEAT_BLOCK.format(n=task.call_counts[key])}
+
     meta = meta_of(tool)
     tier, reason = meta.classify(tool_args)
+    self._tiers[step_id] = tier
     label = meta.describe(tool.name, tool_args)
     common = {"task": task.task_id, "tool": tool.name, "args": tool_args, "tier": int(tier), "agent": tool_context.agent_name}
 
@@ -130,11 +151,25 @@ class GuardPlugin(BasePlugin):
     failed = _failed(result)
     task.tool_errors_in_row = task.tool_errors_in_row + 1 if failed else 0
     label = str(tool_args.get("request", ""))[:200] if isinstance(tool, AgentTool) else meta_of(tool).describe(tool.name, tool_args)
-    task.step(step_id, tool.name, label, "error" if failed else "ok", ms=ms)
-    task.audit.write("tool_result", task=task.task_id, tool=tool.name, ok=not failed, ms=ms,
+    tier = self._tiers.pop(step_id, Tier.T0)
+    verified = result.get("verified") if isinstance(result, dict) else None
+    if tier >= Tier.T1 and not isinstance(tool, AgentTool):
+      task.changes.append({"tool": tool.name, "label": label, "verified": None if failed and verified is None else
+                           (False if failed else verified)})
+    task.step(step_id, tool.name, label, "error" if failed else "ok", ms=ms,
+              **({"verified": verified} if isinstance(verified, bool) else {}))
+    task.audit.write("tool_result", task=task.task_id, tool=tool.name, ok=not failed, ms=ms, verified=verified,
                      error=result.get("error") if isinstance(result, dict) else None)
-    clipped = _clip_result(result)
-    return clipped if json.dumps(clipped, default=str) != json.dumps(result, default=str) else None
+    out = _clip_result(result)
+    notes = []
+    key = tool.name + json.dumps(tool_args, sort_keys=True, default=str)
+    if task.call_counts.get(key, 0) >= REPEAT_WARN:
+      notes.append(REPEAT_NOTE.format(n=task.call_counts[key]))
+    if task.tool_errors_in_row >= 2:
+      notes.append(REFLECT_NOTE.format(n=task.tool_errors_in_row))
+    if notes and isinstance(out, dict):
+      out = {**out, "hinweis": " ".join(notes)}
+    return out if json.dumps(out, default=str) != json.dumps(result, default=str) else None
 
   async def on_tool_error_callback(
       self, *, tool: BaseTool, tool_args: dict[str, Any], tool_context: ToolContext, error: Exception
@@ -144,6 +179,8 @@ class GuardPlugin(BasePlugin):
     if task is not None:
       step_id = tool_context.function_call_id or ""
       self._started.pop(step_id, None)
+      if self._tiers.pop(step_id, Tier.T0) >= Tier.T1:
+        task.changes.append({"tool": tool.name, "label": meta_of(tool).describe(tool.name, tool_args), "verified": False})
       task.tool_errors_in_row += 1
       task.step(step_id, tool.name, meta_of(tool).describe(tool.name, tool_args), "error")
       task.audit.write("tool_error", task=task.task_id, tool=tool.name, error=message)

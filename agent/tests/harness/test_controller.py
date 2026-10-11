@@ -138,3 +138,68 @@ async def test_audit_records_the_whole_task(tmp_path):
   kinds = [__import__("json").loads(line)["kind"] for line in f.read_text().splitlines()]
   assert kinds == ["task_start", "approval_requested", "approval", "task_end"]
   assert AuditLog.verify(f)[0]
+
+
+async def test_ask_user_question_and_answer_reach_the_model(tmp_path):
+  steps = [[Call("ask_user", {"question": "Welche Datei?", "options": ["a.txt", "b.txt"]})], "Ok, b.txt."]
+  settings = AgentSettings(data_dir=tmp_path / "agent", aura_dir=tmp_path / "aura", home=str(tmp_path))
+  llm = ScriptedLlm(steps)
+  host = FakeHost(answers=["b.txt"])
+  ctl = TaskController(build_runner(settings, llm), host, AuditLog(settings.data_dir / "audit"), settings.home)
+  ctl.start("t1", "c1", "lösch die Datei")
+  await finish(ctl)
+  assert host.questions[0]["question"] == "Welche Datei?" and host.questions[0]["options"] == ["a.txt", "b.txt"]
+  assert tool_responses(llm.requests[-1])[0].response == {"answer": "b.txt"}
+
+
+async def test_todo_write_emits_plan_and_keeps_it_in_session(tmp_path):
+  items = [{"text": "Ordner finden", "status": "done"}, {"text": "Dateien zählen", "status": "in_progress"}]
+  ctl, host, _llm, _ = make(tmp_path, [[Call("todo_write", {"items": items})], "fertig"])
+  ctl.start("t1", "c1", "zähl Dateien")
+  await finish(ctl)
+  plan = host.of("task.plan")
+  assert plan and plan[0]["items"] == items
+  session = await ctl.runner.session_service.get_session(app_name="aura", user_id="local", session_id="c1")
+  assert session.state["todos"] == items
+
+
+async def test_loop_guard_warns_then_stops(tmp_path):
+  same = [Call("list_dir", {"path": str(tmp_path)})]
+  ctl, host, llm, _ = make(tmp_path, [same, same, same, same, same, "aufgegeben"])
+  ctl.start("t1", "c1", "x")
+  await finish(ctl)
+  responses = [str(r.response) for req in llm.requests for r in tool_responses(req)[-1:]]
+  assert "3× mit denselben Argumenten" in responses[2]
+  assert "zum 5. Mal" in str(tool_responses(llm.requests[-1])[-1].response)
+  assert states(host, "list_dir").count("ok") == 4
+
+
+async def test_false_success_claim_is_corrected(tmp_path, private_dbus):
+  from tests.contract.fake_mpris import start_player
+
+  bus, player = await start_player(stuck=True)
+  try:
+    ctl, host, llm, _ = make(tmp_path, [[Call("media_control", {"action": "pause"})], "Die Musik ist pausiert.",
+                                        "Korrektur: Pausieren hat nicht geklappt, der Player reagiert nicht."])
+    ctl.start("t1", "c1", "pausiere")
+    await finish(ctl)
+  finally:
+    bus.disconnect()
+  assert player.calls == ["Pause"]
+  seen = [p.text for c in llm.requests[-1].contents for p in c.parts or [] if p.text]
+  assert any("NICHT wirksam" in t for t in seen)
+  done = host.done()
+  assert done["verified"] is False and done["text"].startswith("Korrektur")
+
+
+async def test_verified_success_is_reported(tmp_path, private_dbus):
+  from tests.contract.fake_mpris import start_player
+
+  bus, _ = await start_player()
+  try:
+    ctl, host, llm, _ = make(tmp_path, [[Call("media_control", {"action": "pause"})], "Pausiert."])
+    ctl.start("t1", "c1", "pausiere")
+    await finish(ctl)
+  finally:
+    bus.disconnect()
+  assert host.done()["verified"] is True and len(llm.requests) == 2

@@ -73,6 +73,9 @@ FORBIDDEN = [
     (re.compile(r"\bchmod\s+(-\w+\s+)*[0-7]*777\s+/(\s|$)|\bchown\s+-R\s+\S+\s+/(\s|$)"), "Rechte des ganzen Systems ändern"),
 ]
 
+# Lokal und umkehrbar: läuft ohne Rückfrage (T1).
+T1_COMMANDS = {"mkdir", "notify-send"}
+
 _CONTROL = re.compile(r"[;&`\n\r]|\$\(|\$\{|>|<\(")
 
 
@@ -87,6 +90,12 @@ def classify(command: str) -> tuple[Tier, str]:
     return Tier.T2, "Administratorrechte"
   if _CONTROL.search(c):
     return Tier.T2, "verkettete oder umgeleitete Befehle"
+  try:
+    first_words = shlex.split(c)
+  except ValueError:
+    first_words = []
+  if "|" not in c and first_words and first_words[0] in T1_COMMANDS and not any(w in ("-m", "--mode") for w in first_words):
+    return Tier.T1, "legt nur etwas Neues an"
   for segment in c.split("|"):
     try:
       words = shlex.split(segment)

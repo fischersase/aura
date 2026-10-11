@@ -48,6 +48,9 @@ class RpcHost:
     decision = (res or {}).get("decision", "deny")
     return decision if decision in ("once", "task", "deny") else "deny"
 
+  async def ask(self, request: dict[str, Any]) -> dict[str, Any]:
+    return await self.peer.request("host.ask", request, timeout=APPROVAL_TIMEOUT_S)
+
   async def screenshot(self, max_width: int = 1600) -> dict[str, Any]:
     return await self.peer.request("host.screenshot", {"maxWidth": max_width}, timeout=30)
 

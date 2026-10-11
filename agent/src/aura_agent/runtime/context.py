@@ -25,6 +25,10 @@ class Host(Protocol):
     """Fragt den Nutzer. Antwort: 'once', 'task' (Rest des Auftrags) oder 'deny'."""
     ...
 
+  async def ask(self, request: dict[str, Any]) -> dict[str, Any]:
+    """Frage an den Nutzer: {taskId, question, options}. Antwort: {answer}."""
+    ...
+
   async def screenshot(self, max_width: int = 1600) -> dict[str, Any]:
     """Bildschirmfoto als {mime, data (base64), width, height}."""
     ...
@@ -47,6 +51,17 @@ class TaskContext:
   processes: set[asyncio.subprocess.Process] = field(default_factory=set)
   tool_errors_in_row: int = 0
   steps: int = 0
+  call_counts: dict[str, int] = field(default_factory=dict)
+  # Ändernde Aktionen und ob sie nachgeprüft sind (True/False/None = nicht prüfbar).
+  changes: list[dict[str, Any]] = field(default_factory=list)
+
+  def verified(self) -> bool | None:
+    """Gesamturteil für task.done: None ohne ändernde Aktionen."""
+    if not self.changes:
+      return None
+    if any(c["verified"] is False for c in self.changes):
+      return False
+    return True if all(c["verified"] is True for c in self.changes) else None
 
   def step(self, step_id: str, tool: str, label: str, state: str, **extra: Any) -> None:
     self.host.emit("task.step", {"taskId": self.task_id, "stepId": step_id, "tool": tool, "label": label, "state": state, **extra})

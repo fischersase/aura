@@ -8,6 +8,7 @@ dependencies = [
   "google-adk==2.11.0",
   "httpx>=0.27,<1",
   "json-repair>=0.30",
+  "python-xlib>=0.33",
 ]
 
 [dependency-groups]
@@ -31,3 +32,7 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 110
 target-version = "py312"
+
+[tool.ruff.lint.per-file-ignores]
+# dbus-fast liest D-Bus-Signaturen aus den String-Annotationen ("s", "a{sv}").
+"tests/contract/fake_mpris.py" = ["UP037", "F821", "RUF100"]

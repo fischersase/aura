@@ -7,9 +7,12 @@ from typing import Any
 
 
 class FakeHost:
-  def __init__(self, decisions: list[str] | Callable[[dict[str, Any]], str] | None = None) -> None:
+  def __init__(self, decisions: list[str] | Callable[[dict[str, Any]], str] | None = None,
+               answers: list[str] | None = None) -> None:
     self._decisions = decisions if decisions is not None else []
+    self._answers = list(answers or [])
     self.approvals: list[dict[str, Any]] = []
+    self.questions: list[dict[str, Any]] = []
     self.events: list[tuple[str, dict[str, Any]]] = []
 
   async def approve(self, request: dict[str, Any]) -> str:
@@ -17,6 +20,10 @@ class FakeHost:
     if callable(self._decisions):
       return self._decisions(request)
     return self._decisions.pop(0) if self._decisions else "deny"
+
+  async def ask(self, request: dict[str, Any]) -> dict[str, Any]:
+    self.questions.append(request)
+    return {"answer": self._answers.pop(0) if self._answers else ""}
 
   async def screenshot(self, max_width: int = 1600) -> dict[str, Any]:
     # 1x1 weißes JPEG

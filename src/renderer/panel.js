@@ -331,7 +331,19 @@ $('historyClose').onclick = () => window.api.hidePanel();
 const TOOL_NAMES = {
   run_command: 'Befehl', find_files: 'Suche', list_folder: 'Ordner', read_file: 'Lesen',
   write_file: 'Schreiben', open: 'Öffnen', screenshot: 'Bildschirmfoto', activate_skill: 'Skill',
-  click: 'Klick', type_text: 'Tippen', press_keys: 'Tasten'
+  click: 'Klick', type_text: 'Tippen', press_keys: 'Tasten',
+  // Agent v2
+  launch_app: 'Programm', open_target: 'Öffnen', list_windows: 'Fenster', window_action: 'Fenster',
+  media_status: 'Medien', media_control: 'Medien', volume: 'Lautstärke', settings: 'Einstellung', system_info: 'System',
+  list_dir: 'Ordner', edit_file: 'Ändern', move_path: 'Verschieben', trash: 'Papierkorb', todo_write: 'Plan', ask_user: 'Frage'
+};
+// Frage auf der Freigabekarte je Werkzeug (Agent v1 und v2).
+const APPROVE_Q = {
+  write_file: 'Aura möchte diese Datei schreiben:', edit_file: 'Aura möchte diese Datei ändern:',
+  trash: 'Aura möchte das in den Papierkorb verschieben:', move_path: 'Aura möchte das verschieben oder kopieren:',
+  open: 'Aura möchte dieses Programm starten:', open_target: 'Aura möchte das öffnen:', launch_app: 'Aura möchte dieses Programm starten:',
+  window_action: 'Aura möchte dieses Fenster schließen:', settings: 'Aura möchte diese Einstellung ändern:',
+  click: 'Aura möchte klicken:', type_text: 'Aura möchte tippen:', press_keys: 'Aura möchte Tasten drücken:'
 };
 const toolName = (t) => TOOL_NAMES[t] || (t.startsWith('mcp_') ? 'MCP' : t);
 const STEP_STATE = { ask: 'Wartet auf deine Freigabe', run: 'Läuft …', ok: 'Erledigt', error: 'Fehlgeschlagen', denied: 'Abgelehnt' };
@@ -369,10 +381,14 @@ window.api.onAgentApprove((step) => {
   const box = document.createElement('div');
   box.className = 'approve';
   box.innerHTML = '<div class="q"></div><pre></pre><div class="btns"><button class="deny">Ablehnen</button><button class="all" title="Alle weiteren Schritte dieses Auftrags ohne Rückfrage">Alle erlauben</button><button class="allow">Ausführen</button></div>';
-  box.querySelector('.q').textContent = step.tool === 'write_file' ? 'Aura möchte diese Datei schreiben:' : step.tool === 'open' ? 'Aura möchte dieses Programm starten:'
-    : step.tool === 'click' ? 'Aura möchte klicken:' : step.tool === 'type_text' ? 'Aura möchte tippen:' : step.tool === 'press_keys' ? 'Aura möchte Tasten drücken:'
-    : step.tool.startsWith('mcp_') ? 'Aura möchte dieses Werkzeug nutzen:' : 'Aura möchte diesen Befehl ausführen:';
+  box.querySelector('.q').textContent = APPROVE_Q[step.tool] || (step.tool.startsWith('mcp_') ? 'Aura möchte dieses Werkzeug nutzen:' : 'Aura möchte diesen Befehl ausführen:');
   box.querySelector('pre').textContent = step.label + (step.detail ? '\n\n' + step.detail : '');
+  if (step.reason) {
+    const why = document.createElement('div');
+    why.className = 'why';
+    why.textContent = 'Warum Aura fragt: ' + step.reason;
+    box.insertBefore(why, box.querySelector('.btns'));
+  }
   const answer = (ok) => { box.remove(); window.api.agentApproval(step.id, ok); };
   box.querySelector('.allow').onclick = () => answer(true);
   box.querySelector('.deny').onclick = () => answer(false);
@@ -380,6 +396,71 @@ window.api.onAgentApprove((step) => {
   el.appendChild(box);
   scrollDown();
   box.querySelector('.allow').focus({ preventScroll: true });
+});
+
+// ---------- Agent v2: Aufgabenliste, Rückfragen, Nachprüfung ----------
+
+const PLAN_MARK = { done: '✓', in_progress: '›', cancelled: '–', pending: '' };
+window.api.onAgentPlan(({ chatId: cid, items }) => {
+  if (!streaming || streaming.id !== cid) return;
+  streaming.el.classList.remove('thinking');
+  let plan = streaming.el.querySelector('.plan');
+  if (!plan) {
+    plan = document.createElement('ol');
+    plan.className = 'plan';
+    streaming.el.querySelector('.content').insertBefore(plan, streaming.el.querySelector('.steps'));
+  }
+  plan.innerHTML = '';
+  for (const it of items) {
+    const li = document.createElement('li');
+    li.className = it.status;
+    const mark = document.createElement('i');
+    mark.textContent = PLAN_MARK[it.status] || '';
+    const txt = document.createElement('span');
+    txt.textContent = it.text;
+    li.append(mark, txt);
+    plan.appendChild(li);
+  }
+  scrollDown();
+});
+
+window.api.onAgentAsk(({ chatId: cid, id, question, options }) => {
+  if (!streaming || streaming.id !== cid) { window.api.agentAnswer(id, ''); return; }
+  streaming.el.classList.remove('thinking');
+  const box = document.createElement('div');
+  box.className = 'ask';
+  box.innerHTML = '<div class="q"></div><div class="opts"></div><form class="free"><input type="text" placeholder="Eigene Antwort …"><button type="submit">Senden</button></form>';
+  box.querySelector('.q').textContent = question;
+  const answer = (text) => {
+    box.classList.add('answered');
+    box.querySelector('.opts').remove();
+    box.querySelector('.free').remove();
+    const a = document.createElement('div');
+    a.className = 'a';
+    a.textContent = text || '(keine Antwort)';
+    box.appendChild(a);
+    window.api.agentAnswer(id, text);
+  };
+  for (const o of options || []) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = o;
+    b.onclick = () => answer(o);
+    box.querySelector('.opts').appendChild(b);
+  }
+  const form = box.querySelector('.free');
+  form.onsubmit = (ev) => { ev.preventDefault(); const v = form.querySelector('input').value.trim(); if (v) answer(v); };
+  streaming.el.querySelector('.steps').appendChild(box);
+  scrollDown();
+  (box.querySelector('.opts button') || form.querySelector('input')).focus({ preventScroll: true });
+});
+
+window.api.onAgentVerified(({ chatId: cid, verified }) => {
+  if (!streaming || streaming.id !== cid) return;
+  const badge = document.createElement('div');
+  badge.className = 'verified ' + (verified ? 'yes' : 'no');
+  badge.textContent = verified ? '✓ Ergebnis überprüft' : '! Nicht alles hat geklappt – Aura hat es nachgeprüft';
+  streaming.el.querySelector('.content').appendChild(badge);
 });
 
 function autosize() {

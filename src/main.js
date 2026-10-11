@@ -601,6 +601,7 @@ ipcMain.on('agent:approval', (_e, { stepId, ok }) => {
 
 const agentVersion = () => process.env.AURA_AGENT_VERSION || store.load().agentVersion || 'v1';
 const v2Senders = new Map(); // Auftrags-ID → Fenster, das den Auftrag geschickt hat
+const v2Questions = new Map(); // Frage-ID → resolve({answer})
 
 const agentV2 = new AgentBridge({
   app,
@@ -625,12 +626,28 @@ const agentV2 = new AgentBridge({
       const answer = (ok) => resolve({ decision: ok === 'all' ? 'task' : ok ? 'once' : 'deny' });
       answer.taskId = req.taskId;
       approvals.set(req.stepId, answer);
-      const detail = [req.effect && req.effect !== req.label ? req.effect : '', req.reason ? `Grund: ${req.reason}` : ''].filter(Boolean).join('\n');
-      sender.send('agent:approve', { chatId: req.taskId, id: req.stepId, tool: req.tool, label: req.label, detail });
+      const detail = req.effect && req.effect !== req.label ? req.effect : '';
+      sender.send('agent:approve', { chatId: req.taskId, id: req.stepId, tool: req.tool, label: req.label, detail, tier: req.tier, reason: req.reason || '' });
+      if (panel && !panelOpen) openPanel();
+    }),
+    // Rückfrage des Agenten (ask_user) als Karte im Panel.
+    ask: (req) => new Promise((resolve) => {
+      const sender = v2Senders.get(req.taskId);
+      if (!sender || sender.isDestroyed()) return resolve({ answer: '' });
+      const id = 'q' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      const answer = (text) => resolve({ answer: String(text || '') });
+      answer.taskId = req.taskId;
+      v2Questions.set(id, answer);
+      sender.send('agent:ask', { chatId: req.taskId, id, question: req.question, options: req.options || [] });
       if (panel && !panelOpen) openPanel();
     }),
     screenshot: async (maxWidth) => ({ mime: 'image/jpeg', data: await screenshotJpeg(currentDisplay, maxWidth) })
   }
+});
+
+ipcMain.on('agent:answer', (_e, { id, answer }) => {
+  const r = v2Questions.get(id);
+  if (r) { v2Questions.delete(id); r(answer); }
 });
 
 async function runAgentV2(sender, id, chatId, ctrl, contents, onText) {
@@ -642,16 +659,19 @@ async function runAgentV2(sender, id, chatId, ctrl, contents, onText) {
   const onAbort = () => {
     // Offene Freigaben dieses Auftrags gelten als abgelehnt, dann Not-Aus im Agenten.
     for (const [stepId, r] of approvals) { if (r.taskId === id) { approvals.delete(stepId); r(false); } }
+    for (const [qid, r] of v2Questions) { if (r.taskId === id) { v2Questions.delete(qid); r(''); } }
     agentV2.cancel(id);
   };
   ctrl.signal.addEventListener('abort', onAbort, { once: true });
   agentRuns++;
   registerStopHotkey();
   try {
-    await agentV2.runTask({ taskId: id, chatId, text, images }, {
+    const done = await agentV2.runTask({ taskId: id, chatId, text, images }, {
       onText,
-      onStep: (st) => send('agent:step', { chatId: id, id: st.stepId, tool: st.tool, label: st.label, state: st.state })
+      onStep: (st) => send('agent:step', { chatId: id, id: st.stepId, tool: st.tool, label: st.label, state: st.state, verified: st.verified }),
+      onPlan: (items) => send('agent:plan', { chatId: id, items })
     });
+    if (done && !done.cancelled && done.verified !== null && done.verified !== undefined) send('agent:verified', { chatId: id, verified: done.verified });
   } finally {
     ctrl.signal.removeEventListener('abort', onAbort);
     v2Senders.delete(id);

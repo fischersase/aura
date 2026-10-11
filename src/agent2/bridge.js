@@ -10,7 +10,7 @@ const CANCEL_TIMEOUT_MS = 2000;
 const LOG_MAX_BYTES = 5 * 1024 * 1024;
 
 class AgentBridge {
-  // app: Electron-app; settings(): Einstellungen für initialize; host: { approve(req), screenshot(maxWidth) }
+  // app: Electron-app; settings(): Einstellungen für initialize; host: { approve(req), ask(req), screenshot(maxWidth) }
   constructor({ app, settings, host, onModelStatus }) {
     this.app = app;
     this.settings = settings;
@@ -72,8 +72,10 @@ class AgentBridge {
 
     peer.on('host.approve', (req) => this.host.approve(req));
     peer.on('host.screenshot', (req) => this.host.screenshot(req.maxWidth || 1600));
+    peer.on('host.ask', (req) => this.host.ask(req));
     peer.onNotify('task.text', (p) => this.handler(p.taskId, 'onText', p.delta));
     peer.onNotify('task.step', (p) => this.handler(p.taskId, 'onStep', p));
+    peer.onNotify('task.plan', (p) => this.handler(p.taskId, 'onPlan', p.items));
     peer.onNotify('task.done', (p) => this.finish(p.taskId, null, p));
     peer.onNotify('task.error', (p) => this.finish(p.taskId, new Error(p.message), null));
     peer.onNotify('model.status', (p) => this.onModelStatus(p));

@@ -31,17 +31,21 @@ def check(kind: str, method: str, payload: dict, part: str | None = None) -> Non
 async def test_notifications_and_approvals_match_schema(tmp_path):
   settings = AgentSettings(data_dir=tmp_path / "agent", aura_dir=tmp_path / "aura", home=str(tmp_path))
   llm = ScriptedLlm([
+      [Call("todo_write", {"items": [{"text": "Ordner ansehen", "status": "in_progress"}]})],
+      [Call("ask_user", {"question": "Wirklich?", "options": ["ja", "nein"]})],
       [Call("list_dir", {"path": str(tmp_path)}), Call("run_command", {"command": "rm x"})],
       [Call("run_command", {"command": "cat ~/.ssh/id_rsa"})],
       "fertig",
   ])
-  host = FakeHost(["deny"])
+  host = FakeHost(["deny"], answers=["ja"])
   ctl = TaskController(build_runner(settings, llm), host, AuditLog(settings.data_dir / "audit"), settings.home)
   ctl.start("t1", "c1", "x")
   while ctl.tasks:
     await asyncio.sleep(0.01)
   methods = {m for m, _ in host.events}
-  assert {"task.step", "task.text", "task.done"} <= methods
+  assert {"task.step", "task.text", "task.done", "task.plan"} <= methods
+  for q in host.questions:
+    check("hostRequests", "host.ask", q, "params")
   for method, params in host.events:
     check("notifications", method, params)
   for req in host.approvals:

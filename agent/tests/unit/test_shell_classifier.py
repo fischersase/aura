@@ -53,3 +53,9 @@ def test_reason_is_given():
 
 def test_deleting_a_subfolder_only_asks():
   assert classify("rm -rf ~/Downloads/alt")[0] == Tier.T2
+
+
+def test_mkdir_is_t1_but_not_with_mode_or_chain():
+  assert classify("mkdir -p ~/aura-test")[0] == Tier.T1
+  assert classify("mkdir -m 777 ~/x")[0] == Tier.T2
+  assert classify("mkdir ~/x && rm -r ~/y")[0] == Tier.T2

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import difflib
 import fnmatch
 import shutil
 import time
@@ -152,3 +153,149 @@ async def find_files(name: str = "", folder: str = "~", contains: str = "", max_
   if partial:
     out["note"] = "Suche nach 15 s abgebrochen, Ergebnis unvollständig. Ordner genauer angeben."
   return out
+
+
+# ---------- Schreiben, ändern, verschieben, Papierkorb ----------
+
+DIFF_LINES = 80
+
+
+def _diff(old: str, new: str, name: str) -> str:
+  lines = list(difflib.unified_diff(old.splitlines(), new.splitlines(), f"{name} (vorher)", f"{name} (nachher)", lineterm="", n=2))
+  if len(lines) > DIFF_LINES:
+    lines = lines[:DIFF_LINES] + [f"… ({len(lines) - DIFF_LINES} weitere Zeilen)"]
+  return "\n".join(lines) or "(keine Änderung)"
+
+
+def _write_tier(a: dict[str, Any]) -> tuple[Tier, str]:
+  p = expand(a.get("path"), _home())
+  if p.exists():
+    return Tier.T2, "überschreibt eine vorhandene Datei"
+  return Tier.T1, ""
+
+
+def _write_effect(a: dict[str, Any]) -> str:
+  p = expand(a.get("path"), _home())
+  new = str(a.get("content", ""))
+  if p.is_file():
+    try:
+      old = p.read_text(errors="replace")
+    except OSError:
+      old = ""
+    if a.get("append"):
+      new = old + new
+    return _diff(old, new, show(p, _home()))
+  return f"Neue Datei {show(p, _home())}:\n" + guard_clip(new, 1500)
+
+
+def guard_clip(text: str, limit: int) -> str:
+  return text if len(text) <= limit else text[:limit] + f"\n… ({len(text) - limit} Zeichen mehr)"
+
+
+@aura_tool(_write_tier, label=lambda a: ("+ " if a.get("append") else "") + str(a.get("path", "")), effect=_write_effect)
+def write_file(path: str, content: str, append: bool = False) -> dict[str, Any]:
+  """Schreibt Text in eine Datei. Legt sie an; eine vorhandene Datei wird nur nach Freigabe ersetzt.
+
+  Für kleine Änderungen an vorhandenen Dateien edit_file nutzen.
+
+  Args:
+    path: Zieldatei, z. B. "~/Dokumente/notiz.txt".
+    content: Der Text.
+    append: true = am Ende anhängen statt ersetzen.
+  """
+  p = expand(path, _home())
+  if p.is_dir():
+    return {"error": f"Das ist ein Ordner: {show(p, _home())}"}
+  p.parent.mkdir(parents=True, exist_ok=True)
+  if append:
+    with p.open("a", encoding="utf-8") as f:
+      f.write(content)
+  else:
+    p.write_text(content, encoding="utf-8")
+  text = p.read_text(encoding="utf-8", errors="replace")
+  ok = text.endswith(content) if append else text == content
+  return {"path": show(p, _home()), "bytes": p.stat().st_size, "verified": ok}
+
+
+def _edit_effect(a: dict[str, Any]) -> str:
+  p = expand(a.get("path"), _home())
+  try:
+    old = p.read_text(errors="replace")
+  except OSError:
+    return f"Datei nicht lesbar: {show(p, _home())}"
+  return _diff(old, old.replace(str(a.get("old_text", "")), str(a.get("new_text", "")), 1), show(p, _home()))
+
+
+@aura_tool(Tier.T2, label=lambda a: str(a.get("path", "")), effect=_edit_effect)
+def edit_file(path: str, old_text: str, new_text: str) -> dict[str, Any]:
+  """Ersetzt in einer Textdatei genau eine Stelle. old_text muss genau einmal vorkommen (mit etwas Umgebung eindeutig machen).
+
+  Args:
+    path: Die Datei.
+    old_text: Der Text, der ersetzt wird, genau wie in der Datei.
+    new_text: Der neue Text.
+  """
+  p = expand(path, _home())
+  if not p.is_file():
+    return {"error": f"Datei nicht gefunden: {show(p, _home())}"}
+  text = p.read_text(encoding="utf-8", errors="replace")
+  n = text.count(old_text) if old_text else 0
+  if n != 1:
+    return {"error": f"old_text kommt {n}× vor, muss genau einmal vorkommen." + (" Lies die Datei vorher mit read_file." if n == 0 else " Nimm mehr Umgebung dazu.")}
+  new = text.replace(old_text, new_text, 1)
+  p.write_text(new, encoding="utf-8")
+  return {"path": show(p, _home()), "verified": p.read_text(encoding="utf-8", errors="replace") == new}
+
+
+@aura_tool(Tier.T2, label=lambda a: str(a.get("path", "")), effect=lambda a: f"In den Papierkorb (wiederherstellbar): {a.get('path', '')}")
+async def trash(path: str) -> dict[str, Any]:
+  """Verschiebt eine Datei oder einen Ordner in den Papierkorb (wiederherstellbar). Endgültiges Löschen gibt es bewusst nicht.
+
+  Args:
+    path: Datei oder Ordner.
+  """
+  p = expand(path, _home())
+  if not p.exists() and not p.is_symlink():
+    return {"error": f"Gibt es nicht: {show(p, _home())}"}
+  if p == Path(_home()) or p == Path("/") or len(p.parts) <= 2:
+    return {"error": "Diesen Ordner wirft Aura nicht in den Papierkorb."}
+  proc = await asyncio.create_subprocess_exec("gio", "trash", str(p), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
+  out, _ = await proc.communicate()
+  if proc.returncode:
+    return {"error": out.decode(errors="replace").strip() or "gio trash fehlgeschlagen"}
+  return {"trashed": show(p, _home()), "verified": not p.exists(), "restore": "Im Papierkorb von Dateien (Nautilus) wiederherstellbar."}
+
+
+def _move_tier(a: dict[str, Any]) -> tuple[Tier, str]:
+  dst = expand(a.get("destination"), _home())
+  src = expand(a.get("source"), _home())
+  target = dst / src.name if dst.is_dir() else dst
+  if target.exists():
+    return Tier.T2, "überschreibt ein vorhandenes Ziel"
+  return Tier.T1, ""
+
+
+@aura_tool(_move_tier, label=lambda a: f"{'kopieren' if a.get('copy') else 'verschieben'}: {a.get('source', '')} → {a.get('destination', '')}")
+def move_path(source: str, destination: str, copy: bool = False) -> dict[str, Any]:
+  """Verschiebt oder kopiert eine Datei oder einen Ordner. Ist das Ziel ein Ordner, landet die Quelle darin.
+
+  Args:
+    source: Quelle.
+    destination: Ziel (Datei- oder Ordnerpfad).
+    copy: true = kopieren statt verschieben.
+  """
+  src = expand(source, _home())
+  dst = expand(destination, _home())
+  if not src.exists():
+    return {"error": f"Quelle gibt es nicht: {show(src, _home())}"}
+  target = dst / src.name if dst.is_dir() else dst
+  target.parent.mkdir(parents=True, exist_ok=True)
+  if copy:
+    if src.is_dir():
+      shutil.copytree(src, target, dirs_exist_ok=True)
+    else:
+      shutil.copy2(src, target)
+  else:
+    shutil.move(str(src), str(target))
+  ok = target.exists() and (copy or not src.exists())
+  return {"result": show(target, _home()), "verified": ok}

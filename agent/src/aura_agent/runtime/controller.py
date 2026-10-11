@@ -11,6 +11,7 @@ import asyncio
 import base64
 import contextlib
 import logging
+import re
 import time
 from collections.abc import Callable
 
@@ -28,6 +29,17 @@ USER_ID = "local"
 EMPTY_ANSWER_NUDGE = (
     "[Hinweis der App, nicht vom Nutzer] Du hast keine Antwort geschrieben. Sag dem Nutzer jetzt in ein bis zwei "
     "Sätzen, was du getan hast und was dabei herauskam. Behaupte nichts, was kein Werkzeugergebnis belegt."
+)
+VERIFY_NUDGE = (
+    "[Hinweis der App, nicht vom Nutzer] Deine Antwort klingt nach Erfolg, aber die Nachprüfung sagt, dass diese "
+    "Aktionen NICHT wirksam wurden: {items}. Schreib dem Nutzer eine kurze, ehrliche Korrektur. Versuche höchstens "
+    "einen anderen Weg, wenn es einen verlässlicheren gibt."
+)
+# Erfolgsbehauptungen in der Endantwort (für die Prüfung vor „fertig“).
+SUCCESS_CLAIM = re.compile(
+    r"\b(erledigt|geöffnet|gestartet|pausiert|fortgesetzt|gestoppt|geschlossen|gelöscht|gespeichert|angelegt|erstellt|"
+    r"geändert|verschoben|kopiert|eingestellt|aktiviert|deaktiviert|abgespielt|läuft (jetzt|wieder)|ist (jetzt )?(offen|an|aus))\b",
+    re.IGNORECASE,
 )
 CANCEL_GRACE_S = 2.0
 
@@ -105,6 +117,11 @@ class TaskController:
       if not final and not error and not ctx.abort.is_set():
         self.audit.write("empty_answer_nudge", task=ctx.task_id)
         final, error = await self._turn(ctx, session_id, types.Content(role="user", parts=[types.Part(text=EMPTY_ANSWER_NUDGE)]), usage)
+      failed = [c["label"] or c["tool"] for c in ctx.changes if c["verified"] is False]
+      if failed and SUCCESS_CLAIM.search(final or "") and not error and not ctx.abort.is_set():
+        self.audit.write("verify_rejected", task=ctx.task_id, failed=failed)
+        nudge = VERIFY_NUDGE.format(items="; ".join(failed[:5]))
+        final, error = await self._turn(ctx, session_id, types.Content(role="user", parts=[types.Part(text=nudge)]), usage)
     except asyncio.CancelledError:
       error = None
     except Exception as e:
@@ -119,7 +136,7 @@ class TaskController:
     if error and not cancelled:
       self.host.emit("task.error", {"taskId": ctx.task_id, "message": error})
     else:
-      self.host.emit("task.done", {"taskId": ctx.task_id, "text": final, "cancelled": cancelled, "verified": None,
+      self.host.emit("task.done", {"taskId": ctx.task_id, "text": final, "cancelled": cancelled, "verified": ctx.verified(),
                                    "steps": ctx.steps, "ms": ms, "usage": usage})
 
   async def _turn(self, ctx: TaskContext, session_id: str, message: types.Content, usage: dict[str, int]) -> tuple[str, str | None]:
