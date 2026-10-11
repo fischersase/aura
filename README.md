@@ -86,7 +86,7 @@ Ask in the chat, e.g. "open my downloads folder", "find the invoice from March",
 
 - On **Wayland**, global shortcuts go through the desktop portal (GNOME/KDE ask once). If one does not work, add a custom shortcut in your system settings that runs `aura --toggle`, `--live` or `--rambler` (with the AppImage, use the path to the `.AppImage` file).
 - Rambler types via `xdotool` (X11) or `wtype` / `ydotool` (Wayland). Without them the text stays in the clipboard for Ctrl+V.
-- Screen sharing on Wayland asks for permission through the system dialog.
+- Screen sharing on Wayland asks for permission through the system dialog. Aura keeps that share open for a few minutes so it does not ask for every screenshot.
 - Read-aloud for local Live needs `speech-dispatcher` with a voice (e.g. `espeak-ng`).
 - The tray icon needs AppIndicator support (on GNOME: the "AppIndicator" extension).
 

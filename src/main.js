@@ -388,7 +388,20 @@ ipcMain.on('rambler:error', (_e, message) => {
 
 // ---------- Bildschirm ----------
 
+// Unter Wayland liefert desktopCapturer keine brauchbaren Vorschaubilder; dann über eine
+// dauerhafte Bildschirmfreigabe im Panel (fragt das System einmal, nicht bei jedem Bild).
+const USE_STREAM_CAPTURE = IS_LINUX && (process.env.XDG_SESSION_TYPE === 'wayland' || !!process.env.WAYLAND_DISPLAY || process.env.AURA_SCREEN_STREAM === '1');
+
+async function grabViaPanel(maxWidth) {
+  if (!panel || panel.isDestroyed()) throw new Error('Aura-Fenster nicht bereit.');
+  const r = await panel.webContents.executeJavaScript(`window.__grabScreen(${Number(maxWidth) || 1600})`, true);
+  if (!r || r.error) throw new Error('Bildschirmaufnahme fehlgeschlagen: ' + ((r && r.error) || 'unbekannt') +
+    (IS_LINUX ? ' (Unter Wayland muss die Freigabe im System-Dialog bestätigt werden.)' : ''));
+  return r.jpeg;
+}
+
 async function screenshotJpeg(display, maxWidth = 1600) {
+  if (USE_STREAM_CAPTURE) return grabViaPanel(maxWidth);
   const d = display || displayUnderCursor();
   const scale = Math.min(1, maxWidth / d.size.width);
   const sources = await desktopCapturer.getSources({
@@ -399,6 +412,10 @@ async function screenshotJpeg(display, maxWidth = 1600) {
     }
   });
   const src = sources.find((s) => s.display_id === String(d.id)) || sources[0];
+  if (!src || src.thumbnail.isEmpty()) {
+    if (IS_LINUX) return grabViaPanel(maxWidth);
+    throw new Error('Bildschirmaufnahme fehlgeschlagen.');
+  }
   return src.thumbnail.toJPEG(75).toString('base64');
 }
 

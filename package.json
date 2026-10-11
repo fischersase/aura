@@ -1,7 +1,7 @@
 {
   "name": "aura-desktop",
   "productName": "Aura",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Aura: hotkey assistant in Googlebook style for Windows and Linux, with Gemini or local models via Ollama",
   "main": "src/main.js",
   "author": {
