@@ -340,12 +340,18 @@ const TOOL_NAMES = {
 // Frage auf der Freigabekarte je Werkzeug (Agent v1 und v2).
 const APPROVE_Q = {
   write_file: 'Aura möchte diese Datei schreiben:', edit_file: 'Aura möchte diese Datei ändern:',
-  trash: 'Aura möchte das in den Papierkorb verschieben:', move_path: 'Aura möchte das verschieben oder kopieren:',
+  trash: 'Aura möchte das in den Papierkorb verschieben:', browser_click: 'Aura möchte auf der Webseite klicken:',
+  browser_type: 'Aura möchte auf der Webseite eingeben:', browser_fill_form: 'Aura möchte dieses Formular ausfüllen:',
+  browser_press_key: 'Aura möchte auf der Webseite eine Taste drücken:', browser_handle_dialog: 'Aura möchte einen Dialog der Webseite bestätigen:', move_path: 'Aura möchte das verschieben oder kopieren:',
   open: 'Aura möchte dieses Programm starten:', open_target: 'Aura möchte das öffnen:', launch_app: 'Aura möchte dieses Programm starten:',
   window_action: 'Aura möchte dieses Fenster schließen:', settings: 'Aura möchte diese Einstellung ändern:',
   click: 'Aura möchte klicken:', type_text: 'Aura möchte tippen:', press_keys: 'Aura möchte Tasten drücken:'
 };
-const toolName = (t) => TOOL_NAMES[t] || (t.startsWith('mcp_') ? 'MCP' : t);
+const BROWSER_NAMES = { navigate: 'Seite öffnen', navigate_back: 'Zurück', snapshot: 'Seite lesen', find: 'Suchen', click: 'Klicken',
+  type: 'Tippen', fill_form: 'Formular', select_option: 'Auswählen', press_key: 'Taste', wait_for: 'Warten', tabs: 'Tabs',
+  handle_dialog: 'Dialog', take_screenshot: 'Bildschirmfoto' };
+const toolName = (t) => TOOL_NAMES[t] || (t === 'browser' ? 'Browser-Agent' : t.startsWith('browser_') ? 'Browser · ' + (BROWSER_NAMES[t.slice(8)] || t.slice(8))
+  : t.startsWith('mcp_') ? 'MCP' : t);
 const STEP_STATE = { ask: 'Wartet auf deine Freigabe', run: 'Läuft …', ok: 'Erledigt', error: 'Fehlgeschlagen', denied: 'Abgelehnt' };
 
 function stepEl(step) {

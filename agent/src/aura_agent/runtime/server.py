@@ -21,6 +21,7 @@ from ..harness.guard import GuardPlugin
 from ..models.ollama_llm import OllamaLlm
 from ..policy.engine import PolicyEngine
 from ..rpc.peer import INVALID_PARAMS, PROTOCOL_VERSION, Peer, RpcError
+from ..tools.browser import build_browser_toolset
 from .controller import APP_NAME, TaskController
 from .settings import AgentSettings
 
@@ -59,14 +60,17 @@ class RpcHost:
     self.peer.notify(method, params)
 
 
-def build_runner(settings: AgentSettings, model: BaseLlm | None = None) -> Runner:
+def build_runner(settings: AgentSettings, model: BaseLlm | None = None, browser: bool | None = None) -> Runner:
+  """browser: None = nach Einstellung (aber nie bei Testmodellen), True/False erzwingt."""
   policy = PolicyEngine(settings.aura_dir / "policy.toml", settings.tool_policy)
+  use_browser = settings.browser and model is None if browser is None else browser
+  toolset = build_browser_toolset(settings, settings.browser_headless) if use_browser else None
   settings.ensure_dirs()
   llm = model or OllamaLlm(model=f"ollama/{settings.model}", base_url=settings.ollama_url,
                            num_ctx=settings.num_ctx, keep_alive=settings.keep_alive, think=False)
   return Runner(
       app_name=APP_NAME,
-      agent=build_root(llm, settings),
+      agent=build_root(llm, settings, toolset),
       session_service=SqliteSessionService(str(settings.data_dir / "sessions.db")),
       plugins=[GuardPlugin(policy)],
   )

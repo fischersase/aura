@@ -615,6 +615,7 @@ const agentV2 = new AgentBridge({
       profile: store.profilePrompt(),
       sessionType: process.env.XDG_SESSION_TYPE || '',
       toolPolicy: s.toolPolicy || {},
+      ...browserLauncher(),
       dataDir: path.join(app.getPath('userData'), 'agent'),
       auraDir: defaultAuraDir()
     };
@@ -650,6 +651,13 @@ ipcMain.on('agent:answer', (_e, { id, answer }) => {
   const r = v2Questions.get(id);
   if (r) { v2Questions.delete(id); r(answer); }
 });
+
+// Mitgelieferter Browser-Server (Playwright-MCP), gestartet mit Electron als Node. Ohne Paket nimmt der Agent npx.
+function browserLauncher() {
+  const cli = path.join(process.resourcesPath || '', 'browser-mcp', 'node_modules', '@playwright', 'mcp', 'cli.js');
+  if (!app.isPackaged || !fs.existsSync(cli)) return {};
+  return { browserCommand: [process.execPath, cli], browserEnv: { ELECTRON_RUN_AS_NODE: '1' } };
+}
 
 async function runAgentV2(sender, id, chatId, ctrl, contents, onText) {
   const send = (ch, data) => { if (!sender.isDestroyed()) sender.send(ch, data); };

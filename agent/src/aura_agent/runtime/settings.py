@@ -31,6 +31,11 @@ class AgentSettings:
   aura_dir: Path = field(default_factory=lambda: Path.home() / ".aura")
   max_llm_calls: int = 60
   tool_policy: dict[str, str] = field(default_factory=dict)
+  browser: bool = True  # Browser-Spezialist (Playwright-MCP)
+  # Start des Playwright-MCP im Paket: [Electron, …/cli.js] mit ELECTRON_RUN_AS_NODE=1; leer = npx (Entwicklung)
+  browser_command: list[str] = field(default_factory=list)
+  browser_env: dict[str, str] = field(default_factory=dict)
+  browser_headless: bool = False
 
   @classmethod
   def from_params(cls, p: dict[str, Any]) -> AgentSettings:
@@ -45,6 +50,10 @@ class AgentSettings:
       s.data_dir = Path(p["dataDir"])
     if isinstance(p.get("toolPolicy"), dict):
       s.tool_policy = {str(k): str(v) for k, v in p["toolPolicy"].items()}
+    if isinstance(p.get("browserCommand"), list):
+      s.browser_command = [str(x) for x in p["browserCommand"]]
+    if isinstance(p.get("browserEnv"), dict):
+      s.browser_env = {str(k): str(v) for k, v in p["browserEnv"].items()}
     if p.get("auraDir"):
       s.aura_dir = Path(p["auraDir"])
     return s

@@ -38,6 +38,8 @@ class ToolMeta:
   tier: Tier | TierFn = Tier.T0
   label: Callable[[dict[str, Any]], str] | None = None
   effect: Callable[[dict[str, Any]], str] | None = None
+  # Argumente, ohne die die Hülle den Aufruf nicht einstufen kann (z. B. was angeklickt wird).
+  required: tuple[str, ...] = ()
 
   def classify(self, args: dict[str, Any]) -> tuple[Tier, str]:
     t = self.tier(args) if callable(self.tier) else self.tier
@@ -64,9 +66,12 @@ def aura_tool(tier: Tier | TierFn = Tier.T0, label: Callable[[dict[str, Any]], s
 
 UNKNOWN = ToolMeta(tier=Tier.T2)
 
+# Metadaten für Werkzeuge, die nicht aus Aura-Funktionen stammen (MCP-Server wie der Browser), nach Name.
+EXTERNAL: dict[str, ToolMeta] = {}
+
 
 def meta_of(tool: Any) -> ToolMeta:
   """Metadaten eines ADK-Werkzeugs. Werkzeuge ohne Angabe gelten als T2 (fragen)."""
   fn = getattr(tool, "func", None)
-  meta = getattr(fn, "__aura__", None) or getattr(tool, "__aura__", None)
+  meta = getattr(fn, "__aura__", None) or getattr(tool, "__aura__", None) or EXTERNAL.get(getattr(tool, "name", ""))
   return meta if isinstance(meta, ToolMeta) else UNKNOWN

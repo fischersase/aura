@@ -44,6 +44,13 @@ if [ "$SIZE" -gt "$MAX_MB" ]; then
   exit 1
 fi
 
+# Browser-Server (Playwright-MCP) mitliefern; Aura startet ihn mit Electron als Node (ELECTRON_RUN_AS_NODE=1).
+PLAYWRIGHT_MCP="$(grep -oP 'PLAYWRIGHT_MCP = "\K[^"]+' "$ROOT/agent/src/aura_agent/tools/browser.py")"
+rm -rf "$BUILD/browser-mcp" && mkdir -p "$BUILD/browser-mcp"
+npm install --prefix "$BUILD/browser-mcp" --omit=dev --no-audit --no-fund --no-save "$PLAYWRIGHT_MCP" >/dev/null
+test -f "$BUILD/browser-mcp/node_modules/@playwright/mcp/cli.js"
+echo "Browser-Server: $PLAYWRIGHT_MCP ($(du -sm "$BUILD/browser-mcp" | cut -f1) MB)"
+
 # Selbsttest im fertigen Bündel, isoliert von allem außerhalb (-I).
 "$PY" -I -m aura_agent --selftest
 echo "Agent-Python fertig: $OUT"

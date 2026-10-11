@@ -96,6 +96,8 @@ def classify(command: str) -> tuple[Tier, str]:
     first_words = []
   if "|" not in c and first_words and first_words[0] in T1_COMMANDS and not any(w in ("-m", "--mode") for w in first_words):
     return Tier.T1, "legt nur etwas Neues an"
+  if len(first_words) == 2 and first_words[0] == "xdg-open" and re.match(r"https?://", first_words[1]):
+    return Tier.T1, "öffnet eine Webseite"
   for segment in c.split("|"):
     try:
       words = shlex.split(segment)

@@ -102,6 +102,13 @@ class GuardPlugin(BasePlugin):
       return {"error": REPEAT_BLOCK.format(n=task.call_counts[key])}
 
     meta = meta_of(tool)
+    missing = [k for k in meta.required if not str(tool_args.get(k, "")).strip()]
+    if missing:
+      self._answered.add(step_id)
+      task.audit.write("missing_args", task=task.task_id, tool=tool.name, missing=missing)
+      return {"error": f"Bitte gib {', '.join(missing)} an: eine kurze, für Menschen lesbare Beschreibung des Ziels "
+                       "(z. B. „Abspielen-Knopf von Me Porto Bonito“). Ohne sie wird die Aktion nicht ausgeführt."}
+
     tier, reason = meta.classify(tool_args)
     self._tiers[step_id] = tier
     label = meta.describe(tool.name, tool_args)

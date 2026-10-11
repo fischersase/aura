@@ -11,6 +11,7 @@ import re
 from google.adk.agents import LlmAgent
 from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.models.base_llm import BaseLlm
+from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 
 from ..runtime.settings import AgentSettings
 from ..tools.desktop import launch_app, list_windows, open_target, window_action
@@ -18,6 +19,7 @@ from ..tools.files import edit_file, find_files, list_dir, move_path, read_file,
 from ..tools.interaction import ask_user, todo_write
 from ..tools.shell import run_command
 from ..tools.system import dark_mode, media_control, media_status, now_text, settings, system_info, volume
+from .specialists import browser_agent
 
 TOOLS = [
     todo_write, ask_user,
@@ -38,7 +40,7 @@ def _agents_md(settings: AgentSettings) -> str:
   return "" if not text or re.fullmatch(r"#.*", text) else text[:8000]
 
 
-def instruction(settings: AgentSettings):
+def instruction(settings: AgentSettings, has_browser: bool = False):
   def build(_ctx: ReadonlyContext) -> str:
     parts = [
         (f"Du bist Aura, der Assistent auf dem Linux-PC von {settings.user_name}. "
@@ -72,7 +74,9 @@ def instruction(settings: AgentSettings):
          "- Lautstärke: volume. Dunkelmodus: dark_mode. Andere Einstellungen (Nachtlicht, Nicht stören …): settings.\n"
          "- Dateien: list_dir, find_files, read_file; schreiben mit write_file, kleine Änderungen mit edit_file, "
          "verschieben oder kopieren mit move_path (beide legen fehlende Ordner selbst an). Löschen nur mit trash (Papierkorb), nie mit rm.\n"
-         "- Alles andere: run_command (bash). Nur lesende Befehle laufen ohne Rückfrage. Pfade dürfen mit ~ beginnen."),
+         + ("- Webseiten bedienen (suchen, klicken, Formulare, Musik auf YouTube Music abspielen, Infos von Seiten holen): "
+            "browser mit einer klaren, vollständigen Aufgabe. Nur eine Seite anzeigen: open_target.\n" if has_browser else "")
+         + "- Alles andere: run_command (bash). Nur lesende Befehle laufen ohne Rückfrage. Pfade dürfen mit ~ beginnen."),
     ]
     if settings.profile:
       parts.append("## Über den Nutzer\n" + settings.profile)
@@ -84,13 +88,16 @@ def instruction(settings: AgentSettings):
   return build
 
 
-def build_root(model: BaseLlm, settings: AgentSettings) -> LlmAgent:
+def build_root(model: BaseLlm, settings: AgentSettings, browser: McpToolset | None = None) -> LlmAgent:
+  tools: list = list(TOOLS)
+  if browser is not None:
+    tools.append(browser_agent(model, browser))
   return LlmAgent(
       name="aura",
       model=model,
       description="Laptop-Assistent",
-      instruction=instruction(settings),
-      tools=list(TOOLS),
+      instruction=instruction(settings, browser is not None),
+      tools=tools,
   )
 
 

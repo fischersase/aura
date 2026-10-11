@@ -60,6 +60,13 @@
           "filter": [
             "**/*"
           ]
+        },
+        {
+          "from": "build/browser-mcp/node_modules",
+          "to": "browser-mcp/node_modules",
+          "filter": [
+            "**/*"
+          ]
         }
       ]
     },

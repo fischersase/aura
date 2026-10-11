@@ -57,6 +57,18 @@
                       "off"
                     ]
                   }
+                },
+                "browserCommand": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "browserEnv": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
                 }
               }
             }

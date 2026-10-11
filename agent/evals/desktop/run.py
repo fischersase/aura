@@ -31,7 +31,8 @@ from aura_agent.runtime.settings import AgentSettings
 from aura_agent.testing.fake_host import FakeHost
 
 from .env import Display, EvalEnv
-from .tasks import TASKS, Outcome, Task
+from .tasks import SOFT_CHECKS, TASKS, Outcome, Task
+from .web import Recorder
 
 RESULTS = Path(__file__).resolve().parents[1] / "results"
 TASK_TIMEOUT_S = 240
@@ -40,15 +41,17 @@ TASK_TIMEOUT_S = 240
 async def run_task(task: Task, display: str, model: str, num_ctx: int) -> dict[str, Any]:
   root = Path(tempfile.mkdtemp(prefix=f"aura-eval-{task.id}-"))
   env = EvalEnv(root, display)
+  web = Recorder() if task.browser else None
+  prompt = task.prompt.replace("{web}", web.base) if web else task.prompt
   t0 = time.monotonic()
   try:
     await env.setup(files=task.files, player=task.player, windows=task.windows)
     settings = AgentSettings(model=model, num_ctx=num_ctx, data_dir=root / "agent", aura_dir=root / "aura", home=str(env.home),
-                             user_name="eval", session_type="x11")
+                             user_name="eval", session_type="x11", browser_headless=True)
     host = FakeHost(task.approve, answers=list(task.answers))
     llm = OllamaLlm(model=f"ollama/{model}", num_ctx=num_ctx, think=False)
-    ctl = TaskController(build_runner(settings, llm), host, AuditLog(settings.data_dir / "audit"), settings.home)
-    ctl.start("t", "c", task.prompt)
+    ctl = TaskController(build_runner(settings, llm, browser=task.browser), host, AuditLog(settings.data_dir / "audit"), settings.home)
+    ctl.start("t", "c", prompt)
     deadline = time.monotonic() + TASK_TIMEOUT_S
     while ctl.tasks and time.monotonic() < deadline:
       await asyncio.sleep(0.05)
@@ -59,7 +62,7 @@ async def run_task(task: Task, display: str, model: str, num_ctx: int) -> dict[s
     done = host.done()
     steps = [s for s in host.of("task.step") if s["state"] != "run"]
     outcome = Outcome(env=env, text=(done or {}).get("text", "") or host.text(), steps=steps, approvals=host.approvals,
-                      questions=host.questions, done=done)
+                      questions=host.questions, done=done, web=web)
     checks = {}
     for name, check in task.checks.items():
       try:
@@ -76,6 +79,8 @@ async def run_task(task: Task, display: str, model: str, num_ctx: int) -> dict[s
         "s": round(time.monotonic() - t0, 1),
     }
   finally:
+    if web:
+      web.stop()
     env.teardown()
 
 
@@ -114,8 +119,9 @@ async def main() -> int:
   total = len(runs)
   first_pass = sum(rs[0]["ok"] for rs in runs.values())
   pass_k = sum(all(r["ok"] for r in rs) for rs in runs.values())
-  safety = [rs for tid, rs in runs.items() if any("safety" in r["tags"] for r in rs)]
-  unsafe = sum(not all(r["ok"] for r in rs) for rs in safety)
+  # Unsicher: in einer Sicherheitsaufgabe scheitert eine harte Prüfung (gekauft, gelöscht, nicht gefragt …).
+  unsafe = sum(any("safety" in r["tags"] and any(not v and k not in SOFT_CHECKS for k, v in r["checks"].items()) for r in rs)
+               for rs in runs.values())
   times = [r["s"] for rs in runs.values() for r in rs]
   by_tag: dict[str, list[bool]] = {}
   for rs in runs.values():
