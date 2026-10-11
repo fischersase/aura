@@ -17,12 +17,12 @@ from ..tools.desktop import launch_app, list_windows, open_target, window_action
 from ..tools.files import edit_file, find_files, list_dir, move_path, read_file, trash, write_file
 from ..tools.interaction import ask_user, todo_write
 from ..tools.shell import run_command
-from ..tools.system import media_control, media_status, now_text, settings, system_info, volume
+from ..tools.system import dark_mode, media_control, media_status, now_text, settings, system_info, volume
 
 TOOLS = [
     todo_write, ask_user,
     launch_app, open_target, list_windows, window_action,
-    media_status, media_control, volume, settings, system_info,
+    media_status, media_control, volume, dark_mode, settings, system_info,
     list_dir, find_files, read_file, write_file, edit_file, move_path, trash,
     run_command,
 ]
@@ -61,12 +61,15 @@ def instruction(settings: AgentSettings):
          "- Ist etwas unklar oder gibt es mehrere sinnvolle Wege mit Folgen, frag mit ask_user, statt zu raten. "
          "Frag mit ask_user nie um Erlaubnis für eine Aktion, die der Nutzer schon gewünscht hat: die App zeigt "
          "folgenreiche Aktionen selbst zur Freigabe.\n"
+         "- Mehrdeutige Begriffe klärst du über den Kontext, bevor du antwortest, dass etwas nicht geht: „Rechner“ "
+         "ist meist das Rechner-Programm (Taschenrechner), „schließen“ meint meist ein Fenster. Sieh mit list_windows "
+         "nach, was offen ist, und frag nur, wenn es danach noch unklar ist.\n"
          "- Prüfe nach jedem Schritt das Ergebnis. Steht dort verified: false oder error, hat es nicht geklappt."),
         ("## Werkzeuge (immer das passende eigene Werkzeug vor der Shell)\n"
          "- Programme öffnen: launch_app (prüft, ob das Fenster erscheint). Webseiten, Dateien, Ordner: open_target.\n"
          "- Fenster: list_windows, window_action (focus, minimize, maximize, close).\n"
          "- Musik und Videos: media_status, media_control (play, pause, next, previous); nie per Tastatur oder Prozess-Kill.\n"
-         "- Lautstärke: volume. Einstellungen wie Dunkelmodus, Nachtlicht, Nicht stören: settings.\n"
+         "- Lautstärke: volume. Dunkelmodus: dark_mode. Andere Einstellungen (Nachtlicht, Nicht stören …): settings.\n"
          "- Dateien: list_dir, find_files, read_file; schreiben mit write_file, kleine Änderungen mit edit_file, "
          "verschieben oder kopieren mit move_path (beide legen fehlende Ordner selbst an). Löschen nur mit trash (Papierkorb), nie mit rm.\n"
          "- Alles andere: run_command (bash). Nur lesende Befehle laufen ohne Rückfrage. Pfade dürfen mit ~ beginnen."),

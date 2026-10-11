@@ -594,7 +594,7 @@ async function runAgent(sender, id, ctrl, contents, onText) {
 
 ipcMain.on('agent:approval', (_e, { stepId, ok }) => {
   const r = approvals.get(stepId);
-  if (r) { approvals.delete(stepId); r(ok === 'all' ? 'all' : !!ok); }
+  if (r) { approvals.delete(stepId); r(ok === 'all' || ok === 'always' ? ok : !!ok); }
 });
 
 // ---------- Agent v2 (agent/, Python + Google ADK) ----------
@@ -614,6 +614,7 @@ const agentV2 = new AgentBridge({
       language: s.language,
       profile: store.profilePrompt(),
       sessionType: process.env.XDG_SESSION_TYPE || '',
+      toolPolicy: s.toolPolicy || {},
       dataDir: path.join(app.getPath('userData'), 'agent'),
       auraDir: defaultAuraDir()
     };
@@ -623,7 +624,7 @@ const agentV2 = new AgentBridge({
     approve: (req) => new Promise((resolve) => {
       const sender = v2Senders.get(req.taskId);
       if (!sender || sender.isDestroyed()) return resolve({ decision: 'deny' });
-      const answer = (ok) => resolve({ decision: ok === 'all' ? 'task' : ok ? 'once' : 'deny' });
+      const answer = (ok) => resolve({ decision: ok === 'all' ? 'task' : ok === 'always' ? 'always' : ok ? 'once' : 'deny' });
       answer.taskId = req.taskId;
       approvals.set(req.stepId, answer);
       const detail = req.effect && req.effect !== req.label ? req.effect : '';

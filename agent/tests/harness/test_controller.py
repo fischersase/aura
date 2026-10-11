@@ -175,7 +175,7 @@ async def test_loop_guard_warns_then_stops(tmp_path):
 
 
 async def test_false_success_claim_is_corrected(tmp_path, private_dbus):
-  from tests.contract.fake_mpris import start_player
+  from aura_agent.testing.fake_mpris import start_player
 
   bus, player = await start_player(stuck=True)
   try:
@@ -193,7 +193,7 @@ async def test_false_success_claim_is_corrected(tmp_path, private_dbus):
 
 
 async def test_verified_success_is_reported(tmp_path, private_dbus):
-  from tests.contract.fake_mpris import start_player
+  from aura_agent.testing.fake_mpris import start_player
 
   bus, _ = await start_player()
   try:
@@ -203,3 +203,24 @@ async def test_verified_success_is_reported(tmp_path, private_dbus):
   finally:
     bus.disconnect()
   assert host.done()["verified"] is True and len(llm.requests) == 2
+
+
+async def test_always_allow_creates_rule_and_skips_next_question(tmp_path):
+  cmd = f"touch {tmp_path}/x"
+  steps = [[Call("run_command", {"command": cmd})], "ok", [Call("run_command", {"command": cmd})], "wieder ok"]
+  ctl, host, _, settings = make(tmp_path, steps, ["always"])
+  ctl.start("t1", "c1", "x")
+  await finish(ctl)
+  ctl.start("t2", "c1", "nochmal")
+  await finish(ctl)
+  assert len(host.approvals) == 1
+  assert "touch" in (settings.aura_dir / "policy.toml").read_text()
+
+
+async def test_user_deny_rule_blocks_even_read_only(tmp_path):
+  (tmp_path / "aura").mkdir()
+  (tmp_path / "aura" / "policy.toml").write_text('[[rule]]\ntool = "read_file"\ndecision = "deny"\n')
+  ctl, _host, llm, _ = make(tmp_path, [[Call("read_file", {"path": "~/a.txt"})], "gesperrt"])
+  ctl.start("t1", "c1", "lies a")
+  await finish(ctl)
+  assert "Regel des Nutzers" in str(tool_responses(llm.requests[-1])[0].response)

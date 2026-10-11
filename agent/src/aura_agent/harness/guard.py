@@ -18,6 +18,7 @@ from google.adk.tools.agent_tool import AgentTool
 from google.adk.tools.base_tool import BaseTool
 from google.adk.tools.tool_context import ToolContext
 
+from ..policy.engine import PolicyEngine
 from ..runtime.context import current
 from .tiers import Tier, meta_of
 
@@ -64,8 +65,9 @@ def _failed(result: Any) -> bool:
 
 
 class GuardPlugin(BasePlugin):
-  def __init__(self) -> None:
+  def __init__(self, policy: PolicyEngine | None = None) -> None:
     super().__init__(name="aura_guard")
+    self.policy = policy or PolicyEngine()
     self._started: dict[str, float] = {}
     # Aufrufe, die die Hülle selbst beantwortet hat (abgelehnt, gesperrt, unbekannt).
     # ADK ruft danach trotzdem after_tool_callback auf; dort werden sie übersprungen.
@@ -111,8 +113,16 @@ class GuardPlugin(BasePlugin):
       self._answered.add(step_id)
       return {"error": BLOCKED.format(reason=reason or "nicht erlaubt")}
 
-    decision = "auto"
-    if tier >= Tier.T2 and not (task.allow_all or tool.name in task.allowed_tools):
+    verdict = self.policy.evaluate(tool.name, label, tier)
+    if verdict.decision == "deny":
+      rule = verdict.rule.describe() if verdict.rule else ""
+      task.step(step_id, tool.name, label, "denied", tier=int(tier))
+      task.audit.write("blocked", **common, reason="Regel", rule=rule)
+      self._answered.add(step_id)
+      return {"error": f"Diese Aktion ist durch eine Regel des Nutzers gesperrt ({rule}). Sie wurde NICHT ausgeführt."}
+
+    decision = "auto" if not verdict.rule else f"auto ({verdict.rule.describe()})"
+    if verdict.decision == "ask" and not (task.allow_all or tool.name in task.allowed_tools):
       task.step(step_id, tool.name, label, "ask", tier=int(tier))
       effect = meta.effect(tool_args) if meta.effect else label
       task.audit.write("approval_requested", **common, reason=reason)
@@ -127,6 +137,9 @@ class GuardPlugin(BasePlugin):
       task.audit.write("approval", **common, decision=decision)
       if decision == "task":
         task.allow_all = True
+      elif decision == "always":
+        rule = self.policy.allow_always(tool.name, label)
+        task.audit.write("rule_added", **common, rule=rule.describe())
       elif decision != "once":
         task.step(step_id, tool.name, label, "denied", tier=int(tier))
         self._answered.add(step_id)

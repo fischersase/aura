@@ -390,6 +390,17 @@ window.api.onAgentApprove((step) => {
     box.insertBefore(why, box.querySelector('.btns'));
   }
   const answer = (ok) => { box.remove(); window.api.agentApproval(step.id, ok); };
+  if (step.tier !== undefined) {
+    // Agent v2: dauerhaft erlauben legt eine Regel in ~/.aura/policy.toml an.
+    const always = document.createElement('button');
+    always.className = 'always';
+    always.textContent = 'Immer erlauben';
+    always.title = 'Genau diese Aktion künftig ohne Rückfrage (Regel in ~/.aura/policy.toml)';
+    always.onclick = () => answer('always');
+    box.querySelector('.btns').insertBefore(always, box.querySelector('.allow'));
+    box.querySelector('.all').textContent = 'Für diesen Auftrag';
+    box.querySelector('.allow').textContent = 'Nur jetzt';
+  }
   box.querySelector('.allow').onclick = () => answer(true);
   box.querySelector('.deny').onclick = () => answer(false);
   box.querySelector('.all').onclick = () => answer('all');

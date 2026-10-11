@@ -19,6 +19,7 @@ from ..agents.root import build_root, tool_catalog
 from ..harness.audit import AuditLog
 from ..harness.guard import GuardPlugin
 from ..models.ollama_llm import OllamaLlm
+from ..policy.engine import PolicyEngine
 from ..rpc.peer import INVALID_PARAMS, PROTOCOL_VERSION, Peer, RpcError
 from .controller import APP_NAME, TaskController
 from .settings import AgentSettings
@@ -46,7 +47,7 @@ class RpcHost:
   async def approve(self, request: dict[str, Any]) -> str:
     res = await self.peer.request("host.approve", request, timeout=APPROVAL_TIMEOUT_S)
     decision = (res or {}).get("decision", "deny")
-    return decision if decision in ("once", "task", "deny") else "deny"
+    return decision if decision in ("once", "task", "always", "deny") else "deny"
 
   async def ask(self, request: dict[str, Any]) -> dict[str, Any]:
     return await self.peer.request("host.ask", request, timeout=APPROVAL_TIMEOUT_S)
@@ -59,6 +60,7 @@ class RpcHost:
 
 
 def build_runner(settings: AgentSettings, model: BaseLlm | None = None) -> Runner:
+  policy = PolicyEngine(settings.aura_dir / "policy.toml", settings.tool_policy)
   settings.ensure_dirs()
   llm = model or OllamaLlm(model=f"ollama/{settings.model}", base_url=settings.ollama_url,
                            num_ctx=settings.num_ctx, keep_alive=settings.keep_alive, think=False)
@@ -66,7 +68,7 @@ def build_runner(settings: AgentSettings, model: BaseLlm | None = None) -> Runne
       app_name=APP_NAME,
       agent=build_root(llm, settings),
       session_service=SqliteSessionService(str(settings.data_dir / "sessions.db")),
-      plugins=[GuardPlugin()],
+      plugins=[GuardPlugin(policy)],
   )
 
 
@@ -82,6 +84,7 @@ class AgentServer:
     peer.on("task.cancel", self.task_cancel)
     peer.on("task.cancelAll", self.task_cancel_all)
     peer.on("catalog.list", self.catalog)
+    peer.on("policy.list", self.policy_list)
     peer.on("ping", self.ping)
     peer.on("shutdown", self.shutdown)
 
@@ -118,6 +121,10 @@ class AgentServer:
 
   async def catalog(self, _p: dict[str, Any]) -> dict[str, Any]:
     return {"tools": tool_catalog()}
+
+  async def policy_list(self, _p: dict[str, Any]) -> dict[str, Any]:
+    s = self.settings or AgentSettings()
+    return {"file": str(s.aura_dir / "policy.toml"), "rules": PolicyEngine(s.aura_dir / "policy.toml", s.tool_policy).listing()}
 
   async def ping(self, _p: dict[str, Any]) -> dict[str, Any]:
     return {"ok": True, "tasks": len(self.controller.tasks) if self.controller else 0}

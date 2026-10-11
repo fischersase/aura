@@ -7,9 +7,10 @@ from pathlib import Path
 
 import pytest
 
+import aura_agent.testing
 from aura_agent.tools import desktop
 
-TESTWIN = Path(__file__).with_name("testwin.py")
+TESTWIN = Path(aura_agent.testing.__file__).with_name("testwin.py")
 
 
 @pytest.fixture
@@ -26,9 +27,9 @@ def test_app(tmp_path, monkeypatch, xvfb):
   monkeypatch.setenv("XDG_DATA_DIRS", str(tmp_path / "share"))
   monkeypatch.setattr(desktop, "LAUNCH_WAIT_S", 8.0)
   yield
-  # übrig gebliebene Testfenster beenden
-  import subprocess
-  subprocess.run(["pkill", "-f", str(TESTWIN)], check=False)
+  # nur die Testfenster dieses Bildschirms beenden
+  from evals.desktop.env import _kill_testwins
+  _kill_testwins(xvfb)
 
 
 async def test_launch_app_waits_for_window_and_verifies(test_app):

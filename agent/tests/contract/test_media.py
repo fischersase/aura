@@ -1,8 +1,7 @@
 """MPRIS-Werkzeuge gegen einen Test-Player auf einem eigenen D-Bus."""
 
+from aura_agent.testing.fake_mpris import start_player
 from aura_agent.tools.system import media_control, media_status
-
-from .fake_mpris import start_player
 
 
 async def test_status_shows_player(private_dbus):

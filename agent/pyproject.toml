@@ -35,4 +35,4 @@ target-version = "py312"
 
 [tool.ruff.lint.per-file-ignores]
 # dbus-fast liest D-Bus-Signaturen aus den String-Annotationen ("s", "a{sv}").
-"tests/contract/fake_mpris.py" = ["UP037", "F821", "RUF100"]
+"src/aura_agent/testing/fake_mpris.py" = ["UP037", "F821", "RUF100"]

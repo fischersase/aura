@@ -11,9 +11,23 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from ..harness.tiers import Tier, aura_tool
+from ..harness.tiers import Tier, TierFn, aura_tool
+from ..policy.paths import path_tier
 from ..runtime.context import current
 from .paths import expand, show
+
+
+def guarded(base: Tier | TierFn, *keys: str) -> TierFn:
+  """Stufe mit Pfadsperre: berührt ein Pfad-Argument Zugangsdaten o. Ä., ist der Aufruf T3."""
+
+  def tier(a: dict[str, Any]) -> Tier | tuple[Tier, str]:
+    blocked = path_tier(*(expand(a.get(k) or "~", _home()) for k in keys))
+    if blocked:
+      return blocked
+    return base(a) if callable(base) else base
+
+  return tier
+
 
 SKIP_DIRS = {"node_modules", "__pycache__", "site-packages", ".git", ".cache", "snap", ".venv", "venv", ".local", ".npm", ".cargo"}
 TEXT_LIMIT = 20000
@@ -24,7 +38,7 @@ def _home() -> str:
   return task.home if task else str(Path.home())
 
 
-@aura_tool(Tier.T0, label=lambda a: a.get("path") or "~")
+@aura_tool(guarded(Tier.T0, "path"), label=lambda a: a.get("path") or "~")
 def list_dir(path: str = "~") -> dict[str, Any]:
   """Listet den Inhalt eines Ordners (Name, Größe, Änderungsdatum).
 
@@ -46,7 +60,7 @@ def list_dir(path: str = "~") -> dict[str, Any]:
   return {"path": show(d, _home()), "count": len(entries), "items": items}
 
 
-@aura_tool(Tier.T0, label=lambda a: a.get("path", ""))
+@aura_tool(guarded(Tier.T0, "path"), label=lambda a: a.get("path", ""))
 def read_file(path: str, offset: int = 0) -> dict[str, Any]:
   """Liest eine Textdatei oder ein PDF (bis 20.000 Zeichen pro Aufruf).
 
@@ -126,7 +140,7 @@ def _search(root: Path, name: str, contains: str, limit: int, deadline: float) -
   return found, False
 
 
-@aura_tool(Tier.T0, label=lambda a: " ".join(filter(None, [a.get("name"), a.get("contains") and f"„{a['contains']}“", a.get("folder") and f"in {a['folder']}"])) or "Dateien")
+@aura_tool(guarded(Tier.T0, "folder"), label=lambda a: " ".join(filter(None, [a.get("name"), a.get("contains") and f"„{a['contains']}“", a.get("folder") and f"in {a['folder']}"])) or "Dateien")
 async def find_files(name: str = "", folder: str = "~", contains: str = "", max_results: int = 30) -> dict[str, Any]:
   """Sucht Dateien und Ordner nach Namen (Teilwörter oder Muster wie *.pdf), optional nur Dateien mit bestimmtem Text.
 
@@ -142,6 +156,7 @@ async def find_files(name: str = "", folder: str = "~", contains: str = "", max_
   limit = max(1, min(int(max_results or 30), 200))
   found, partial = await asyncio.to_thread(_search, root, name, contains, limit, time.monotonic() + 15)
   results = []
+  found = [p for p in found if not path_tier(p)]
   for p in found:
     try:
       st = p.stat()
@@ -192,7 +207,7 @@ def guard_clip(text: str, limit: int) -> str:
   return text if len(text) <= limit else text[:limit] + f"\n… ({len(text) - limit} Zeichen mehr)"
 
 
-@aura_tool(_write_tier, label=lambda a: ("+ " if a.get("append") else "") + str(a.get("path", "")), effect=_write_effect)
+@aura_tool(guarded(_write_tier, "path"), label=lambda a: ("+ " if a.get("append") else "") + str(a.get("path", "")), effect=_write_effect)
 def write_file(path: str, content: str, append: bool = False) -> dict[str, Any]:
   """Schreibt Text in eine Datei. Legt sie an; eine vorhandene Datei wird nur nach Freigabe ersetzt.
 
@@ -226,7 +241,7 @@ def _edit_effect(a: dict[str, Any]) -> str:
   return _diff(old, old.replace(str(a.get("old_text", "")), str(a.get("new_text", "")), 1), show(p, _home()))
 
 
-@aura_tool(Tier.T2, label=lambda a: str(a.get("path", "")), effect=_edit_effect)
+@aura_tool(guarded(Tier.T2, "path"), label=lambda a: str(a.get("path", "")), effect=_edit_effect)
 def edit_file(path: str, old_text: str, new_text: str) -> dict[str, Any]:
   """Ersetzt in einer Textdatei genau eine Stelle. old_text muss genau einmal vorkommen (mit etwas Umgebung eindeutig machen).
 
@@ -247,7 +262,7 @@ def edit_file(path: str, old_text: str, new_text: str) -> dict[str, Any]:
   return {"path": show(p, _home()), "verified": p.read_text(encoding="utf-8", errors="replace") == new}
 
 
-@aura_tool(Tier.T2, label=lambda a: str(a.get("path", "")), effect=lambda a: f"In den Papierkorb (wiederherstellbar): {a.get('path', '')}")
+@aura_tool(guarded(Tier.T2, "path"), label=lambda a: str(a.get("path", "")), effect=lambda a: f"In den Papierkorb (wiederherstellbar): {a.get('path', '')}")
 async def trash(path: str) -> dict[str, Any]:
   """Verschiebt eine Datei oder einen Ordner in den Papierkorb (wiederherstellbar). Endgültiges Löschen gibt es bewusst nicht.
 
@@ -275,7 +290,7 @@ def _move_tier(a: dict[str, Any]) -> tuple[Tier, str]:
   return Tier.T1, ""
 
 
-@aura_tool(_move_tier, label=lambda a: f"{'kopieren' if a.get('copy') else 'verschieben'}: {a.get('source', '')} → {a.get('destination', '')}")
+@aura_tool(guarded(_move_tier, "source", "destination"), label=lambda a: f"{'kopieren' if a.get('copy') else 'verschieben'}: {a.get('source', '')} → {a.get('destination', '')}")
 def move_path(source: str, destination: str, copy: bool = False) -> dict[str, Any]:
   """Verschiebt oder kopiert eine Datei oder einen Ordner. Ist das Ziel ein Ordner, landet die Quelle darin.
 

@@ -47,6 +47,16 @@
                 },
                 "auraDir": {
                   "type": "string"
+                },
+                "toolPolicy": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "enum": [
+                      "ask",
+                      "auto",
+                      "off"
+                    ]
+                  }
                 }
               }
             }
@@ -194,6 +204,26 @@
         "result": {
           "type": "object"
         }
+      },
+      "policy.list": {
+        "params": {
+          "type": "object"
+        },
+        "result": {
+          "type": "object",
+          "required": [
+            "file",
+            "rules"
+          ],
+          "properties": {
+            "file": {
+              "type": "string"
+            },
+            "rules": {
+              "type": "array"
+            }
+          }
+        }
       }
     },
     "hostRequests": {
@@ -245,9 +275,10 @@
               "enum": [
                 "once",
                 "task",
+                "always",
                 "deny"
               ],
-              "description": "task = Rest dieses Auftrags ohne Rückfrage."
+              "description": "task = Rest dieses Auftrags ohne Rückfrage; always = Regel in ~/.aura/policy.toml anlegen."
             }
           }
         }

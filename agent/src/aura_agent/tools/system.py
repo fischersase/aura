@@ -304,3 +304,45 @@ async def settings(schema: str, key: str, value: str | None = None) -> dict[str,
   ok = norm(after) == norm(value)
   return {"schema": schema, "key": key, "before": before.strip(), "after": after.strip(), "verified": ok,
           **({} if ok else {"error": "Wert wurde nicht übernommen."})}
+
+
+# ---------- Dunkelmodus (eigenes Werkzeug, weil der richtige Weg je System verschieden ist) ----------
+
+THEME_DIRS = (Path("/usr/share/themes"), Path.home() / ".themes", Path.home() / ".local/share/themes")
+
+
+def _theme_exists(name: str) -> bool:
+  return any((d / name).is_dir() for d in THEME_DIRS)
+
+
+async def _has_key(schema: str, key: str) -> bool:
+  code, _ = await _run("gsettings", "range", schema, key)
+  return code == 0
+
+
+@aura_tool(Tier.T1, label=lambda a: "Dunkelmodus " + ("an" if a.get("on", True) else "aus"))
+async def dark_mode(on: bool = True) -> dict[str, Any]:
+  """Schaltet den Dunkelmodus des Desktops ein oder aus (richtige Einstellung für dieses System, mit Nachprüfung).
+
+  Args:
+    on: true = dunkel, false = hell.
+  """
+  iface = "org.gnome.desktop.interface"
+  changed: dict[str, str] = {}
+  if await _has_key(iface, "color-scheme"):
+    want = "'prefer-dark'" if on else "'default'"
+    await _run("gsettings", "set", iface, "color-scheme", want)
+    _, now = await _run("gsettings", "get", iface, "color-scheme")
+    changed["color-scheme"] = now.strip()
+  _, theme = await _run("gsettings", "get", iface, "gtk-theme")
+  theme = theme.strip().strip("'")
+  base = theme.removesuffix("-dark")
+  target = f"{base}-dark" if on else base
+  if target != theme and (_theme_exists(target) or not on):
+    await _run("gsettings", "set", iface, "gtk-theme", target)
+  _, now_theme = await _run("gsettings", "get", iface, "gtk-theme")
+  changed["gtk-theme"] = now_theme.strip()
+  is_dark = "prefer-dark" in changed.get("color-scheme", "") or now_theme.strip().strip("'").endswith("-dark")
+  ok = is_dark == on
+  return {"dark": is_dark, "settings": changed, "verified": ok,
+          **({} if ok else {"error": "Konnte den Dunkelmodus hier nicht umstellen (kein color-scheme und kein dunkles Theme gefunden)."})}

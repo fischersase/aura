@@ -12,3 +12,4 @@ Belege aus Phase 0 (Spikes) liegen unter `agent/spikes/` und `agent/tests/adk_ca
 | [0005](0005-wahrnehmung-api-vor-pixeln.md) | Reihenfolge der Wahrnehmung: API, AT-SPI, Browser-DOM, Pixel | angenommen |
 | [0006](0006-python-buendeln.md) | Python-Laufzeit wird mitgeliefert | angenommen |
 | [0007](0007-lokales-standardmodell.md) | Vorläufiges Standardmodell gemma4:26b | vorläufig, Benchmark in P3 |
+| [0008](0008-eval-suite.md) | Desktop-Eval-Suite als Abnahme (echter Zustand, abgeschottet, pass^k) | angenommen |

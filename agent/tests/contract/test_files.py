@@ -56,3 +56,31 @@ def test_move_and_copy(fake_home):
   assert files._move_tier({"source": "~/a.txt", "destination": "~/ziel"})[0] == Tier.T2
   (fake_home / "b.txt").write_text("2")
   assert files.move_path("~/b.txt", "~/c.txt")["verified"] is True and not (fake_home / "b.txt").exists()
+
+
+def test_credential_paths_are_t3_for_every_file_tool(fake_home):
+  (fake_home / ".ssh").mkdir()
+  (fake_home / ".ssh/id_ed25519").write_text("KEY")
+  meta = lambda fn: fn.__aura__
+  assert meta(files.read_file).classify({"path": "~/.ssh/id_ed25519"})[0] == Tier.T3
+  assert meta(files.list_dir).classify({"path": "~/.ssh"})[0] == Tier.T3
+  assert meta(files.find_files).classify({"folder": "~/.ssh"})[0] == Tier.T3
+  assert meta(files.write_file).classify({"path": "~/.ssh/authorized_keys", "content": "x"})[0] == Tier.T3
+  assert meta(files.trash).classify({"path": "~/.gnupg"})[0] == Tier.T3
+  assert meta(files.move_path).classify({"source": "~/.ssh/id_ed25519", "destination": "~/Downloads"})[0] == Tier.T3
+  assert meta(files.read_file).classify({"path": "~/.config/google-chrome/Default/Login Data"})[0] == Tier.T3
+  assert meta(files.read_file).classify({"path": "~/Dokumente/ssh-notizen.txt"})[0] == Tier.T0
+
+
+def test_symlink_to_credentials_is_t3(fake_home):
+  (fake_home / ".ssh").mkdir()
+  (fake_home / ".ssh/id_rsa").write_text("KEY")
+  (fake_home / "harmlos.txt").symlink_to(fake_home / ".ssh/id_rsa")
+  assert files.read_file.__aura__.classify({"path": "~/harmlos.txt"})[0] == Tier.T3
+
+
+async def test_search_never_returns_credential_paths(fake_home):
+  (fake_home / ".ssh").mkdir()
+  (fake_home / ".ssh/id_rsa").write_text("KEY")
+  r = await files.find_files(name="id_rsa", folder=str(fake_home))
+  assert r["count"] == 0

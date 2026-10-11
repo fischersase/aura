@@ -30,6 +30,7 @@ class AgentSettings:
   data_dir: Path = field(default_factory=_default_data_dir)
   aura_dir: Path = field(default_factory=lambda: Path.home() / ".aura")
   max_llm_calls: int = 60
+  tool_policy: dict[str, str] = field(default_factory=dict)
 
   @classmethod
   def from_params(cls, p: dict[str, Any]) -> AgentSettings:
@@ -42,6 +43,8 @@ class AgentSettings:
         setattr(s, attr, type(getattr(s, attr))(p[key]))
     if p.get("dataDir"):
       s.data_dir = Path(p["dataDir"])
+    if isinstance(p.get("toolPolicy"), dict):
+      s.tool_policy = {str(k): str(v) for k, v in p["toolPolicy"].items()}
     if p.get("auraDir"):
       s.aura_dir = Path(p["auraDir"])
     return s
