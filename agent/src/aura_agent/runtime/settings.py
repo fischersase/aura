@@ -35,6 +35,8 @@ class AgentSettings:
   # Start des Playwright-MCP im Paket: [Electron, …/cli.js] mit ELECTRON_RUN_AS_NODE=1; leer = npx (Entwicklung)
   browser_command: list[str] = field(default_factory=list)
   browser_env: dict[str, str] = field(default_factory=dict)
+  mcp_servers: list[dict[str, Any]] = field(default_factory=list)  # von Electron aufgelöst (Schlüssel eingesetzt)
+  disabled_skills: list[str] = field(default_factory=list)
   browser_headless: bool = False
 
   @classmethod
@@ -54,6 +56,10 @@ class AgentSettings:
       s.browser_command = [str(x) for x in p["browserCommand"]]
     if isinstance(p.get("browserEnv"), dict):
       s.browser_env = {str(k): str(v) for k, v in p["browserEnv"].items()}
+    if isinstance(p.get("mcpServers"), list):
+      s.mcp_servers = [x for x in p["mcpServers"] if isinstance(x, dict) and x.get("name")]
+    if isinstance(p.get("disabledSkills"), list):
+      s.disabled_skills = [str(x) for x in p["disabledSkills"]]
     if p.get("auraDir"):
       s.aura_dir = Path(p["auraDir"])
     return s

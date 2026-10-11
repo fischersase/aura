@@ -616,6 +616,8 @@ const agentV2 = new AgentBridge({
       sessionType: process.env.XDG_SESSION_TYPE || '',
       toolPolicy: s.toolPolicy || {},
       ...browserLauncher(),
+      mcpServers: mcpServersForAgent(),
+      disabledSkills: s.disabledSkills || [],
       dataDir: path.join(app.getPath('userData'), 'agent'),
       auraDir: defaultAuraDir()
     };
@@ -651,6 +653,17 @@ ipcMain.on('agent:answer', (_e, { id, answer }) => {
   const r = v2Questions.get(id);
   if (r) { v2Questions.delete(id); r(answer); }
 });
+
+// Eigene MCP-Server aus ~/.aura/mcp.json für Agent v2, mit eingesetzten Schlüsseln (${secret:NAME}).
+// Ein Server mit fehlendem Schlüssel wird mit Fehler übergeben und vom Agenten übersprungen.
+function mcpServersForAgent() {
+  let cfg = {};
+  try { cfg = JSON.parse(fs.readFileSync(agentMcp.configFile(), 'utf8')); } catch { return []; }
+  const servers = cfg.mcpServers || cfg.servers || {};
+  return Object.entries(servers).filter(([, c]) => c && !c.disabled).map(([name, c]) => {
+    try { return { name, ...secrets.resolveServerConfig(c) }; } catch (err) { return { name, error: String(err.message || err) }; }
+  });
+}
 
 // Mitgelieferter Browser-Server (Playwright-MCP), gestartet mit Electron als Node. Ohne Paket nimmt der Agent npx.
 function browserLauncher() {

@@ -68,10 +68,17 @@ UNKNOWN = ToolMeta(tier=Tier.T2)
 
 # Metadaten für Werkzeuge, die nicht aus Aura-Funktionen stammen (MCP-Server wie der Browser), nach Name.
 EXTERNAL: dict[str, ToolMeta] = {}
+# Weitere Quellen (z. B. MCP-Server des Nutzers): Funktion Werkzeug → ToolMeta oder None.
+RESOLVERS: list[Callable[[Any], ToolMeta | None]] = []
 
 
 def meta_of(tool: Any) -> ToolMeta:
   """Metadaten eines ADK-Werkzeugs. Werkzeuge ohne Angabe gelten als T2 (fragen)."""
   fn = getattr(tool, "func", None)
   meta = getattr(fn, "__aura__", None) or getattr(tool, "__aura__", None) or EXTERNAL.get(getattr(tool, "name", ""))
+  if meta is None:
+    for resolve in RESOLVERS:
+      meta = resolve(tool)
+      if meta is not None:
+        break
   return meta if isinstance(meta, ToolMeta) else UNKNOWN

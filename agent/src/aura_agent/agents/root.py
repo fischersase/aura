@@ -11,8 +11,10 @@ import re
 from google.adk.agents import LlmAgent
 from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.models.base_llm import BaseLlm
+from google.adk.tools.agent_tool import AgentTool
 from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 
+from ..extensions.skills import list_skills, make_activate_skill, prompt_addon
 from ..runtime.settings import AgentSettings
 from ..tools.desktop import launch_app, list_windows, open_target, window_action
 from ..tools.files import edit_file, find_files, list_dir, move_path, read_file, trash, write_file
@@ -40,7 +42,7 @@ def _agents_md(settings: AgentSettings) -> str:
   return "" if not text or re.fullmatch(r"#.*", text) else text[:8000]
 
 
-def instruction(settings: AgentSettings, has_browser: bool = False):
+def instruction(settings: AgentSettings, has_browser: bool = False, skills_text: str = "", integrations: str = ""):
   def build(_ctx: ReadonlyContext) -> str:
     parts = [
         (f"Du bist Aura, der Assistent auf dem Linux-PC von {settings.user_name}. "
@@ -78,6 +80,10 @@ def instruction(settings: AgentSettings, has_browser: bool = False):
             "browser mit einer klaren, vollständigen Aufgabe. Nur eine Seite anzeigen: open_target.\n" if has_browser else "")
          + "- Alles andere: run_command (bash). Nur lesende Befehle laufen ohne Rückfrage. Pfade dürfen mit ~ beginnen."),
     ]
+    if integrations:
+      parts.append("## Erweiterungen\nintegrations: " + integrations)
+    if skills_text:
+      parts.append(skills_text)
     if settings.profile:
       parts.append("## Über den Nutzer\n" + settings.profile)
     md = _agents_md(settings)
@@ -88,15 +94,22 @@ def instruction(settings: AgentSettings, has_browser: bool = False):
   return build
 
 
-def build_root(model: BaseLlm, settings: AgentSettings, browser: McpToolset | None = None) -> LlmAgent:
+def build_root(model: BaseLlm, settings: AgentSettings, browser: McpToolset | None = None,
+               integrations: AgentTool | None = None) -> LlmAgent:
   tools: list = list(TOOLS)
   if browser is not None:
     tools.append(browser_agent(model, browser))
+  if integrations is not None:
+    tools.append(integrations)
+  skills = list_skills(settings.aura_dir, set(settings.disabled_skills))
+  if skills:
+    tools.append(make_activate_skill(skills))
   return LlmAgent(
       name="aura",
       model=model,
       description="Laptop-Assistent",
-      instruction=instruction(settings, browser is not None),
+      instruction=instruction(settings, browser is not None, prompt_addon(skills),
+                              integrations.agent.description if integrations is not None else ""),
       tools=tools,
   )
 

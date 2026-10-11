@@ -16,6 +16,7 @@ from google.adk.sessions.sqlite_session_service import SqliteSessionService
 
 from .. import __version__
 from ..agents.root import build_root, tool_catalog
+from ..extensions.mcp import build_toolsets, integrations_agent
 from ..harness.audit import AuditLog
 from ..harness.guard import GuardPlugin
 from ..models.ollama_llm import OllamaLlm
@@ -70,7 +71,7 @@ def build_runner(settings: AgentSettings, model: BaseLlm | None = None, browser:
                            num_ctx=settings.num_ctx, keep_alive=settings.keep_alive, think=False)
   return Runner(
       app_name=APP_NAME,
-      agent=build_root(llm, settings, toolset),
+      agent=build_root(llm, settings, toolset, integrations_agent(llm, build_toolsets(settings.mcp_servers))),
       session_service=SqliteSessionService(str(settings.data_dir / "sessions.db")),
       plugins=[GuardPlugin(policy)],
   )
