@@ -95,6 +95,29 @@ Like Claude Code, Gemini CLI or Codex, Aura reads extensions from `~/.aura` (Win
 
   MCP tools marked read-only by the server run directly; all others ask first. Add `"autoApprove": ["tool_name"]` to a server to skip the question for specific tools. Only install skills and servers from sources you trust: published skill stores have contained malware.
 
+### Your own tools (MCP server)
+
+An MCP server is a small program that tells Aura which tools it has and runs them. You can write one in any language; the official SDKs ([TypeScript](https://github.com/modelcontextprotocol/typescript-sdk), [Python](https://github.com/modelcontextprotocol/python-sdk)) make it a few lines. Without any library, a Node server with one tool looks like this (`~/.aura/my-tools.mjs`):
+
+```js
+import readline from 'node:readline';
+const send = (o) => process.stdout.write(JSON.stringify(o) + '\n');
+const tools = [{
+  name: 'greet',
+  description: 'Greets a person by name',
+  inputSchema: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] },
+  annotations: { readOnlyHint: true } // read-only: Aura runs it without asking
+}];
+readline.createInterface({ input: process.stdin }).on('line', (line) => {
+  const m = JSON.parse(line);
+  if (m.method === 'initialize') send({ jsonrpc: '2.0', id: m.id, result: { protocolVersion: m.params.protocolVersion, capabilities: { tools: {} }, serverInfo: { name: 'my-tools', version: '1' } } });
+  else if (m.method === 'tools/list') send({ jsonrpc: '2.0', id: m.id, result: { tools } });
+  else if (m.method === 'tools/call') send({ jsonrpc: '2.0', id: m.id, result: { content: [{ type: 'text', text: `Hello ${m.params.arguments.name}!` }] } });
+});
+```
+
+Register it in `~/.aura/mcp.json` with `"my-tools": { "command": "node", "args": ["/home/you/.aura/my-tools.mjs"] }`, then click *Neu laden* in Settings → *Erweiterungen*; the tool list appears there.
+
 ## Shortcuts (configurable)
 
 | Shortcut | Action |

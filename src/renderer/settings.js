@@ -104,10 +104,11 @@ async function showExtensions(force) {
   const x = await window.api.agentExtensions(force === true);
   el.innerHTML = '';
   const line = (text, cls) => { const d = document.createElement('div'); d.textContent = text; if (cls) d.className = cls; el.appendChild(d); };
+  line('Eingebaute Werkzeuge: ' + x.builtin.join(', '));
   line(x.hasAgentsMd ? 'AGENTS.md: wird verwendet' : 'AGENTS.md: leer');
   line(x.skills.length ? `Skills: ${x.skills.map((s) => s.name).join(', ')}` : 'Skills: keine');
   if (!x.mcp.length) line('MCP-Server: keine');
-  x.mcp.forEach((m) => line(m.error ? `MCP ${m.name}: Fehler – ${m.error}` : `MCP ${m.name}: ${m.tools} Werkzeuge`, m.error ? 'bad' : 'ok'));
+  x.mcp.forEach((m) => line(m.error ? `MCP ${m.name}: Fehler – ${m.error}` : `MCP ${m.name}: ${m.toolNames.join(', ') || 'keine Werkzeuge'}`, m.error ? 'bad' : 'ok'));
   const hint = document.createElement('div');
   hint.className = 'hint';
   hint.textContent = `Ordner: ${x.auraDir}`;

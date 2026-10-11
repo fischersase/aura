@@ -598,6 +598,7 @@ ipcMain.on('agent:openLog', () => {
 ipcMain.handle('agent:extensions', async (_e, force) => {
   try { await agentMcp.sync(!!force); } catch {}
   return {
+    builtin: agentTools.TOOLS.map((t) => t.name),
     skills: agentSkills.list().map((x) => ({ name: x.name, description: x.description })),
     mcp: agentMcp.status(),
     hasAgentsMd: !!agentSkills.promptAddon().includes('AGENTS.md'),

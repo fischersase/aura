@@ -233,7 +233,7 @@ function tools() {
 }
 
 function status() {
-  return [...servers].map(([name, s]) => ({ name, tools: s.tools.length, error: s.error || null }));
+  return [...servers].map(([name, s]) => ({ name, tools: s.tools.length, toolNames: s.tools.map((t) => t.name), error: s.error || null }));
 }
 
 function closeAll() {
