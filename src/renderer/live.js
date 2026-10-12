@@ -1,5 +1,37 @@
 // Gemini Live über die Live API (WebSocket): Mikrofon, Bildschirm, Sprachausgabe, Klick-Hinweise.
-const LIVE_URL = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent';
+// The WebSocket to the Live API lives in the main process (src/live-relay.js, AURA-15); the renderer never sees the
+// API key. RelaySocket offers the small part of the WebSocket interface this file uses.
+class RelaySocket {
+  constructor() {
+    this.readyState = 0; // CONNECTING
+    this.id = null;
+    this.onopen = this.onmessage = this.onclose = null;
+    const mine = (fn) => (ev) => { if (ev.id === this.id) fn(ev); };
+    this.off = [
+      window.api.onLiveOpened(mine(() => { this.readyState = 1; this.onopen && this.onopen(); })),
+      window.api.onLiveMessage(mine((ev) => this.onmessage && this.onmessage({ data: ev.data }))),
+      window.api.onLiveClosed(mine((ev) => this.closed(ev.code, ev.reason)))
+    ];
+    window.api.liveOpen().then((r) => {
+      if (r && r.id) this.id = r.id;
+      else this.closed(1008, (r && r.error) || 'Keine Verbindung');
+    }, (err) => this.closed(1011, String(err.message || err)));
+  }
+
+  send(text) { if (this.readyState === 1) window.api.liveSend(this.id, text); }
+
+  close() {
+    if (this.id) window.api.liveClose(this.id);
+    this.closed(1000, '');
+  }
+
+  closed(code, reason) {
+    if (this.readyState === 3) return;
+    this.readyState = 3; // CLOSED
+    this.off.forEach((f) => f());
+    this.onclose && this.onclose({ code, reason });
+  }
+}
 
 const LIVE_SYSTEM = (lang) =>
   `Du bist Aura, ein Live-Assistent auf dem Computer des Nutzers und sprichst ${lang}, außer der Nutzer spricht eine andere Sprache. ` +
@@ -62,7 +94,7 @@ class LiveSession {
     this.screenOn = screen;
     this.cfg = await window.api.liveConfig();
     if (this.cfg.error) throw new Error(this.cfg.error);
-    if (!this.cfg.apiKey) throw new Error('Kein API-Key hinterlegt.');
+    if (!this.cfg.hasKey) throw new Error('Kein API-Key hinterlegt.');
     this.usageAcc = { micSec: 0, screenSec: 0, speechSec: 0 };
     this.usageTimer = setInterval(() => this.flushUsage(), 10000);
     this.player = new PcmPlayer(24000);
@@ -80,7 +112,7 @@ class LiveSession {
   connect() {
     this.ready = false;
     this.ui.status(this.handle ? 'Verbindung wird erneuert …' : 'Verbinde …');
-    const ws = new WebSocket(`${LIVE_URL}?key=${encodeURIComponent(this.cfg.apiKey)}`);
+    const ws = new RelaySocket();
     this.ws = ws;
     ws.onopen = () => {
       const generationConfig = { responseModalities: ['AUDIO'] };
@@ -118,7 +150,7 @@ class LiveSession {
   }
 
   send(obj) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(obj));
+    if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify(obj));
   }
 
   onMessage(msg) {

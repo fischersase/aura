@@ -63,6 +63,13 @@ contextBridge.exposeInMainWorld('api', {
 
   // Live
   liveConfig: () => ipcRenderer.invoke('live:config'),
+  // Gemini Live over the main process (AURA-15)
+  liveOpen: () => ipcRenderer.invoke('live:open'),
+  liveSend: (id, data) => ipcRenderer.send('live:send', { id, data }),
+  liveClose: (id) => ipcRenderer.send('live:close', id),
+  onLiveOpened: on('live:opened'),
+  onLiveMessage: on('live:message'),
+  onLiveClosed: on('live:closed'),
   setLiveActive: (v) => ipcRenderer.send('live:active', v),
   onLiveStart: on('live:start'),
   onLiveStop: on('live:stop'),
