@@ -95,6 +95,14 @@ def gtk_app(xvfb, private_dbus):
     p.wait(timeout=5)
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _warm_powershell():
+  """Windows: PowerShell einmal vorab starten; der erste Start auf einem frischen Rechner dauert über 10 s."""
+  if WINDOWS:
+    subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", "exit 0"], capture_output=True, timeout=120,
+                   check=False)
+
+
 def _pythonw() -> str:
   exe = Path(sys.executable)
   w = exe.with_name("pythonw.exe")

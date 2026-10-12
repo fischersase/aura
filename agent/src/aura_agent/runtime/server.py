@@ -101,6 +101,7 @@ class AgentServer:
     self.peer = peer
     self.host = RpcHost(peer)
     self._model = model
+    self._shell_warm: asyncio.Task | None = None  # Windows: PowerShell vorwärmen
     self.settings: AgentSettings | None = None
     self.controller: TaskController | None = None
     peer.on("initialize", self.initialize)
@@ -123,6 +124,10 @@ class AgentServer:
                                      self.settings.home, self.settings.max_llm_calls)
     if self._model is None and p.get("warmUp", True) and self.settings.provider == "ollama":
       asyncio.create_task(self._warm_up())
+    if p.get("warmUp", True):
+      from ..tools.shell import warm_up_shell
+
+      self._shell_warm = asyncio.create_task(warm_up_shell())
     model = self.settings.gemini_model if self.settings.provider == "gemini" else self.settings.model
     return {"protocol": PROTOCOL_VERSION, "version": __version__, "model": model, "provider": self.settings.provider}
 

@@ -66,7 +66,10 @@ async def test_rpc_methods_match_schema(tmp_path):
   send(1, "initialize", {"protocol": 1, "warmUp": False, "settings": {"dataDir": str(tmp_path / "agent"), "auraDir": str(tmp_path)}})
   send(2, "catalog.list", {})
   send(3, "task.start", {"taskId": "t1", "chatId": "c1", "text": "hallo"})
-  await asyncio.sleep(0.3)
+  for _ in range(300):  # bis der Auftrag fertig ist (unter Windows in der CI deutlich langsamer)
+    if any(m.get("method") == "task.done" for m in sent):
+      break
+    await asyncio.sleep(0.05)
   send(4, "task.cancel", {"taskId": "nope"})
   send(5, "ping", {})
   await asyncio.sleep(0.1)

@@ -26,6 +26,17 @@ MAX_OUTPUT = 12000
 PS_PRELUDE = "$ProgressPreference='SilentlyContinue'; [Console]::OutputEncoding=[System.Text.UTF8Encoding]::new($false); "
 
 
+async def warm_up_shell() -> None:
+  """Windows: PowerShell einmal im Hintergrund starten. Der erste Start nach dem Hochfahren dauert sonst
+  mehrere Sekunden (beobachtet bis über 10 s auf frischen CI-Rechnern), jeder weitere unter einer Sekunde."""
+  if not IS_WINDOWS:
+    return
+  with contextlib.suppress(OSError):
+    proc = await asyncio.create_subprocess_exec(*shell_argv("exit 0"), stdin=asyncio.subprocess.DEVNULL,
+                                                stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL, **spawn_kwargs())
+    await proc.wait()
+
+
 def shell_argv(command: str) -> list[str]:
   if IS_WINDOWS:
     # Als -EncodedCommand (UTF-16LE, base64): keine Probleme mit Anführungszeichen. Eingestuft wird der Befehl selbst.

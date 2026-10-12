@@ -31,7 +31,7 @@ def make(tmp_path: Path, steps, decisions=None):
   return ctl, host, llm, settings
 
 
-async def finish(ctl: TaskController, timeout: float = 10) -> None:
+async def finish(ctl: TaskController, timeout: float = 30 if WINDOWS else 10) -> None:
   t0 = time.monotonic()
   while ctl.tasks and time.monotonic() - t0 < timeout:
     await asyncio.sleep(0.01)
