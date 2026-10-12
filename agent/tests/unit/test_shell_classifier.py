@@ -1,7 +1,7 @@
 import pytest
 
 from aura_agent.harness.tiers import Tier
-from aura_agent.policy.shell_classifier import classify
+from aura_agent.policy.shell_classifier import classify_bash as classify
 
 READ = [
     "ls -la ~/Downloads", "df -h", "free -g", "cat ~/notizen.txt", "grep -ri rechnung ~/Dokumente",

@@ -12,6 +12,8 @@ from pathlib import Path
 from typing import Any
 
 from ..harness.tiers import Tier, TierFn, aura_tool
+from ..platform.base import IS_WINDOWS
+from ..platform.proc import spawn_kwargs
 from ..policy.paths import path_tier
 from ..runtime.context import current
 from .paths import expand, show
@@ -29,7 +31,9 @@ def guarded(base: Tier | TierFn, *keys: str) -> TierFn:
   return tier
 
 
-SKIP_DIRS = {"node_modules", "__pycache__", "site-packages", ".git", ".cache", "snap", ".venv", "venv", ".local", ".npm", ".cargo"}
+SKIP_DIRS = {"node_modules", "__pycache__", "site-packages", ".git", ".cache", "snap", ".venv", "venv", ".local", ".npm", ".cargo",
+             # Windows: Programmdaten (riesig, ähnlich ~/.local) und alte Verknüpfungsordner
+             "AppData", "$Recycle.Bin", "System Volume Information"}
 TEXT_LIMIT = 20000
 
 
@@ -75,10 +79,12 @@ def read_file(path: str, offset: int = 0) -> dict[str, Any]:
     return {"error": f"Datei nicht gefunden: {show(f, _home())}"}
   if f.suffix.lower() == ".pdf":
     if not shutil.which("pdftotext"):
-      return {"error": "PDF lesen braucht pdftotext (Paket poppler-utils)."}
+      return {"error": "PDF lesen braucht pdftotext " + ("(Poppler für Windows: winget install oschwartz10612.Poppler)."
+                                                          if IS_WINDOWS else "(Paket poppler-utils).")}
     import subprocess
 
-    text = subprocess.run(["pdftotext", "-layout", str(f), "-"], capture_output=True, timeout=60, check=False).stdout.decode(errors="replace")
+    text = subprocess.run(["pdftotext", "-layout", str(f), "-"], capture_output=True, timeout=60, check=False,
+                          **spawn_kwargs(new_group=False)).stdout.decode(errors="replace")
   else:
     if f.stat().st_size > 20 * 1024 * 1024:
       return {"error": f"Datei ist zu groß ({f.stat().st_size // 1048576} MB)."}
@@ -119,7 +125,8 @@ def _search(root: Path, name: str, contains: str, limit: int, deadline: float) -
       continue
     for p in entries:
       try:
-        is_dir = p.is_dir() and not p.is_symlink()
+        # Abzweigungen (Windows-Junctions wie „Eigene Dateien“) wie Symlinks behandeln: nicht hineinlaufen.
+        is_dir = p.is_dir() and not p.is_symlink() and not p.is_junction()
       except OSError:
         continue
       if is_dir:
@@ -274,6 +281,13 @@ async def trash(path: str) -> dict[str, Any]:
     return {"error": f"Gibt es nicht: {show(p, _home())}"}
   if p == Path(_home()) or p == Path("/") or len(p.parts) <= 2:
     return {"error": "Diesen Ordner wirft Aura nicht in den Papierkorb."}
+  if IS_WINDOWS:
+    from ..platform.win_shell import recycle
+
+    err = await asyncio.to_thread(recycle, str(p))
+    if err:
+      return {"error": err}
+    return {"trashed": show(p, _home()), "verified": not p.exists(), "restore": "Im Papierkorb von Windows wiederherstellbar."}
   proc = await asyncio.create_subprocess_exec("gio", "trash", str(p), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
   out, _ = await proc.communicate()
   if proc.returncode:

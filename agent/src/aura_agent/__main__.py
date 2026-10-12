@@ -17,6 +17,18 @@ import threading
 import warnings
 
 
+def _pump_stdin(loop: asyncio.AbstractEventLoop, reader: asyncio.StreamReader) -> None:
+  """Liest stdin in einem eigenen Thread. loop.connect_read_pipe geht unter Windows mit der
+  von Electron geerbten Pipe nicht zuverlässig; der Thread funktioniert überall gleich."""
+  stdin = sys.stdin.buffer
+  while True:
+    line = stdin.readline()
+    if not line:
+      loop.call_soon_threadsafe(reader.feed_eof)
+      return
+    loop.call_soon_threadsafe(reader.feed_data, line)
+
+
 def _protocol_stdout():
   fd = os.dup(1)
   os.dup2(2, 1)
@@ -37,7 +49,7 @@ async def serve() -> None:
 
   loop = asyncio.get_running_loop()
   reader = asyncio.StreamReader(limit=64 * 1024 * 1024)
-  await loop.connect_read_pipe(lambda: asyncio.StreamReaderProtocol(reader), sys.stdin)
+  threading.Thread(target=_pump_stdin, args=(loop, reader), name="stdin", daemon=True).start()
   peer = Peer(reader, write)
   server = AgentServer(peer)
   serve_task = asyncio.create_task(peer.serve())

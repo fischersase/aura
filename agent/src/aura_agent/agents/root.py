@@ -17,7 +17,8 @@ from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 
 from ..extensions.skills import list_skills, make_activate_skill, prompt_addon
 from ..memory.store import MemoryFiles
-from ..platform import atspi
+from ..platform import a11y
+from ..platform.base import IS_WINDOWS
 from ..runtime.settings import AgentSettings
 from ..tools.desktop import launch_app, list_windows, open_target, window_action
 from ..tools.files import edit_file, find_files, list_dir, move_path, read_file, trash, write_file
@@ -25,8 +26,18 @@ from ..tools.interaction import ask_user, todo_write
 from ..tools.memory import make_memory_tools
 from ..tools.screen import screenshot
 from ..tools.shell import run_command
-from ..tools.system import dark_mode, media_control, media_status, now_text, settings, system_info, volume
+from ..tools.system import media_control, media_status, now_text, system_info, volume
+
+if IS_WINDOWS:
+  from ..tools.win_settings import dark_mode, settings
+else:
+  from ..tools.system import dark_mode, settings
 from .specialists import apps_agent, browser_agent
+
+OS_NAME = "Windows" if IS_WINDOWS else "Linux"
+SHELL_NAME = "PowerShell" if IS_WINDOWS else "bash"
+DELETE_CMD = "Remove-Item oder del" if IS_WINDOWS else "rm"
+SETTINGS_EXAMPLES = "Dateiendungen anzeigen, Benachrichtigungen aus …" if IS_WINDOWS else "Nachtlicht, Nicht stören …"
 
 TOOLS = [
     todo_write, ask_user,
@@ -51,8 +62,9 @@ def instruction(settings: AgentSettings, has_browser: bool = False, skills_text:
                 has_apps: bool = False, memory: MemoryFiles | None = None):
   def build(_ctx: ReadonlyContext) -> str:
     parts = [
-        (f"Du bist Aura, der Assistent auf dem Linux-PC von {settings.user_name}. "
-        f"Benutzerordner: {settings.home}. Sitzung: {settings.session_type or 'unbekannt'}. Jetzt: {now_text()}."),
+        (f"Du bist Aura, der Assistent auf dem {OS_NAME}-PC von {settings.user_name}. "
+        f"Benutzerordner: {settings.home}. Sitzung: {settings.session_type or ('windows' if IS_WINDOWS else 'unbekannt')}. "
+        f"Jetzt: {now_text()}."),
         f"Antworte kurz, klar und freundlich auf {settings.language}. Markdown sparsam.",
         ("## Arbeitsweise\n"
         "- Erledige Wünsche selbst mit deinen Werkzeugen, statt Anleitungen zu schreiben.\n"
@@ -87,9 +99,9 @@ def instruction(settings: AgentSettings, has_browser: bool = False, skills_text:
          "- Programme öffnen: launch_app (prüft, ob das Fenster erscheint). Webseiten, Dateien, Ordner: open_target.\n"
          "- Fenster: list_windows, window_action (focus, minimize, maximize, close).\n"
          "- Musik und Videos: media_status, media_control (play, pause, next, previous); nie per Tastatur oder Prozess-Kill.\n"
-         "- Lautstärke: volume. Dunkelmodus: dark_mode. Andere Einstellungen (Nachtlicht, Nicht stören …): settings.\n"
+         f"- Lautstärke: volume. Dunkelmodus: dark_mode. Andere Einstellungen ({SETTINGS_EXAMPLES}): settings.\n"
          "- Dateien: list_dir, find_files, read_file; schreiben mit write_file, kleine Änderungen mit edit_file, "
-         "verschieben oder kopieren mit move_path (beide legen fehlende Ordner selbst an). Löschen nur mit trash (Papierkorb), nie mit rm.\n"
+         f"verschieben oder kopieren mit move_path (beide legen fehlende Ordner selbst an). Löschen nur mit trash (Papierkorb), nie mit {DELETE_CMD}.\n"
          + ("- Webseiten bedienen (suchen, klicken, Formulare, Musik auf YouTube Music abspielen, Infos von Seiten holen): "
             "browser mit einer klaren, vollständigen Aufgabe. Nur eine Seite anzeigen: open_target.\n"
             "- Etwas im Internet nachschlagen (Wetter, Nachrichten, Fakten, Öffnungszeiten): browser mit dem Auftrag, "
@@ -98,7 +110,7 @@ def instruction(settings: AgentSettings, has_browser: bool = False, skills_text:
             "ein Feld ausfüllen): apps mit einer klaren Aufgabe und dem genauen Programm- oder Fensternamen des Nutzers, "
             "auch wenn das Programm schon offen ist.\n" if has_apps else "")
          + "- Was gerade auf dem Bildschirm zu sehen ist: screenshot.\n"
-         + "- Alles andere: run_command (bash). Nur lesende Befehle laufen ohne Rückfrage. Pfade dürfen mit ~ beginnen."),
+         + f"- Alles andere: run_command ({SHELL_NAME}). Nur lesende Befehle laufen ohne Rückfrage. Pfade dürfen mit ~ beginnen."),
     ]
     parts.append(
         "## Gedächtnis\n"
@@ -132,7 +144,7 @@ def build_root(model: BaseLlm, settings: AgentSettings, browser: McpToolset | No
     tools.append(browser_agent(model, browser))
   if integrations is not None:
     tools.append(integrations)
-  has_apps = settings.apps and atspi.available()
+  has_apps = settings.apps and a11y.available()
   if has_apps:
     tools.append(apps_agent(model))
   skills = list_skills(settings.aura_dir, set(settings.disabled_skills))

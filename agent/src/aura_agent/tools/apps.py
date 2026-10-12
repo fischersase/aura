@@ -1,4 +1,7 @@
-"""Installierte Programme finden (.desktop-Einträge), wie src/agent/tools.js (desktopEntries, bestMatch)."""
+"""Installierte Programme finden, wie src/agent/tools.js (desktopEntries, bestMatch).
+
+Linux: .desktop-Einträge. Windows: Startmenü (platform/win_apps.py).
+"""
 
 from __future__ import annotations
 
@@ -6,21 +9,27 @@ import configparser
 import os
 import re
 import shlex
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+
+from ..platform.base import IS_WINDOWS
 
 
 @dataclass
 class App:
-  id: str  # Dateiname ohne .desktop
-  file: Path
+  id: str  # Linux: Dateiname ohne .desktop; Windows: AppID oder Pfad der Verknüpfung
+  file: Path | None
   name: str
   names: str  # alle Suchbegriffe, klein
   exec: str
   wm_class: str  # StartupWMClass, falls angegeben
+  exe: str = ""  # Windows: Programmdatei, falls bekannt (z. B. "notepad.exe")
+  entry: dict[str, str] = field(default_factory=dict)  # Windows: Startmenü-Eintrag zum Starten
 
   @property
   def binary(self) -> str:
+    if IS_WINDOWS:
+      return self.exe
     try:
       words = [w for w in shlex.split(self.exec) if not w.startswith("%")]
     except ValueError:
@@ -45,6 +54,8 @@ def app_dirs() -> list[Path]:
 
 
 def installed_apps() -> list[App]:
+  if IS_WINDOWS:
+    return _windows_apps()
   apps: dict[str, App] = {}
   for d in app_dirs():
     if not d.is_dir():
@@ -65,6 +76,13 @@ def installed_apps() -> list[App]:
       apps[app_id] = App(id=app_id, file=f, name=sec.get("Name", app_id), names=" ".join(names + [app_id]).lower(),
                          exec=sec.get("Exec", ""), wm_class=sec.get("StartupWMClass", ""))
   return list(apps.values())
+
+
+def _windows_apps() -> list[App]:
+  from ..platform import win_apps
+
+  return [App(id=e.get("app_id") or e.get("lnk", ""), file=None, name=e["name"], names=e["name"].lower(), exec="",
+              wm_class="", exe=win_apps.exe_of(e), entry=e) for e in win_apps.entries()]
 
 
 # GNOME übersetzt Namen erst zur Laufzeit (gettext); in den .desktop-Dateien steht oft nur Englisch.
@@ -95,15 +113,28 @@ def _score(a: App, q: str) -> int:
   return 0
 
 
+# Unter Windows heißen die Programme im deutschen Startmenü schon deutsch; hier nur andere Wörter dafür.
+GERMAN_WINDOWS = {
+    "taschenrechner": "rechner", "calculator": "rechner", "texteditor": "editor", "notepad": "editor",
+    "dateien": "explorer", "dateimanager": "explorer", "dateiverwaltung": "explorer", "datei-explorer": "explorer",
+    "aufgabenverwaltung": "task-manager", "taskmanager": "task-manager", "systemüberwachung": "task-manager",
+    "eingabeaufforderung": "terminal", "konsole": "terminal", "powershell": "windows powershell",
+    "bildbetrachter": "fotos", "bilder": "fotos", "kamera": "kamera", "uhr": "uhr", "wetter": "wetter",
+    "vs code": "visual studio code", "vscode": "visual studio code", "chrome browser": "google chrome",
+    "bildschirmfoto": "snipping tool", "screenshot": "snipping tool",
+}
+
+
 def best_matches(apps: list[App], query: str) -> list[App]:
   q = query.strip().lower()
-  queries = [q] + ([GERMAN[q]] if q in GERMAN else [])
+  aliases = GERMAN_WINDOWS if IS_WINDOWS else GERMAN
+  queries = [q] + ([aliases[q]] if q in aliases else [])
   scored = []
   for a in apps:
     s = max(_score(a, x) for x in queries)
     if not s:
       continue
-    if a.id.startswith("chrome-") or "--app-id" in a.exec:  # Web-App-Verknüpfungen nur, wenn genau gemeint
+    if a.id.startswith("chrome-") or "--app-id" in a.exec or "_crx_" in a.id.lower():  # Web-App-Verknüpfungen nur, wenn genau gemeint
       s -= 40
     scored.append((s - len(a.name) / 100, a))
   return [a for _, a in sorted(scored, key=lambda x: -x[0])]

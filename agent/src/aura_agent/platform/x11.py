@@ -9,26 +9,14 @@ sie mit asyncio.to_thread auf.
 from __future__ import annotations
 
 import os
-from dataclasses import asdict, dataclass
 from typing import Any, Self
 
 from Xlib import X, Xatom, display, error, protocol
 from Xlib.xobject.drawable import Window
 
+from .base import WindowInfo
 
-@dataclass
-class WindowInfo:
-  id: str
-  title: str
-  app: str  # WM_CLASS (Klasse), z. B. "Google-chrome"
-  instance: str  # WM_CLASS (Instanz), z. B. "google-chrome"
-  pid: int | None
-  desktop: int | None
-  active: bool
-  minimized: bool
-
-  def as_dict(self) -> dict[str, Any]:
-    return asdict(self)
+__all__ = ["X11", "WindowInfo", "available"]
 
 
 def available() -> bool:

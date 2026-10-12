@@ -8,9 +8,6 @@ Plugins und Werkzeuge immer den richtigen Auftrag.
 from __future__ import annotations
 
 import asyncio
-import contextlib
-import os
-import signal
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any, Protocol
@@ -85,10 +82,11 @@ class TaskContext:
 
   def kill_processes(self) -> None:
     """Beendet alle von diesem Auftrag gestarteten Befehle samt Kindprozessen."""
+    from ..platform.proc import kill_tree
+
     for p in list(self.processes):
       if p.returncode is None:
-        with contextlib.suppress(ProcessLookupError, PermissionError):
-          os.killpg(p.pid, signal.SIGKILL)
+        kill_tree(p.pid)
     self.processes.clear()
 
 

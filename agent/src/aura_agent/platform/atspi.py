@@ -17,6 +17,8 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from .proc import spawn_kwargs
+
 HELPER = Path(__file__).with_name("atspi_helper.py")
 SYSTEM_PYTHON = os.environ.get("AURA_SYSTEM_PYTHON", "/usr/bin/python3")
 CALL_TIMEOUT_S = 8.0
@@ -32,8 +34,11 @@ def available() -> bool:
   return r.returncode == 0
 
 
-class AtspiClient:
-  def __init__(self) -> None:
+class HelperClient:
+  """Ein Helfer-Prozess mit JSON-Zeilen über stdin/stdout (AT-SPI unter Linux, UI Automation unter Windows)."""
+
+  def __init__(self, argv: list[str]) -> None:
+    self.argv = argv
     self._proc: asyncio.subprocess.Process | None = None
     self._ids = itertools.count(1)
     self._lock = asyncio.Lock()
@@ -41,8 +46,9 @@ class AtspiClient:
   async def _start(self) -> asyncio.subprocess.Process:
     if self._proc is None or self._proc.returncode is not None:
       self._proc = await asyncio.create_subprocess_exec(
-          SYSTEM_PYTHON, str(HELPER), stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
-          stderr=asyncio.subprocess.DEVNULL, env={**os.environ, "PYTHONWARNINGS": "ignore"}, limit=16 * 1024 * 1024)
+          *self.argv, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
+          stderr=asyncio.subprocess.DEVNULL, env={**os.environ, "PYTHONWARNINGS": "ignore", "PYTHONUTF8": "1"},
+          limit=16 * 1024 * 1024, **spawn_kwargs(new_group=False))
     return self._proc
 
   def kill(self) -> None:
@@ -75,4 +81,5 @@ class AtspiClient:
       return msg.get("result") or {}
 
 
-CLIENT = AtspiClient()
+AtspiClient = HelperClient
+CLIENT = HelperClient([SYSTEM_PYTHON, str(HELPER)])

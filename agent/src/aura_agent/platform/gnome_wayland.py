@@ -12,7 +12,7 @@ import os
 from dbus_fast import BusType, Message, MessageType
 from dbus_fast.aio import MessageBus
 
-from .x11 import WindowInfo
+from .base import WindowInfo
 
 NAME = "org.aura.Bridge"
 PATH = "/org/aura/Bridge"

@@ -1,4 +1,8 @@
-"""Systeminfos und Medienstatus (T0). Mediensteuerung mit Nachprüfung kommt in Phase 2."""
+"""Systeminfos, Medien und Lautstärke (Linux und Windows), GNOME-Einstellungen und Dunkelmodus (Linux).
+
+Medien: MPRIS über D-Bus (Linux) bzw. SMTC (Windows, platform/win_media.py), gleiche Werkzeuge und Nachprüfung.
+Einstellungen und Dunkelmodus unter Windows: tools/win_settings.py.
+"""
 
 from __future__ import annotations
 
@@ -9,12 +13,14 @@ import re
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Any
-
-from dbus_fast import BusType, Message, MessageType, Variant
-from dbus_fast.aio import MessageBus
+from typing import Any, Self
 
 from ..harness.tiers import Tier, aura_tool
+from ..platform.base import IS_WINDOWS
+
+if not IS_WINDOWS:
+  from dbus_fast import BusType, Message, MessageType, Variant
+  from dbus_fast.aio import MessageBus
 
 MPRIS_PREFIX = "org.mpris.MediaPlayer2."
 MPRIS_PATH = "/org/mpris/MediaPlayer2"
@@ -41,11 +47,40 @@ def _battery() -> dict[str, Any] | None:
   return None
 
 
+def _windows_info() -> dict[str, Any]:
+  import ctypes
+  from ctypes import wintypes
+
+  class MEMORYSTATUSEX(ctypes.Structure):
+    _fields_ = [("dwLength", wintypes.DWORD), ("dwMemoryLoad", wintypes.DWORD), ("ullTotalPhys", ctypes.c_uint64),
+                ("ullAvailPhys", ctypes.c_uint64), ("ullTotalPageFile", ctypes.c_uint64), ("ullAvailPageFile", ctypes.c_uint64),
+                ("ullTotalVirtual", ctypes.c_uint64), ("ullAvailVirtual", ctypes.c_uint64), ("ullAvailExtendedVirtual", ctypes.c_uint64)]
+
+  class SYSTEM_POWER_STATUS(ctypes.Structure):
+    _fields_ = [("ACLineStatus", ctypes.c_ubyte), ("BatteryFlag", ctypes.c_ubyte), ("BatteryLifePercent", ctypes.c_ubyte),
+                ("SystemStatusFlag", ctypes.c_ubyte), ("BatteryLifeTime", wintypes.DWORD), ("BatteryFullLifeTime", wintypes.DWORD)]
+
+  k32 = ctypes.WinDLL("kernel32")
+  m = MEMORYSTATUSEX(dwLength=ctypes.sizeof(MEMORYSTATUSEX))
+  k32.GlobalMemoryStatusEx(ctypes.byref(m))
+  p = SYSTEM_POWER_STATUS()
+  battery = None
+  if k32.GetSystemPowerStatus(ctypes.byref(p)) and p.BatteryFlag != 128 and p.BatteryLifePercent != 255:  # 128: kein Akku
+    battery = {"percent": p.BatteryLifePercent, "status": "Charging" if p.ACLineStatus == 1 else "Discharging"}
+  release, version, _, _ = platform.win32_ver()
+  edition = platform.win32_edition() or ""
+  return {"os": f"Windows {release} {edition} ({version})".replace("  ", " "),
+          "memory_mb": {"total": m.ullTotalPhys // 1048576, "available": m.ullAvailPhys // 1048576}, "battery": battery}
+
+
 @aura_tool(Tier.T0, label=lambda a: "Systeminfo")
 def system_info() -> dict[str, Any]:
   """Systeminfos: Betriebssystem, Rechnername, CPU, Arbeitsspeicher, freier Speicherplatz, Akku, Uhrzeit."""
-  mem = _meminfo()
   disk = shutil.disk_usage(str(Path.home()))
+  if IS_WINDOWS:
+    return {**_windows_info(), "host": platform.node(), "cpu_cores": os.cpu_count(),
+            "disk_home_gb": {"total": round(disk.total / 1e9), "free": round(disk.free / 1e9)}, "now": now_text()}
+  mem = _meminfo()
   os_name = platform.platform()
   try:
     for line in Path("/etc/os-release").read_text().splitlines():
@@ -76,6 +111,8 @@ def now_text() -> str:
   return f"{WEEKDAYS[now.weekday()]}, {now:%d.%m.%Y %H:%M} ({now.tzname()})"
 
 
+# ---------- Medien: MPRIS (Linux) ----------
+
 def _unwrap(v: Any) -> Any:
   if isinstance(v, Variant):
     return _unwrap(v.value)
@@ -105,7 +142,7 @@ async def player_state(bus: MessageBus, name: str) -> dict[str, Any]:
   artists = meta.get("xesam:artist") or []
   return {
       "player": name.removeprefix(MPRIS_PREFIX).split(".instance")[0],
-      "bus_name": name,
+      "id": name,
       "status": props.get("PlaybackStatus"),
       "title": meta.get("xesam:title"),
       "artist": ", ".join(artists) if isinstance(artists, list) else artists,
@@ -116,27 +153,54 @@ async def player_state(bus: MessageBus, name: str) -> dict[str, Any]:
   }
 
 
+MEDIA_ACTIONS = {"play": "Play", "pause": "Pause", "toggle": "PlayPause", "next": "Next", "previous": "Previous", "stop": "Stop"}
+
+
+class _Mpris:
+  """Gleiche Schnittstelle wie platform.win_media.Smtc."""
+
+  async def __aenter__(self) -> Self:
+    self.bus = await MessageBus(bus_type=BusType.SESSION).connect()
+    return self
+
+  async def __aexit__(self, *exc: object) -> None:
+    self.bus.disconnect()
+
+  async def states(self) -> list[dict[str, Any]]:
+    out = []
+    for name in await mpris_players(self.bus):
+      try:
+        out.append(await player_state(self.bus, name))
+      except Exception as e:  # noqa: BLE001 - ein hängender Player darf die Liste nicht verhindern
+        out.append({"id": name, "error": str(e)})
+    return out
+
+  async def state(self, key: str) -> dict[str, Any]:
+    return await player_state(self.bus, key)
+
+  async def send(self, key: str, action: str) -> None:
+    await _call(self.bus, key, PLAYER_IFACE, MEDIA_ACTIONS[action])
+
+
+def _media() -> Any:
+  if IS_WINDOWS:
+    from ..platform.win_media import Smtc
+
+    return Smtc()
+  return _Mpris()
+
+
 @aura_tool(Tier.T0, label=lambda a: "Medienwiedergabe")
 async def media_status() -> dict[str, Any]:
   """Zeigt, was gerade abgespielt wird: Player (z. B. Chrome mit YouTube Music, Spotify), Titel, Künstler, Status (Playing/Paused)."""
-  bus = await MessageBus(bus_type=BusType.SESSION).connect()
-  try:
-    players = []
-    for name in await mpris_players(bus):
-      try:
-        players.append(await player_state(bus, name))
-      except Exception as e:  # noqa: BLE001 - ein hängender Player darf die Liste nicht verhindern
-        players.append({"bus_name": name, "error": str(e)})
-    if not players:
-      return {"players": [], "note": "Kein Medienplayer gefunden. Es läuft gerade nichts, das sich über MPRIS meldet."}
-    return {"players": players}
-  finally:
-    bus.disconnect()
+  async with _media() as m:
+    players = await m.states()
+  if not players:
+    return {"players": [], "note": "Kein Medienplayer gefunden. Es läuft gerade nichts, das sich als Medienplayer meldet."}
+  return {"players": players}
 
 
-# ---------- Medien steuern (MPRIS) ----------
-
-MEDIA_ACTIONS = {"play": "Play", "pause": "Pause", "toggle": "PlayPause", "next": "Next", "previous": "Previous", "stop": "Stop"}
+# ---------- Medien steuern ----------
 
 
 def _pick_player(states: list[dict[str, Any]], player: str) -> dict[str, Any] | None:
@@ -159,17 +223,10 @@ async def media_control(action: str, player: str = "") -> dict[str, Any]:
     action: "play", "pause", "toggle", "next", "previous" oder "stop".
     player: Optional: welcher Player (z. B. "spotify", "chromium"). Standard: der gerade spielende.
   """
-  method = MEDIA_ACTIONS.get(action)
-  if not method:
+  if action not in MEDIA_ACTIONS:
     return {"error": f"Unbekannte Aktion „{action}“. Erlaubt: {', '.join(MEDIA_ACTIONS)}."}
-  bus = await MessageBus(bus_type=BusType.SESSION).connect()
-  try:
-    states = []
-    for name in await mpris_players(bus):
-      try:
-        states.append(await player_state(bus, name))
-      except Exception:  # noqa: BLE001, S112 - hängende Player überspringen
-        continue
+  async with _media() as m:
+    states = [x for x in await m.states() if not x.get("error")]
     target = _pick_player(states, player)
     if not target:
       return {"error": "Kein passender Medienplayer gefunden. Läuft gerade Musik oder ein Video?"}
@@ -180,12 +237,12 @@ async def media_control(action: str, player: str = "") -> dict[str, Any]:
         or (action == "stop" and before.get("status") == "Stopped"):
       return {"before": {k: before.get(k) for k in keys}, "after": {k: before.get(k) for k in keys}, "verified": True,
               "note": f"War schon {before.get('status')}."}
-    await _call(bus, target["bus_name"], PLAYER_IFACE, method)
+    await m.send(target["id"], action)
     after = before
     want = {"play": "Playing", "pause": "Paused", "stop": "Stopped"}.get(action)
     for _ in range(15):
       await asyncio.sleep(0.2)
-      after = await player_state(bus, target["bus_name"])
+      after = await m.state(target["id"]) or after
       if want and after.get("status") == want:
         break
       if action == "toggle" and after.get("status") != before.get("status"):
@@ -202,8 +259,6 @@ async def media_control(action: str, player: str = "") -> dict[str, Any]:
     if not ok:
       out["error"] = "Der Befehl wurde gesendet, aber der Player meldet keine passende Änderung."
     return out
-  finally:
-    bus.disconnect()
 
 
 # ---------- Lautstärke ----------
@@ -234,6 +289,16 @@ async def volume(level: int | None = None, mute: bool | None = None) -> dict[str
     level: Lautstärke in Prozent (0–150).
     mute: true = stumm, false = Ton an.
   """
+  if IS_WINDOWS:
+    from ..platform import win_audio
+
+    if level is None and mute is None:
+      return await asyncio.to_thread(win_audio.get)
+    state = await asyncio.to_thread(win_audio.set_volume, level, mute)
+    if state.get("error"):
+      return state
+    ok = (level is None or state["percent"] == max(0, min(int(level), 100))) and (mute is None or state["muted"] == bool(mute))
+    return {**state, "verified": ok, **({} if ok else {"error": "Lautstärke wurde nicht wie gewünscht übernommen."})}
   if not shutil.which("pactl"):
     return {"error": "pactl fehlt (Paket pulseaudio-utils)."}
   if level is not None:

@@ -4,11 +4,20 @@ version = "0.1.0"
 description = "Aura Agent v2: Laptop-Assistent auf Google ADK (Sidecar der Electron-App)"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-  "dbus-fast>=2.24",
   "google-adk[mcp]==2.11.0",
   "httpx>=0.27,<1",
   "json-repair>=0.30",
-  "python-xlib>=0.33",
+  # Linux: Medien und Fenster unter Wayland (D-Bus), Fenster unter X11.
+  "dbus-fast>=2.24; sys_platform == 'linux'",
+  "python-xlib>=0.33; sys_platform == 'linux'",
+  # Windows: UI Automation und Lautstärke (COM), Mediensteuerung (WinRT), Prozesse.
+  "comtypes>=1.4.17; sys_platform == 'win32'",
+  "pycaw>=20260927; sys_platform == 'win32'",
+  "psutil>=7.2; sys_platform == 'win32'",
+  "winrt-runtime>=3.2.1; sys_platform == 'win32'",
+  "winrt-Windows.Foundation>=3.2.1; sys_platform == 'win32'",
+  "winrt-Windows.Foundation.Collections>=3.2.1; sys_platform == 'win32'",
+  "winrt-Windows.Media.Control>=3.2.1; sys_platform == 'win32'",
 ]
 
 [dependency-groups]

@@ -1,6 +1,7 @@
 """Programme und Fenster: öffnen, auflisten, wechseln, schließen. Jede Aktion prüft ihr Ergebnis nach.
 
-X11 über EWMH (platform/x11.py), GNOME Wayland über die Erweiterung aura-bridge (platform/gnome_wayland.py).
+X11 über EWMH (platform/x11.py), GNOME Wayland über die Erweiterung aura-bridge (platform/gnome_wayland.py),
+Windows über user32 (platform/win32.py) und das Startmenü (platform/win_apps.py).
 """
 
 from __future__ import annotations
@@ -15,43 +16,64 @@ from pathlib import Path
 from typing import Any
 
 from ..harness.tiers import Tier, aura_tool
-from ..platform import gnome_wayland, x11
+from ..platform.base import IS_WINDOWS, WindowInfo
+from ..platform.proc import spawn_kwargs
 from ..policy.exfil import url_tier
 from ..policy.paths import path_tier
 from .apps import App, best_matches, installed_apps
 from .paths import expand
 
+if IS_WINDOWS:
+  from ..platform import win32
+else:
+  from ..platform import gnome_wayland, x11
+
 LAUNCH_WAIT_S = 15.0
 POLL_S = 0.3
+# Programme und Skripte: Öffnen startet Code, daher T2.
+EXECUTABLE_SUFFIXES = (".sh", ".run", ".appimage", ".py", ".jar", ".deb", ".exe", ".msi", ".bat", ".cmd", ".ps1", ".vbs",
+                       ".js", ".jse", ".wsf", ".hta", ".lnk", ".scr", ".com", ".cpl", ".reg", ".msix", ".appx", ".appinstaller")
 
 
 def _exe_name(pid: int | None) -> str:
   if not pid:
     return ""
+  if IS_WINDOWS:
+    return os.path.basename(win32.exe_path(pid)).lower()
   try:
     return os.path.basename(os.readlink(f"/proc/{pid}/exe")).lower()
   except OSError:
     return ""
 
 
-def _matches(app: App, w: x11.WindowInfo) -> bool:
+def _matches(app: App, w: WindowInfo) -> bool:
   tokens = {t.lower() for t in (app.wm_class, app.binary, app.id, app.name) if t}
   wclass = {w.app.lower(), w.instance.lower()} - {""}
   if tokens & wclass:
     return True
   if any(t in c or c in t for t in tokens for c in wclass if len(c) > 3 and len(t) > 3):
     return True
+  # Windows: Fenstertitel tragen den Programmnamen („Unbenannt - Editor“, „Rechner“); Store-Apps haben keine Programmdatei.
+  if IS_WINDOWS and len(app.name) > 3:
+    t = w.title.lower()
+    n = app.name.lower()
+    if t == n or t.endswith((f" - {n}", f" – {n}")) or t.startswith(f"{n} - "):
+      return True
   exe = _exe_name(w.pid)
-  return bool(exe) and exe in {app.binary.lower(), Path(app.binary).stem.lower()}
+  return bool(exe) and bool(app.binary) and exe in {app.binary.lower(), Path(app.binary).stem.lower()}
 
 
-def _windows() -> list[x11.WindowInfo]:
+def _windows() -> list[WindowInfo]:
+  if IS_WINDOWS:
+    return win32.windows()
   with x11.X11() as x:
     return x.windows()
 
 
-async def _list() -> list[x11.WindowInfo] | None:
-  """Offene Fenster über X11 oder (unter Wayland) die GNOME-Erweiterung. None: hier nicht möglich."""
+async def _list() -> list[WindowInfo] | None:
+  """Offene Fenster über X11, (unter Wayland) die GNOME-Erweiterung oder user32. None: hier nicht möglich."""
+  if IS_WINDOWS:
+    return await asyncio.to_thread(win32.windows)
   if gnome_wayland.is_wayland():
     try:
       return await gnome_wayland.windows()
@@ -63,10 +85,16 @@ async def _list() -> list[x11.WindowInfo] | None:
 
 
 def _no_windows() -> str:
+  if IS_WINDOWS:
+    return "Fenster lassen sich hier nicht steuern."
   return gnome_wayland.NOT_INSTALLED if gnome_wayland.is_wayland() else "Fenster lassen sich in dieser Sitzung nicht steuern (kein X11)."
 
 
 async def _do(window_id: str, action: str) -> None:
+  if IS_WINDOWS:
+    fn = {"focus": win32.focus, "minimize": win32.minimize, "maximize": win32.maximize, "close": win32.close_window}[action]
+    await asyncio.to_thread(fn, window_id)
+    return
   if window_id.startswith("w"):
     await gnome_wayland.act(window_id, action)
     return
@@ -78,7 +106,7 @@ async def _do(window_id: str, action: str) -> None:
   await asyncio.to_thread(act)
 
 
-def _brief(w: x11.WindowInfo) -> dict[str, Any]:
+def _brief(w: WindowInfo) -> dict[str, Any]:
   return {"id": w.id, "app": w.app, "title": w.title, "active": w.active, "minimized": w.minimized}
 
 
@@ -94,7 +122,7 @@ async def _wait_for(check, timeout: float) -> Any:
     await asyncio.sleep(POLL_S)
 
 
-async def _find(window_id: str) -> x11.WindowInfo | None:
+async def _find(window_id: str) -> WindowInfo | None:
   return next((w for w in (await _list() or []) if w.id == window_id), None)
 
 
@@ -107,7 +135,7 @@ async def list_windows() -> dict[str, Any]:
   return {"count": len(wins), "windows": [_brief(w) for w in wins]}
 
 
-def _resolve(window: str, wins: list[x11.WindowInfo]) -> tuple[x11.WindowInfo | None, str]:
+def _resolve(window: str, wins: list[WindowInfo]) -> tuple[WindowInfo | None, str]:
   w = window.strip()
   if w.lower().startswith("0x") or (w.startswith("w") and w[1:].isdigit()):
     hit = [x for x in wins if x.id == w.lower()]
@@ -132,7 +160,7 @@ def _window_tier(a: dict[str, Any]) -> tuple[Tier, str]:
 
 def _window_label(a: dict[str, Any]) -> str:
   w = str(a.get("window", ""))
-  if w.lower().startswith("0x") and x11.available():
+  if w.lower().startswith("0x") and (IS_WINDOWS or x11.available()):
     try:
       hit = next((x for x in _windows() if x.id == w.lower()), None)
       if hit:
@@ -170,7 +198,7 @@ async def window_action(window: str, action: str) -> dict[str, Any]:
             **({} if gone else {"error": "Fenster ist noch offen (vielleicht fragt das Programm nach dem Speichern)."})}
   want = {"focus": lambda w: w.active, "minimize": lambda w: w.minimized, "maximize": lambda w: True}[action]
 
-  async def state_check() -> x11.WindowInfo | None:
+  async def state_check() -> WindowInfo | None:
     s = await _find(target.id)
     return s if s is not None and want(s) else None
 
@@ -185,18 +213,28 @@ async def _is_active(window_id: str) -> bool:
 
 
 def _start(app: App) -> None:
+  if IS_WINDOWS:
+    from ..platform import win_apps
+
+    win_apps.launch(app.entry)
+    return
   if shutil.which("gio"):
     cmd = ["gio", "launch", str(app.file)]
   elif shutil.which("gtk-launch"):
     cmd = ["gtk-launch", app.id]
   else:
     cmd = ["/bin/sh", "-c", app.exec.replace("%U", "").replace("%u", "").replace("%F", "").replace("%f", "")]
-  subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+  subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **spawn_kwargs())
 
 
 def _process_running(app: App) -> bool:
   if not app.binary:
     return False
+  if IS_WINDOWS:
+    import psutil
+
+    want = app.binary.lower()
+    return any((p.info.get("name") or "").lower() == want for p in psutil.process_iter(["name"]))
   return subprocess.run(["pgrep", "-f", app.binary], capture_output=True, check=False).returncode == 0
 
 
@@ -244,7 +282,7 @@ async def launch_app(name: str) -> dict[str, Any]:
   before_ids = {w.id for w in before}
   await asyncio.to_thread(_start, app)
 
-  async def new_window() -> x11.WindowInfo | None:
+  async def new_window() -> WindowInfo | None:
     fresh = [w for w in (await _list() or []) if w.id not in before_ids]
     mine = [w for w in fresh if _matches(app, w)]
     return (mine or [])[0] if mine else None
@@ -265,7 +303,7 @@ def _open_tier(a: dict[str, Any]) -> tuple[Tier, str]:
   blocked = path_tier(p)
   if blocked:
     return blocked
-  if p.is_file() and (os.access(p, os.X_OK) or p.suffix.lower() in (".sh", ".run", ".appimage", ".py", ".jar", ".deb")):
+  if p.is_file() and ((not IS_WINDOWS and os.access(p, os.X_OK)) or p.suffix.lower() in EXECUTABLE_SUFFIXES):
     return Tier.T2, "startet ein Programm oder Skript"
   return Tier.T1, ""
 
@@ -285,6 +323,12 @@ async def open_target(target: str) -> dict[str, Any]:
     if not p.exists():
       return {"error": f"Gibt es nicht: {t}"}
     t = str(p)
+  if IS_WINDOWS:
+    try:
+      await asyncio.to_thread(os.startfile, t)  # type: ignore[attr-defined]  # nur unter Windows vorhanden
+    except OSError as e:
+      return {"error": f"Konnte „{t}“ nicht öffnen: {e.strerror or e}"}
+    return {"opened": t, "verified": None, "note": "Geöffnet; ob das Fenster erschien, wird hier nicht geprüft."}
   proc = await asyncio.create_subprocess_exec("xdg-open", t, stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.DEVNULL,
                                               stderr=asyncio.subprocess.PIPE, start_new_session=True)
   try:

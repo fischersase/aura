@@ -1,25 +1,37 @@
-"""Shell-Befehle mit Einstufung (siehe policy/shell_classifier.py).
+"""Shell-Befehle mit Einstufung (siehe policy/shell_classifier.py): bash unter Linux, PowerShell unter Windows.
 
 Jeder Befehl läuft in einer eigenen Prozessgruppe, damit der Not-Aus auch
-Kindprozesse sicher beendet.
+Kindprozesse sicher beendet (platform/proc.py).
 """
 
 from __future__ import annotations
 
 import asyncio
+import base64
 import contextlib
 import os
-import signal
 from pathlib import Path
 from typing import Any
 
 from ..harness.guard import clip
 from ..harness.tiers import aura_tool
+from ..platform.base import IS_WINDOWS
+from ..platform.proc import kill_tree, spawn_kwargs
 from ..policy.shell_classifier import classify
 from ..runtime.context import current
 from .paths import expand
 
 MAX_OUTPUT = 12000
+# Fortschrittsbalken aus, Ausgabe als UTF-8 (sonst kommen Umlaute in der OEM-Codepage).
+PS_PRELUDE = "$ProgressPreference='SilentlyContinue'; [Console]::OutputEncoding=[System.Text.UTF8Encoding]::new($false); "
+
+
+def shell_argv(command: str) -> list[str]:
+  if IS_WINDOWS:
+    # Als -EncodedCommand (UTF-16LE, base64): keine Probleme mit Anführungszeichen. Eingestuft wird der Befehl selbst.
+    encoded = base64.b64encode((PS_PRELUDE + command).encode("utf-16-le")).decode()
+    return ["powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encoded]
+  return ["/bin/bash", "-lc", command]
 
 
 @aura_tool(tier=lambda a: classify(a.get("command", "")), label=lambda a: a.get("command", ""), effect=lambda a: a.get("command", ""))
@@ -40,8 +52,8 @@ async def run_command(command: str, cwd: str = "~", timeout_s: int = 120) -> dic
     return {"error": f"Arbeitsordner gibt es nicht: {workdir}"}
   timeout = min(max(int(timeout_s or 120), 5), 900)
   proc = await asyncio.create_subprocess_exec(
-      "/bin/bash", "-lc", command, cwd=str(workdir), stdin=asyncio.subprocess.DEVNULL,
-      stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT, start_new_session=True,
+      *shell_argv(command), cwd=str(workdir), stdin=asyncio.subprocess.DEVNULL,
+      stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT, **spawn_kwargs(),
       env={**os.environ, "PAGER": "cat", "GIT_PAGER": "cat", "TERM": "dumb"},
   )
   if task:
@@ -69,5 +81,10 @@ async def run_command(command: str, cwd: str = "~", timeout_s: int = 120) -> dic
 
 def _kill(proc: asyncio.subprocess.Process) -> None:
   if proc.returncode is None:
-    with contextlib.suppress(ProcessLookupError, PermissionError):
-      os.killpg(proc.pid, signal.SIGKILL)
+    kill_tree(proc.pid)
+
+
+if IS_WINDOWS:
+  run_command.__doc__ = (run_command.__doc__ or "").replace(
+      "einen bash-Befehl auf dem Linux-PC", "einen PowerShell-Befehl auf dem Windows-PC").replace(
+      "Nur lesende Befehle", "Pfade dürfen mit ~ beginnen. Nur lesende Befehle (Get-…, dir, Select-Object …)")

@@ -25,6 +25,20 @@ jobs:
       - run: uv run ruff check src tests spikes evals
       - run: uv run pytest -q -rs  # -rs: übersprungene Tests mit Grund anzeigen
 
+  # Windows-Backend (Fenster, Startmenü, UI Automation, PowerShell, Papierkorb, Registry) und alle übrigen Tests.
+  agent-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: agent
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run pytest -q -rs
+
   js:
     runs-on: ubuntu-24.04
     steps:

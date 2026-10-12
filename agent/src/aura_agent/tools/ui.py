@@ -1,9 +1,10 @@
-"""Programme über ihre Bedienelemente steuern (AT-SPI) statt über Pixel (ADR 0005).
+"""Programme über ihre Bedienelemente steuern (AT-SPI unter Linux, UI Automation unter Windows) statt über Pixel (ADR 0005).
 
 ui_snapshot liest Knöpfe, Felder und Texte eines Programms mit Index; ui_act und ui_set_text
 bedienen ein Element per Index. Der Index gilt bis zum nächsten ui_snapshot.
-Funktioniert mit GTK- und Qt-Programmen (Texteditor, Dateien, Rechner, Einstellungen …);
-Browser und Electron-Programme melden ihre Inhalte nicht (dafür gibt es den browser-Spezialisten).
+Funktioniert mit GTK- und Qt-Programmen (Linux) und den meisten Windows-Programmen (Editor, Explorer,
+Rechner, Einstellungen, Office …); Browser und Electron-Programme melden ihre Inhalte oft nicht
+(dafür gibt es den browser-Spezialisten).
 """
 
 from __future__ import annotations
@@ -11,7 +12,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..harness.tiers import Tier, aura_tool
-from ..platform import atspi
+from ..platform import a11y
 from .browser import CONSEQUENTIAL
 
 _last: dict[int, dict[str, Any]] = {}  # Index → Element aus dem letzten ui_snapshot
@@ -25,8 +26,8 @@ def _consequential(a: dict[str, Any]) -> tuple[Tier, str]:
 
 
 def _not_available() -> dict[str, Any] | None:
-  if not atspi.available():
-    return {"error": "Barrierefreiheit ist hier nicht verfügbar (Pakete python3-gi und gir1.2-atspi-2.0 fehlen)."}
+  if not a11y.available():
+    return {"error": a11y.MISSING}
   return None
 
 
@@ -43,8 +44,8 @@ async def ui_snapshot(app: str = "", window: str = "") -> dict[str, Any]:
   if err := _not_available():
     return err
   if not app:
-    return await atspi.CLIENT.call("apps")
-  r = await atspi.CLIENT.call("snapshot", app=app, window=window, max=250)
+    return await a11y.CLIENT.call("apps")
+  r = await a11y.CLIENT.call("snapshot", app=app, window=window, max=250)
   _last.clear()
   for e in r.get("elements") or []:
     _last[e["index"]] = e
@@ -69,7 +70,7 @@ async def ui_act(index: int, element: str, action: str = "click") -> dict[str, A
   # muss die Beschreibung das auch sagen, sonst wird nicht geklickt.
   if CONSEQUENTIAL.search(known.get("name", "")) and not CONSEQUENTIAL.search(element):
     return {"error": f"Das Element heißt „{known['name']}“. Beschreibe es so in element; dann fragt die App den Nutzer."}
-  r = await atspi.CLIENT.call("act", index=int(index), action=action)
+  r = await a11y.CLIENT.call("act", index=int(index), action=action)
   if r.get("error"):
     return r
   return {**r, "verified": bool(r.get("done")), "note": "Prüfe das Ergebnis mit ui_snapshot."}
@@ -95,7 +96,7 @@ async def ui_set_text(index: int, element: str, text: str) -> dict[str, Any]:
     return err
   if int(index) not in _last:
     return {"error": f"Index {index} ist nicht aus dem letzten ui_snapshot. Rufe ui_snapshot erneut auf."}
-  r = await atspi.CLIENT.call("set_text", index=int(index), text=text)
+  r = await a11y.CLIENT.call("set_text", index=int(index), text=text)
   if r.get("error"):
     return r
   ok = (r.get("text") or "") == text

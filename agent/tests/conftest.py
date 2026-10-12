@@ -1,8 +1,13 @@
 import os
 import shutil
 import subprocess
+import sys
+import time
+from pathlib import Path
 
 import pytest
+
+WINDOWS = sys.platform == "win32"
 
 
 @pytest.fixture
@@ -29,6 +34,7 @@ def fake_home(tmp_path, monkeypatch):
   home = tmp_path / "home"
   (home / ".local/share").mkdir(parents=True)
   monkeypatch.setenv("HOME", str(home))
+  monkeypatch.setenv("USERPROFILE", str(home))  # Windows: Path.home()
   monkeypatch.setenv("XDG_DATA_HOME", str(home / ".local/share"))
   return home
 
@@ -83,3 +89,34 @@ def gtk_app(xvfb, private_dbus):
   for p in (app, bus):
     p.terminate()
     p.wait(timeout=5)
+
+
+def _pythonw() -> str:
+  exe = Path(sys.executable)
+  w = exe.with_name("pythonw.exe")
+  return str(w if w.exists() else exe)
+
+
+WIN_APP = Path(__file__).parent.parent / "src" / "aura_agent" / "testing" / "win_app.py"
+
+
+@pytest.fixture
+def win_app():
+  """Win32-Testprogramm (Feld, Speichern, Konto löschen); liefert (Prozess, Fenstertitel)."""
+  if not WINDOWS:
+    pytest.skip("nur unter Windows")
+  from aura_agent.platform import a11y, win32
+
+  title = f"Aura Testprogramm {os.getpid()}"
+  app = subprocess.Popen([_pythonw(), str(WIN_APP), title])
+  for _ in range(40):
+    if any(w.title == title for w in win32.windows()):
+      break
+    time.sleep(0.25)
+  else:
+    app.kill()
+    pytest.fail("Testfenster erscheint nicht")
+  yield app, title
+  a11y.CLIENT.kill()
+  app.kill()
+  app.wait(timeout=5)

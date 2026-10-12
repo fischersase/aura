@@ -1,8 +1,7 @@
-"""Stufe eines Shell-Befehls bestimmen.
+"""Stufe eines Shell-Befehls bestimmen: bash unter Linux, PowerShell unter Windows (powershell_classifier.py).
 
-Phase 1: Liste lesender Befehle und riskanter Schalter (übernommen aus
-src/agent/tools.js), Sperrliste für Zugangsdaten. Alles Unbekannte ist T2 und
-fragt. Phase 2 ersetzt das Zerlegen durch einen echten bash-Parser (bashlex).
+Liste lesender Befehle und riskanter Schalter (übernommen aus src/agent/tools.js),
+Sperrliste für Zugangsdaten. Alles Unbekannte ist T2 und fragt.
 """
 
 from __future__ import annotations
@@ -11,6 +10,7 @@ import re
 import shlex
 
 from ..harness.tiers import Tier
+from ..platform.base import IS_WINDOWS
 
 READONLY = {
     "ls", "pwd", "whoami", "hostname", "date", "uname", "uptime", "df", "du", "free", "cat", "head", "tail",
@@ -80,6 +80,15 @@ _CONTROL = re.compile(r"[;&`\n\r]|\$\(|\$\{|>|<\(")
 
 
 def classify(command: str) -> tuple[Tier, str]:
+  """Stufe für die Shell dieses Systems."""
+  if IS_WINDOWS:
+    from .powershell_classifier import classify_powershell
+
+    return classify_powershell(command)
+  return classify_bash(command)
+
+
+def classify_bash(command: str) -> tuple[Tier, str]:
   c = (command or "").strip()
   if not c:
     return Tier.T2, "leerer Befehl"

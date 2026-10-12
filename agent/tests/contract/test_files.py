@@ -1,3 +1,7 @@
+import sys
+
+import pytest
+
 """Datei-Werkzeuge in einem temporären Benutzerordner."""
 
 from aura_agent.harness.tiers import Tier
@@ -33,6 +37,7 @@ def test_edit_requires_unique_match(fake_home):
   assert "-y = 1" in effect and "+y = 3" in effect
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="gio-Papierkorb; Windows: tests/windows")
 async def test_trash_moves_to_trash_not_delete(fake_home):
   d = fake_home / "Downloads" / "alt"
   d.mkdir(parents=True)

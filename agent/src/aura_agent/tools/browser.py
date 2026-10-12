@@ -19,11 +19,13 @@ from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 from mcp import StdioServerParameters
 
 from ..harness.tiers import EXTERNAL, Tier, ToolMeta
+from ..platform.base import IS_WINDOWS
 from ..policy.exfil import url_tier
 from ..runtime.settings import AgentSettings
 
 PLAYWRIGHT_MCP = "@playwright/mcp@0.0.80"
-HEADLESS_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36"
+HEADLESS_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64)" if IS_WINDOWS else "Mozilla/5.0 (X11; Linux x86_64)") + \
+    " AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36"
 
 BROWSER_TOOLS = [
     "browser_navigate", "browser_navigate_back", "browser_snapshot", "browser_find", "browser_click", "browser_type",
@@ -93,9 +95,28 @@ METAS = {
 EXTERNAL.update(METAS)
 
 
+def _windows_browser(*parts: str) -> bool:
+  for var in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"):
+    base = os.environ.get(var)
+    if base and Path(base, *parts).is_file():
+      return True
+  return False
+
+
+def browser_channel() -> str | None:
+  """Welcher Browser für Playwright: Chrome; unter Windows notfalls Edge (ist immer installiert)."""
+  if IS_WINDOWS:
+    if _windows_browser("Google", "Chrome", "Application", "chrome.exe"):
+      return "chrome"
+    if _windows_browser("Microsoft", "Edge", "Application", "msedge.exe"):
+      return "msedge"
+    return None
+  return "chrome" if shutil.which("google-chrome") or shutil.which("google-chrome-stable") else None
+
+
 def browser_available(settings: AgentSettings | None = None) -> bool:
   launcher = bool(settings and settings.browser_command and Path(settings.browser_command[0]).exists()) or bool(shutil.which("npx"))
-  return launcher and bool(shutil.which("google-chrome") or shutil.which("google-chrome-stable"))
+  return launcher and browser_channel() is not None
 
 
 def server_params(settings: AgentSettings, mcp_args: list[str]) -> StdioServerParameters:
@@ -113,7 +134,7 @@ def build_browser_toolset(settings: AgentSettings, headless: bool = False) -> Mc
   config = settings.data_dir / "browser-config.json"
   config.parent.mkdir(parents=True, exist_ok=True)
   config.write_text(json.dumps({"browser": {"launchOptions": {"args": ["--disable-quic"]}}}))
-  args = ["--config", str(config), "--browser", "chrome", "--snapshot-mode", "none",
+  args = ["--config", str(config), "--browser", browser_channel() or "chrome", "--snapshot-mode", "none",
           "--user-data-dir", str(settings.aura_dir / "browser-profile"), "--output-dir", str(settings.data_dir / "browser"),
           "--timeout-navigation", "30000"]
   if headless:
@@ -125,7 +146,7 @@ def build_browser_toolset(settings: AgentSettings, headless: bool = False) -> Mc
   )
 
 
-BROWSER_INSTRUCTION = """Du bist der Browser-Spezialist von Aura. Du bedienst Webseiten in einem eigenen Chrome-Fenster.
+BROWSER_INSTRUCTION = """Du bist der Browser-Spezialist von Aura. Du bedienst Webseiten in einem eigenen Browserfenster.
 
 Vorgehen:
 1. browser_navigate zur passenden Seite (bei Suchen direkt die Such-URL, z. B. https://music.youtube.com/search?q=…).

@@ -1,6 +1,7 @@
 """Hüllen-Tests (L3): ganzer Auftragsablauf mit Drehbuch-Modell und Host-Attrappe."""
 
 import asyncio
+import sys
 import time
 from pathlib import Path
 
@@ -11,6 +12,14 @@ from aura_agent.runtime.server import build_runner
 from aura_agent.runtime.settings import AgentSettings
 from aura_agent.testing.fake_host import FakeHost
 from aura_agent.testing.scripted_llm import Call, ScriptedLlm, tool_responses
+
+WINDOWS = sys.platform == "win32"
+SLEEP_30 = "Start-Sleep 30" if WINDOWS else "sleep 30"
+
+
+def touch(path) -> str:
+  """Leere Datei anlegen, in der Shell dieses Systems (fragt überall: T2)."""
+  return f"New-Item -ItemType File '{path}'" if WINDOWS else f"touch {path}"
 
 
 def make(tmp_path: Path, steps, decisions=None):
@@ -58,7 +67,7 @@ async def test_denied_command_is_not_run_and_model_is_told(tmp_path):
 
 
 async def test_approved_command_runs(tmp_path):
-  ctl, host, _, _ = make(tmp_path, [[Call("run_command", {"command": "touch neu.txt", "cwd": str(tmp_path)})], "Angelegt."], ["once"])
+  ctl, host, _, _ = make(tmp_path, [[Call("run_command", {"command": touch("neu.txt"), "cwd": str(tmp_path)})], "Angelegt."], ["once"])
   ctl.start("t1", "c1", "leg neu.txt an")
   await finish(ctl)
   assert (tmp_path / "neu.txt").exists()
@@ -66,8 +75,8 @@ async def test_approved_command_runs(tmp_path):
 
 
 async def test_allow_for_task_skips_later_questions(tmp_path):
-  steps = [[Call("run_command", {"command": "touch a", "cwd": str(tmp_path)})],
-           [Call("run_command", {"command": "touch b", "cwd": str(tmp_path)})], "Beide angelegt."]
+  steps = [[Call("run_command", {"command": touch("a"), "cwd": str(tmp_path)})],
+           [Call("run_command", {"command": touch("b"), "cwd": str(tmp_path)})], "Beide angelegt."]
   ctl, host, _, _ = make(tmp_path, steps, ["task"])
   ctl.start("t1", "c1", "leg a und b an")
   await finish(ctl)
@@ -103,7 +112,7 @@ async def test_empty_answer_is_rejected_once(tmp_path):
 
 async def test_cancel_kills_running_command_quickly(tmp_path):
   marker = tmp_path / "noch_da"
-  cmd = f"sleep 30; touch {marker}"
+  cmd = f"{SLEEP_30}; {touch(marker)}"
   ctl, host, _, _ = make(tmp_path, [[Call("run_command", {"command": cmd})], "fertig"], ["once"])
   ctl.start("t1", "c1", "warte")
   for _ in range(200):
@@ -206,7 +215,7 @@ async def test_verified_success_is_reported(tmp_path, private_dbus):
 
 
 async def test_always_allow_creates_rule_and_skips_next_question(tmp_path):
-  cmd = f"touch {tmp_path}/x"
+  cmd = touch(tmp_path / "x")
   steps = [[Call("run_command", {"command": cmd})], "ok", [Call("run_command", {"command": cmd})], "wieder ok"]
   ctl, host, _, settings = make(tmp_path, steps, ["always"])
   ctl.start("t1", "c1", "x")
