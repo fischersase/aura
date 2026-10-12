@@ -71,7 +71,7 @@ test('bridge: echter Python-Agent mit Drehbuch – lesen, fragen, ablehnen', { s
   const steps = [];
   let text = '';
   try {
-    const done = await bridge.runTask({ taskId: 't1', chatId: 'c1', text: 'räum auf' }, {
+    const done = await bridge.runTask({ taskId: 't1', chatId: 'c1', text: 'lösch bleibt.txt' }, {
       onText: (d) => { text += d; },
       onStep: (s) => steps.push(`${s.tool}:${s.state}`)
     });
