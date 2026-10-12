@@ -26,4 +26,4 @@ Especially interesting:
 - Problems in the release chain: installers, the apt repository and its signing key, GitHub Actions.
 
 The safety model is described in [README → Safety](README.md#agent-aura-acts-on-your-pc) and in
-[docs/adr/0003](docs/adr/0003-freigaben-in-der-huelle.md).
+[docs/adr/0003](docs/adr/0003-approvals-in-the-harness.md).

@@ -1,28 +1,30 @@
-# 0001 Python-ADK als Sidecar, stdio JSON-RPC zu Electron
+# 0001 Python ADK as a sidecar, stdio JSON-RPC to Electron
 
-## Kontext
+Status: accepted
 
-Der Agent wird mit Google ADK neu gebaut und soll zuerst mit lokalen Modellen über Ollama laufen. ADK gibt es für Python, TypeScript, Go und Java. Aura ist eine Electron-App (CommonJS, Node).
+## Context
 
-## Entscheidung
+The agent is being rebuilt with Google ADK and should run with local models via Ollama first. ADK exists for Python, TypeScript, Go and Java. Aura is an Electron app (CommonJS, Node).
 
-- Der Agent läuft als eigener Python-Prozess `aura-agent` mit `google-adk==2.11.0`, festgeschrieben in `agent/uv.lock`.
-- Electron startet ihn und spricht über stdin/stdout JSON-RPC 2.0 (eine JSON-Zeile pro Nachricht) mit ihm, in beide Richtungen. Es gibt keinen offenen Port.
-- Rückfragen des Agenten an Electron (Freigabe, ask_user, Bildschirmfoto, Zwischenablage) sind Anfragen in Gegenrichtung.
-- Die Betriebssystem-Werkzeuge leben im Python-Prozess. Electron liefert nur, was nur Electron kann: Bildschirmaufnahme (auch der Wayland-Stream), Zwischenablage, Hinweise.
+## Decision
 
-## Gründe
+- The agent runs as its own Python process `aura-agent` with `google-adk==2.11.0`, pinned in `agent/uv.lock`.
+- Electron starts it and talks to it via JSON-RPC 2.0 over stdin/stdout (one JSON line per message), in both directions. There is no open port.
+- Requests from the agent to Electron (approval, ask_user, screenshot, clipboard) are requests in the reverse direction.
+- The operating-system tools live in the Python process. Electron only provides what only Electron can do: screen capture (including the Wayland stream), clipboard, notifications.
 
-- **TypeScript-ADK reicht nicht.** Es hat kein Ollama- oder OpenAI-kompatibles Modell (Issue google/adk-js#533 offen), keine Evaluation (`adk eval` gibt es nur in Python), Live nur experimentell und kein persistentes lokales Gedächtnis.
-- **stdio statt HTTP.** Ein Prozess, der Shell-Befehle ausführt, soll keinen Port öffnen; damit entfallen Token, DNS-Rebinding und fremde lokale Prozesse. Der Sidecar endet, wenn Electron endet (EOF).
-- **Werkzeuge im Sidecar.** Regeln, Stufen, Nachprüfung und Audit sitzen im selben Prozess wie das Werkzeug. Tests und Evals laufen ohne Electron, mit einem Fake-Host.
+## Rationale
 
-## Belege (P0)
+- **The TypeScript ADK is not sufficient.** It has no Ollama or OpenAI-compatible model (issue google/adk-js#533 open), no evaluation (`adk eval` exists only in Python), Live only as experimental, and no persistent local memory.
+- **stdio instead of HTTP.** A process that executes shell commands should not open a port; this removes tokens, DNS rebinding and foreign local processes from the picture. The sidecar exits when Electron exits (EOF).
+- **Tools in the sidecar.** Rules, tiers, verification and audit sit in the same process as the tool. Tests and evals run without Electron, with a fake host.
 
-- Start des Sidecars mit allen ADK-Importen: 1,1 s, 73 MB RSS.
-- Kanarientests `agent/tests/adk_canary/` (7 grün): Plugins wirken auch in AgentTool-Unteragenten, `abort_signal` stoppt ein laufendes Werkzeug in unter 2 s, SQLite-Sitzungen überleben einen Neustart, `SqliteMemoryService` findet frühere Sitzungen.
+## Evidence (P0)
 
-## Folgen
+- Sidecar startup with all ADK imports: 1.1 s, 73 MB RSS.
+- Canary tests `agent/tests/adk_canary/` (7 green): plugins also apply inside AgentTool sub-agents, `abort_signal` stops a running tool in under 2 s, SQLite sessions survive a restart, `SqliteMemoryService` finds earlier sessions.
 
-- Zwei Sprachen im Repo. Die Schnittstelle wird über JSON-Schemas in `protocol/` und Vertragstests auf beiden Seiten abgesichert.
-- Python muss mitgeliefert werden (siehe 0006).
+## Consequences
+
+- Two languages in the repo. The interface is secured by JSON schemas in `protocol/` and contract tests on both sides.
+- Python must be shipped with the app (see 0006).

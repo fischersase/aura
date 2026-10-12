@@ -1,55 +1,57 @@
-# 0012 Windows-Backend: dieselben Werkzeuge, eigene Plattform-Schicht, Installer statt portabler .exe
+# 0012 Windows backend: same tools, separate platform layer, installer instead of portable .exe
 
-## Kontext
+Status: accepted
 
-Phase 7 bringt Agent v2 auf Windows. Die Werkzeuge, Stufen, Prüfungen und Evals sollen dieselben bleiben wie unter Linux. Nur die Plattform-Schicht wird getauscht. Unter Windows fehlt alles, worauf das Linux-Backend aufsetzt: X11/EWMH, D-Bus (MPRIS), AT-SPI, gsettings, gio und bash.
+## Context
 
-## Entscheidung
+Phase 7 brings Agent v2 to Windows. Tools, tiers, checks and evals should stay the same as on Linux. Only the platform layer is swapped. Windows lacks everything the Linux backend builds on: X11/EWMH, D-Bus (MPRIS), AT-SPI, gsettings, gio and bash.
 
-- **Werkzeuge bleiben gleich.** Name, Stufen-Logik und Nachprüfung jedes Werkzeugs bleiben unverändert. Innerhalb des Werkzeugs entscheidet `platform.base.IS_WINDOWS`. Nur `settings` und `dark_mode` sind eigene Funktionen (`tools/win_settings.py`), weil ihre Argumente andere sind (Registry statt gsettings).
+## Decision
 
-| Bereich | Linux | Windows |
+- **Tools stay the same.** Name, tier logic and verification of each tool remain unchanged. Inside the tool, `platform.base.IS_WINDOWS` decides. Only `settings` and `dark_mode` are separate functions (`tools/win_settings.py`), because their arguments differ (registry instead of gsettings).
+
+| Area | Linux | Windows |
 |---|---|---|
-| Fenster | X11 EWMH (`platform/x11.py`), Wayland-Erweiterung | user32 über ctypes (`platform/win32.py`): Fenster wie in der Taskleiste; UWP-Apps über das Kindfenster ihres ApplicationFrameHost |
-| Programme | `.desktop`-Dateien | Startmenü: `Get-StartApps` (auch Store-Apps) und Verknüpfungen (`platform/win_apps.py`); Start über die Verknüpfung oder `shell:AppsFolder\<AppID>` |
-| Bedienelemente | AT-SPI-Helfer mit System-Python | UI-Automation-Helfer mit dem Agent-Python (`platform/uia_helper.py`, comtypes) |
-| Medien | MPRIS (D-Bus) | System Media Transport Controls (`platform/win_media.py`, pywinrt) |
-| Lautstärke | pactl | Core Audio (`platform/win_audio.py`, pycaw) |
-| Einstellungen | gsettings | Registry des Benutzers (`platform/win_registry.py`) |
-| Papierkorb | `gio trash` | `SHFileOperationW` mit `FOF_ALLOWUNDO`, nur auf festen Laufwerken (`platform/win_shell.py`) |
+| Windows | X11 EWMH (`platform/x11.py`), Wayland extension | user32 via ctypes (`platform/win32.py`): windows as in the taskbar; UWP apps via the child window of their ApplicationFrameHost |
+| Apps | `.desktop` files | Start menu: `Get-StartApps` (including Store apps) and shortcuts (`platform/win_apps.py`); launch via the shortcut or `shell:AppsFolder\<AppID>` |
+| UI elements | AT-SPI helper with system Python | UI Automation helper with the agent Python (`platform/uia_helper.py`, comtypes) |
+| Media | MPRIS (D-Bus) | System Media Transport Controls (`platform/win_media.py`, pywinrt) |
+| Volume | pactl | Core Audio (`platform/win_audio.py`, pycaw) |
+| Settings | gsettings | user registry (`platform/win_registry.py`) |
+| Trash | `gio trash` | `SHFileOperationW` with `FOF_ALLOWUNDO`, only on fixed drives (`platform/win_shell.py`) |
 | Shell | bash, `classify_bash` | PowerShell 5.1, `classify_powershell` |
-| Prozesse | Prozessgruppe, `killpg` | eigene Prozessgruppe ohne Konsolenfenster, `taskkill /T` (`platform/proc.py`) |
+| Processes | process group, `killpg` | own process group without a console window, `taskkill /T` (`platform/proc.py`) |
 
-- **Bedienelemente** laufen über einen Helfer mit demselben Zeilenprotokoll und denselben Rollennamen wie AT-SPI („push button“, „entry“, „password text“ …). Dadurch arbeiten `ui_snapshot`, `ui_act` und `ui_set_text` mit ihren Stufen (folgenreiche Knöpfe T2, Passwortfelder T3) auf beiden Systemen gleich.
-  - Der Helfer läuft als eigener Prozess, damit ein hängendes Programm nur ihn blockiert.
-  - `Invoke` kann blockieren, bis ein modaler Dialog geschlossen ist. Deshalb läuft es in einem Thread mit 3 s Frist. Danach gilt die Aktion als ausgelöst.
-- **PowerShell-Einstufung** folgt demselben Grundsatz wie unter bash: Lesend ist nur, was auf einer festen Liste steht. PowerShell kann aber auch außerhalb von Befehlsnamen etwas ausführen. Deshalb gilt zusätzlich:
-  - Texte in Anführungszeichen werden vor der Prüfung entfernt; `"$(…)"` fragt.
-  - Außerhalb von Texten fragen `; & \` # < > = ( ) [ ] :: $( @( @{` und Methodenaufrufe.
-  - Skriptblöcke dürfen nur Vergleiche über `$_` enthalten.
-  - `-EncodedCommand`, Defender, Firewall, ExecutionPolicy, Anmeldedaten und das Löschen von Laufwerk, Windows oder Benutzerordner sind T3.
-  - Aura selbst startet Befehle als `-EncodedCommand` und mit UTF-8-Ausgabe. Eingestuft wird dabei der Befehl selbst.
-- **stdin** wird in einem eigenen Thread gelesen, auf beiden Systemen. Grund: `loop.connect_read_pipe` ist unter Windows mit der von Electron geerbten Pipe nicht verlässlich.
-- **Auslieferung:** NSIS-Installer pro Benutzer (`Aura-Setup.exe`), ohne Administratorrechte. Python und der Browser-Server werden wie unter Linux mitgeliefert (`scripts/build-agent.sh` läuft auch in Git Bash).
-  - Die portable .exe entfällt, weil sie bei jedem Start rund 200 MB Python entpacken müsste.
-  - Updates: neuen Installer ausführen. Einstellungen in `%APPDATA%\Aura` bleiben erhalten.
-- **Browser:** Chrome an den Standardorten, sonst Edge (`--browser msedge`), der unter Windows immer vorhanden ist.
+- **UI elements** go through a helper with the same line protocol and the same role names as AT-SPI ("push button", "entry", "password text" …). As a result, `ui_snapshot`, `ui_act` and `ui_set_text` work the same on both systems, with their tiers (consequential buttons T2, password fields T3).
+  - The helper runs as a separate process so that a hanging app only blocks the helper.
+  - `Invoke` can block until a modal dialog is closed. It therefore runs in a thread with a 3 s deadline. After that, the action counts as triggered.
+- **PowerShell tiering** follows the same principle as bash: only what is on a fixed list counts as read-only. PowerShell, however, can also execute things outside command names. Therefore, additionally:
+  - Quoted strings are removed before the check; `"$(…)"` asks.
+  - Outside strings, `; & \` # < > = ( ) [ ] :: $( @( @{` and method calls ask.
+  - Script blocks may only contain comparisons on `$_`.
+  - `-EncodedCommand`, Defender, firewall, ExecutionPolicy, credentials and deleting a drive, Windows or the user folder are T3.
+  - Aura itself starts commands as `-EncodedCommand` with UTF-8 output. The command itself is what gets tiered.
+- **stdin** is read in a separate thread, on both systems. Reason: `loop.connect_read_pipe` is not reliable on Windows with the pipe inherited from Electron.
+- **Distribution:** per-user NSIS installer (`Aura-Setup.exe`), without administrator rights. Python and the browser server are bundled as on Linux (`scripts/build-agent.sh` also runs in Git Bash).
+  - The portable .exe is dropped because it would have to unpack about 200 MB of Python on every start.
+  - Updates: run the new installer. Settings in `%APPDATA%\Aura` are preserved.
+- **Browser:** Chrome in the default locations, otherwise Edge (`--browser msedge`), which is always present on Windows.
 
-## Belege
+## Evidence
 
-- **Windows-Tests:** `agent/tests/windows/` laufen in der CI auf `windows-latest` gegen echte Fenster: ein Win32-Testprogramm (`testing/win_app.py`) und eine echte Startmenü-Verknüpfung. Geprüft werden:
-  - Fenster auflisten, minimieren, fokussieren und schließen.
-  - Programm aus dem Startmenü starten, mit Fensterprüfung.
-  - UI Automation: Feld füllen und Knopf drücken, nachgeprüft; ein folgenreicher Knopf braucht eine ehrliche Beschreibung.
-  - PowerShell mit Umlauten und Zeitlimit samt Prozessbaum.
-  - Papierkorb, Dunkelmodus und Registry.
-  - Selbsttest des ganzen Agenten.
-- **Übrige Tests:** Die übrige Suite (Hülle, Regeln, Kontext, Protokoll) läuft dort ebenfalls.
-- **Klassifizierer:** `tests/unit/test_powershell_classifier.py` deckt rund 120 Fälle ab: lesend, fragend, gesperrt.
-- **Installer:** Der Workflow `windows-build.yml` baut ihn auf dem Branch und prüft dabei Bündelgröße und Selbsttest im fertigen Bündel.
+- **Windows tests:** `agent/tests/windows/` run in CI on `windows-latest` against real windows: a Win32 test app (`testing/win_app.py`) and a real Start menu shortcut. Checked:
+  - List, minimize, focus and close windows.
+  - Launch an app from the Start menu, with window verification.
+  - UI Automation: fill a field and press a button, verified; a consequential button needs an honest description.
+  - PowerShell with umlauts and timeout including the process tree.
+  - Trash, dark mode and registry.
+  - Self-test of the whole agent.
+- **Other tests:** the rest of the suite (harness, rules, context, protocol) runs there as well.
+- **Classifier:** `tests/unit/test_powershell_classifier.py` covers about 120 cases: read-only, ask, blocked.
+- **Installer:** the workflow `windows-build.yml` builds it on the branch and checks bundle size and the self-test in the finished bundle.
 
-## Offen
+## Open questions
 
-- **Evals unter Windows:** Die Eval-Suite (0008) hat nur eine Linux-Umgebung (Xvfb, D-Bus). Eine Windows-Umgebung braucht einen Windows-Rechner mit GPU für Ollama, also deinen. Bis dahin sichern die Windows-Vertragstests das Backend ab, die Modellqualität ist dort nicht gemessen.
-- **Nicht in der CI geprüft:** Mediensteuerung (SMTC) und Lautstärke. Der Runner hat weder Player noch Audiogerät; dort ist nur geprüft, dass nichts abstürzt.
-- **Signierung:** Der Installer ist unsigniert, SmartScreen warnt beim ersten Start.
+- **Evals on Windows:** the eval suite (0008) only has a Linux environment (Xvfb, D-Bus). A Windows environment needs a Windows machine with a GPU for Ollama, i.e. yours. Until then, the Windows contract tests secure the backend; model quality is not measured there.
+- **Not checked in CI:** media control (SMTC) and volume. The runner has neither a player nor an audio device; there it is only checked that nothing crashes.
+- **Signing:** the installer is unsigned; SmartScreen warns on first start.

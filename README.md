@@ -124,7 +124,7 @@ Since v0.11 the agent is **Agent v2**, built on [Google ADK](https://adk.dev). I
 
 **Tested, not just written:** over 300 unit, harness, contract and protocol tests run on every push, on Linux and on Windows (real windows, Start menu, UI Automation, PowerShell, recycle bin); a desktop eval suite of 54 everyday tasks (isolated: own display, D-Bus, home folder, test web server) checks the real end state with a real local model. See `agent/evals/` and [ADR 0008](docs/adr/0008-eval-suite.md).
 
-**Models:** on an RTX 3090 `gemma4:26b` scored best (100 % of the eval tasks, ~3 s per task); see [ADR 0007](docs/adr/0007-lokales-standardmodell.md). Use a 32k context (Settings → *Lokale Modelle*).
+**Models:** on an RTX 3090 `gemma4:26b` scored best (100 % of the eval tasks, ~3 s per task); see [ADR 0007](docs/adr/0007-local-default-model.md). Use a 32k context (Settings → *Lokale Modelle*).
 
 **Previous agent:** *Zentrale → Übersicht → Agent-Version → v1* switches back.
 
