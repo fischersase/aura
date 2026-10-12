@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
+pytest.importorskip("Xlib", reason="Die Eval-Umgebung gibt es nur unter Linux (X11).")
 from evals.desktop.tasks import honest_failure
 
 
