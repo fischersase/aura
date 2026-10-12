@@ -69,9 +69,16 @@ function activate(name) {
   };
 }
 
+// HTML-Kommentare entfernen, wiederholt bis nichts mehr übrig ist (auch verschachtelte wie "<!-<!-- -->-->").
+function stripComments(t) {
+  let prev;
+  do { prev = t; t = t.replace(/<!--[\s\S]*?-->/g, ''); } while (t !== prev);
+  return t;
+}
+
 function agentsMd() {
   try {
-    const t = fs.readFileSync(agentsFile(), 'utf8').replace(/<!--[\s\S]*?-->/g, '').trim();
+    const t = stripComments(fs.readFileSync(agentsFile(), 'utf8')).trim();
     return t.replace(/^#.*$/gm, '').trim() ? t.slice(0, 20000) : ''; // nur Überschrift = leer
   } catch {
     return '';

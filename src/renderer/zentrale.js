@@ -57,6 +57,13 @@ function activeToolCount() {
     (S.skills.some((k) => k.enabled) ? 1 : 0);
 }
 
+// HTML-Kommentare entfernen, wiederholt bis nichts mehr übrig ist (auch verschachtelte wie "<!-<!-- -->-->").
+function stripComments(t) {
+  let prev;
+  do { prev = t; t = t.replace(/<!--[\s\S]*?-->/g, ''); } while (t !== prev);
+  return t;
+}
+
 function renderOverview() {
   const running = S.servers.filter((s) => s.running).length;
   const broken = S.servers.filter((s) => s.error && !s.disabled).length;
@@ -65,7 +72,7 @@ function renderOverview() {
     ['tools', n, 'aktive Werkzeuge' + (S.provider === 'ollama' && n > 40 ? ' (viele für lokale Modelle)' : '')],
     ['servers', `${running}/${S.servers.length}`, 'MCP-Server verbunden' + (broken ? `, ${broken} mit Fehler` : '')],
     ['skills', `${S.skills.filter((k) => k.enabled).length}/${S.skills.length}`, 'Skills aktiv'],
-    ['instructions', S.agentsMd.replace(/<!--[\s\S]*?-->/g, '').replace(/^#.*$/gm, '').trim() ? 'ja' : '–', 'eigene Anweisungen'],
+    ['instructions', stripComments(S.agentsMd).replace(/^#.*$/gm, '').trim() ? 'ja' : '–', 'eigene Anweisungen'],
     ['secrets', S.secretCount, 'gespeicherte Schlüssel'],
     ['profile', S.profileName ? esc(S.profileName) : '–', 'Profil'],
     ['overview', S.provider === 'ollama' ? 'lokal' : 'Gemini', esc(S.model)]
