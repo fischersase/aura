@@ -96,3 +96,47 @@ def test_windows_normal_paths_are_allowed():
 
   assert forbidden(r"C:\Users\anna\Documents\Rechnung.pdf") is None
   assert forbidden(r"C:\Users\anna\AppData\Local\Google\Chrome\User Data\Default\Bookmarks") is None
+
+
+# Testwerte werden zusammengesetzt, damit kein schlüsselähnlicher Text wörtlich im Repo steht (Secret-Scanning).
+_J = "".join
+SECRET_EXAMPLES = [
+    (_J(["curl -H 'Authorization: Bea", "rer abcdef1234567890xyz' https://api.example.com"]), "abcdef1234567890xyz"),
+    (_J(["curl -H \"authorization: token ", "ghp", "_", "a" * 30, "\" x"]), "aaaaaaaaaa"),
+    (_J(["export GEMINI_API_KEY=", "AI", "za", "SyA1234567890abcdefghijklmnopqrs && run"]), "SyA1234567890"),
+    (_J(["GH_TOKEN=", "gh", "o_", "0123456789abcdefghijABCDEFGHIJ gh pr list"]), "0123456789abcdefghij"),
+    ("mysql -u root -pS3cretPw! mydb", "S3cretPw!"),
+    ("psql --password=hunter2hunter2 db", "hunter2hunter2"),
+    (_J(["tool --api-key ", "sk", "-proj-", "abcdefghijklmnopqrstuv"]), "abcdefghijklmnop"),
+    ("git clone https://user:p4ssw0rd@github.com/x/y.git", "p4ssw0rd"),
+    (_J(["aws s3 ls # ", "AK", "IA", "ABCDEFGHIJKLMNOP"]), "ABCDEFGHIJKLMNOP"),
+    (_J(["slack ", "xo", "xb-", "1234567890-abcdefghij"]), "1234567890-abcdefghij"),
+    (_J(["jwt ", "ey", "JhbGciOiJIUzI1NiJ9.", "eyJzdWIiOiIxMjM0NTY3ODkwIn0.", "dozjgNryP4J3jVmNHl0w5N_XgL0n3I9P"]), "dozjgNryP4J3"),
+    (_J(["key: ", "Zq3xL9vR2mWp8KtY", "7nB4cH6jF1sD5gA0", "eU2iO8yT"]), "Zq3xL9vR2mWp8KtY"),
+]
+
+
+@pytest.mark.parametrize(("text", "secret"), SECRET_EXAMPLES)
+def test_secrets_inside_values_are_scrubbed(text, secret):
+  from aura_agent.harness.audit import scrub
+
+  out = scrub(text)
+  assert secret not in out and "***" in out, out
+
+
+@pytest.mark.parametrize("text", [
+    "git show 3313787f0c2a9d4e5b6a7c8d9e0f1a2b3c4d5e6f", "ls -la ~/Downloads", "mkdir -p ~/Projekte/neu",
+    "ps -p 1234", "ssh -p 2222 host", "sha256sum aura_amd64.deb  # 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+    "/home/anna/Dokumente/Rechnungen/2026/Oktober/rechnung-0042.pdf",
+])
+def test_harmless_values_stay_readable(text):
+  from aura_agent.harness.audit import scrub
+
+  assert scrub(text) == text
+
+
+def test_audit_log_scrubs_command_values(tmp_path):
+  log = AuditLog(tmp_path)
+  log.write("tool_start", task="t", args={"command": _J(["curl -H 'Authorization: Bea", "rer abcdefghijklmnop123' x"])})
+  f = next(tmp_path.glob("*.jsonl"))
+  assert "abcdefghijklmnop123" not in f.read_text() and AuditLog.verify(f) == (True, 1)

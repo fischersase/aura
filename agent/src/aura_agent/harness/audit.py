@@ -2,13 +2,15 @@
 
 Eine Datei pro Monat unter <data_dir>/audit/YYYY-MM.jsonl. Wird eine Zeile
 nachträglich verändert oder gelöscht, bricht die Kette und verify() meldet es.
-Lange Werte werden gekürzt, Felder mit Zugangsdaten geschwärzt.
+Lange Werte werden gekürzt. Geschwärzt werden Felder mit Zugangsdaten im Namen und Zugangsdaten innerhalb von
+Werten (AURA-17), z. B. ein Bearer-Token in einem curl-Befehl oder ein Passwort-Schalter.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import threading
 from datetime import UTC, datetime
@@ -20,6 +22,38 @@ MAX_VALUE = 500
 _SECRET_KEY = re.compile(r"pass(word)?|secret|token|api[_-]?key|credential|cookie", re.IGNORECASE)
 
 
+# (Muster, Ersetzung) für Zugangsdaten innerhalb von Texten
+_VALUE_PATTERNS = [
+    (re.compile(r"(?i)\b((?:proxy-)?authorization\s*[:=]\s*)(?:(?:bearer|basic|token|digest)\s+)?[^\s'\"]+"), r"\1***"),
+    (re.compile(r"(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=-]{8,}"), r"\1 ***"),
+    (re.compile(r"\bAIza[0-9A-Za-z_-]{20,}"), "***"),
+    (re.compile(r"\bsk-(?:ant-|proj-)?[A-Za-z0-9_-]{16,}"), "***"),
+    (re.compile(r"\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})"), "***"),
+    (re.compile(r"\bxox[abposr]-[A-Za-z0-9-]{10,}"), "***"),
+    (re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"), "***"),
+    (re.compile(r"\b(?:glpat|hf)_[A-Za-z0-9_-]{20,}"), "***"),
+    (re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}"), "***"),  # JWT
+    (re.compile(r"(?i)(--?(?:password|passwd|pass|token|api[-_]?key|secret|client-secret)(?:=|\s+))\S+"), r"\1***"),
+    (re.compile(r"(?i)\b((?:mysql|mysqldump|mariadb)\b[^|;\n]*?\s-p)(?!\s)\S+"), r"\1***"),
+    (re.compile(r"(?i)\b([a-z][a-z0-9+.-]*://)[^/\s:@]+:[^/\s@]+@"), r"\1***:***@"),  # Zugangsdaten in URLs
+    (re.compile(r"\b([A-Za-z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD)[A-Za-z0-9_]*)=(?!\*\*\*)\S+"), r"\1=***"),
+]
+_TOKEN = re.compile(r"[A-Za-z0-9+/=_-]{32,}")
+
+
+def _entropy(s: str) -> float:
+  counts = {c: s.count(c) for c in set(s)}
+  return -sum(n / len(s) * math.log2(n / len(s)) for n in counts.values())
+
+
+def scrub(text: str) -> str:
+  """Schwärzt Zugangsdaten innerhalb eines Textes. Lange Zufallsfolgen (≥ 32 Zeichen, hohe Entropie) gelten als
+  Schlüssel; Hex-Hashes wie Commit-IDs bleiben lesbar (Entropie höchstens 4 Bit/Zeichen)."""
+  for pattern, repl in _VALUE_PATTERNS:
+    text = pattern.sub(repl, text)
+  return _TOKEN.sub(lambda m: "***" if _entropy(m.group(0)) > 4.3 else m.group(0), text)
+
+
 def redact(value: Any, key: str = "") -> Any:
   if key and _SECRET_KEY.search(key):
     return "***"
@@ -27,8 +61,10 @@ def redact(value: Any, key: str = "") -> Any:
     return {k: redact(v, k) for k, v in value.items()}
   if isinstance(value, list):
     return [redact(v) for v in value[:50]]
-  if isinstance(value, str) and len(value) > MAX_VALUE:
-    return value[:MAX_VALUE] + f"… ({len(value)} Zeichen)"
+  if isinstance(value, str):
+    value = scrub(value)
+    if len(value) > MAX_VALUE:
+      return value[:MAX_VALUE] + f"… ({len(value)} Zeichen)"
   return value
 
 
