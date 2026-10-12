@@ -1,6 +1,6 @@
 const {
   app, BrowserWindow, globalShortcut, ipcMain, screen, Tray, Menu, clipboard,
-  desktopCapturer, session, nativeImage, shell
+  desktopCapturer, session, nativeImage, shell, Notification
 } = require('electron');
 const fs = require('fs');
 const path = require('path');
@@ -18,6 +18,7 @@ const agentMcp = require('./agent/mcp');
 const secrets = require('./secrets');
 const web = require('./web');
 const { AgentBridge, defaultAuraDir } = require('./agent2/bridge');
+const zentraleV2 = require('./agent2/zentrale-v2');
 agentMcp.setResolver(secrets.resolveServerConfig);
 
 const R = (f) => path.join(__dirname, 'renderer', f);
@@ -672,6 +673,15 @@ function browserLauncher() {
   return { browserCommand: [process.execPath, cli], browserEnv: { ELECTRON_RUN_AS_NODE: '1' } };
 }
 
+// Hintergrund-Aufträge: Ist das Panel zu, wenn ein Auftrag fertig wird, meldet sich Aura mit einer Benachrichtigung.
+function notifyIfHidden(text, verified) {
+  if (panelOpen || !Notification.isSupported()) return;
+  const body = String(text || 'Fertig.').replace(/[*_`#>]/g, '').replace(/\s+/g, ' ').slice(0, 180);
+  const n = new Notification({ title: verified === false ? 'Aura: nicht alles hat geklappt' : 'Aura ist fertig', body, icon: ICON, silent: false });
+  n.on('click', () => openPanel());
+  n.show();
+}
+
 async function runAgentV2(sender, id, chatId, ctrl, contents, onText) {
   const send = (ch, data) => { if (!sender.isDestroyed()) sender.send(ch, data); };
   const last = contents[contents.length - 1] || { parts: [] };
@@ -694,6 +704,7 @@ async function runAgentV2(sender, id, chatId, ctrl, contents, onText) {
       onPlan: (items) => send('agent:plan', { chatId: id, items })
     });
     if (done && !done.cancelled && done.verified !== null && done.verified !== undefined) send('agent:verified', { chatId: id, verified: done.verified });
+    if (done && !done.cancelled) notifyIfHidden(done.text, done.verified);
   } finally {
     ctrl.signal.removeEventListener('abort', onAbort);
     v2Senders.delete(id);
@@ -750,6 +761,15 @@ function registerStopHotkey() {
 }
 
 ipcMain.handle('usage:get', () => usageSummary());
+// Zentrale-Seiten für Agent v2 (Regeln, Gedächtnis, Protokoll, Systemprüfung).
+Object.assign(zentrale.API, {
+  policy: () => zentraleV2.policy(),
+  savePolicy: (text) => zentraleV2.savePolicy(text),
+  memory: () => zentraleV2.memory(),
+  saveMemory: (text) => zentraleV2.saveMemory(text),
+  audit: () => zentraleV2.audit(),
+  doctor: () => zentraleV2.doctor({ settings: () => agentV2.settings(), bridge: agentV2 })
+});
 zentrale.register();
 ipcMain.on('zentrale:open', () => { closePanel(); zentrale.open(ICON); });
 

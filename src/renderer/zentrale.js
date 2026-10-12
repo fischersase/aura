@@ -12,7 +12,10 @@ const policySelect = (tool, value) => `<select data-policy="${esc(tool)}">${POLI
 function show(page) {
   document.querySelectorAll('nav button[data-page]').forEach((b) => b.classList.toggle('on', b.dataset.page === page));
   document.querySelectorAll('.page').forEach((p) => p.classList.toggle('hidden', p.id !== page));
-  if (page === 'log') renderLog();
+  if (page === 'log') { renderLog(); renderAudit(); }
+  if (page === 'rules') loadRules();
+  if (page === 'memory') loadMemory();
+  if (page === 'doctor') renderDoctor();
   if (page === 'chats') renderChats();
   if (page === 'secrets') renderSecrets();
   if (page === 'profile') loadProfile();
@@ -403,7 +406,47 @@ async function renderLog() {
     <tr><td>${esc(fmtTime(r.ts))}</td><td>${esc(r.tool)}</td><td class="args">${esc(JSON.stringify(r.args || {}).slice(0, 400))}</td>
     <td>${esc(r.decision || '')}</td><td class="${r.ok ? 'ok' : r.decision === 'abgelehnt' ? 'muted' : 'bad'}">${r.ok ? 'ok' : r.decision === 'abgelehnt' ? '–' : esc(r.error || 'Fehler')}</td></tr>`).join('')}</table>`;
 }
-$('reloadLog').onclick = renderLog;
+$('reloadLog').onclick = () => { renderLog(); renderAudit(); };
+
+// ---------- Agent v2: Protokoll, Regeln, Gedächtnis, Systemprüfung ----------
+
+async function renderAudit() {
+  const rows = await z.audit();
+  if (!rows.length) { $('auditList').innerHTML = '<div class="empty">Noch keine Aufträge mit Agent v2.</div>'; return; }
+  $('auditList').innerHTML = `<table><tr><th>Zeit</th><th>Ereignis</th><th>Werkzeug</th><th>Details</th><th>Ergebnis</th></tr>${rows.map((r) => `
+    <tr><td>${esc(fmtTime(r.ts))}</td><td>${esc(r.kind)}</td><td>${esc(r.tool)}</td><td class="args">${esc(String(r.detail).slice(0, 300))}</td>
+    <td class="${r.bad ? 'bad' : 'ok'}">${esc(r.result)}</td></tr>`).join('')}</table>`;
+}
+
+async function loadRules() {
+  const r = await z.policy();
+  $('rulesFile').textContent = r.file;
+  $('rulesText').value = r.text;
+  $('ruleStatus').textContent = '';
+}
+$('saveRules').onclick = async () => {
+  const r = await z.savePolicy($('rulesText').value);
+  $('ruleStatus').textContent = r.ok ? 'Gespeichert, gilt ab dem nächsten Auftrag' : 'Nicht gespeichert: ' + r.problems.join('; ');
+  $('ruleStatus').className = r.ok ? 'muted small' : 'bad small';
+};
+
+async function loadMemory() {
+  const r = await z.memory();
+  $('memFile').textContent = r.file;
+  $('memText').value = r.text;
+  $('memStatus').textContent = '';
+}
+$('saveMem').onclick = async () => { await z.saveMemory($('memText').value); $('memStatus').textContent = 'Gespeichert'; };
+
+const DOC_ICON = { ok: '✓', warn: '!', bad: '✗' };
+async function renderDoctor() {
+  $('doctorList').innerHTML = '<div class="empty">Prüfe …</div>';
+  const checks = await z.doctor();
+  $('doctorList').innerHTML = `<table><tr><th></th><th>Bereich</th><th>Befund</th><th>Was tun</th></tr>${checks.map((c) => `
+    <tr><td class="${c.state === 'ok' ? 'ok' : 'bad'}">${DOC_ICON[c.state] || ''}</td><td>${esc(c.name)}</td><td>${esc(c.detail)}</td>
+    <td class="args">${esc(c.fix)}</td></tr>`).join('')}</table>`;
+}
+$('runDoctor').onclick = renderDoctor;
 
 async function renderChats() {
   const list = await z.chats();

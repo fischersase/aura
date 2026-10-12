@@ -33,7 +33,7 @@
   window.addEventListener('unhandledrejection', (e) => { if (e.reason && e.reason.unauthorized) e.preventDefault(); });
 
   const z = {};
-  const one = ['state', 'log', 'chats', 'deleteChat', 'setAgent', 'setAgentVersion', 'getServer', 'saveServer', 'removeServer', 'protectServer', 'searchRegistry', 'installRegistry',
+  const one = ['state', 'log', 'chats', 'deleteChat', 'setAgent', 'setAgentVersion', 'policy', 'savePolicy', 'memory', 'saveMemory', 'audit', 'doctor', 'getServer', 'saveServer', 'removeServer', 'protectServer', 'searchRegistry', 'installRegistry',
     'getSkill', 'saveSkill', 'deleteSkill', 'saveAgentsMd', 'secrets', 'setSecret', 'setSecretNote', 'deleteSecret', 'profile', 'saveProfile', 'openPath', 'openUrl', 'openWeb', 'webInfo', 'resetWeb'];
   for (const n of one) z[n] = (arg) => call(n, arg);
   z.setPolicy = (tool, policy) => call('setPolicy', { tool, policy });

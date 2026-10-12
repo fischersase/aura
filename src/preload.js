@@ -44,7 +44,7 @@ contextBridge.exposeInMainWorld('api', {
   // Aura Zentrale: gleiche Funktionen wie renderer/web-shim.js im Browser
   z: (() => {
     const z = {};
-    for (const n of ['state', 'log', 'chats', 'deleteChat', 'setAgent', 'setAgentVersion', 'getServer', 'saveServer', 'removeServer', 'protectServer', 'searchRegistry', 'installRegistry',
+    for (const n of ['state', 'log', 'chats', 'deleteChat', 'setAgent', 'setAgentVersion', 'policy', 'savePolicy', 'memory', 'saveMemory', 'audit', 'doctor', 'getServer', 'saveServer', 'removeServer', 'protectServer', 'searchRegistry', 'installRegistry',
       'getSkill', 'saveSkill', 'deleteSkill', 'saveAgentsMd', 'secrets', 'setSecret', 'setSecretNote', 'deleteSecret', 'profile', 'saveProfile', 'openPath', 'openUrl', 'openWeb', 'webInfo', 'resetWeb']) {
       z[n] = (arg) => ipcRenderer.invoke('z:' + n, arg);
     }
