@@ -171,6 +171,20 @@ async def launch_app(name: str) -> dict[str, Any]:
   """
   apps = await asyncio.to_thread(installed_apps)
   hits = best_matches(apps, name)
+  if not hits and x11.available():
+    # Kein Programmeintrag, aber vielleicht ein offenes Fenster mit diesem Namen: nach vorne holen.
+    q = name.lower()
+    wins = [w for w in await asyncio.to_thread(_windows) if q in w.title.lower() or q in w.app.lower()]
+    if wins:
+      target = wins[0]
+
+      def focus_existing() -> None:
+        with x11.X11() as x:
+          x.focus(target.id)
+
+      await asyncio.to_thread(focus_existing)
+      active = await _wait_for(lambda: any(w.id == target.id and w.active for w in _windows()), 2)
+      return {"app": target.title or target.app, "already_running": True, "window": _brief(target), "verified": bool(active)}
   if not hits:
     close = get_close_matches(name.lower(), [a.name.lower() for a in apps], n=5, cutoff=0.5)
     return {"error": f"Kein installiertes Programm „{name}“ gefunden.", **({"meintest_du": close} if close else {})}

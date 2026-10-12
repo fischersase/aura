@@ -73,6 +73,7 @@ class GuardPlugin(BasePlugin):
     # ADK ruft danach trotzdem after_tool_callback auf; dort werden sie übersprungen.
     self._answered: set[str] = set()
     self._tiers: dict[str, Tier] = {}
+    self._refusals_at: dict[str, int] = {}  # Schritt eines Spezialisten → Anzahl Ablehnungen zu Beginn
 
   async def before_tool_callback(
       self, *, tool: BaseTool, tool_args: dict[str, Any], tool_context: ToolContext
@@ -91,6 +92,7 @@ class GuardPlugin(BasePlugin):
     if isinstance(tool, AgentTool):
       task.step(step_id, tool.name, str(tool_args.get("request", ""))[:200], "run", agent=tool.name)
       self._started[step_id] = time.monotonic()
+      self._refusals_at[step_id] = len(task.refusals)
       return None
 
     key = tool.name + json.dumps(tool_args, sort_keys=True, default=str)
@@ -118,6 +120,7 @@ class GuardPlugin(BasePlugin):
       task.step(step_id, tool.name, label, "denied", tier=int(tier))
       task.audit.write("blocked", **common, reason=reason)
       self._answered.add(step_id)
+      task.refusals.append(f"gesperrt: {label}")
       return {"error": BLOCKED.format(reason=reason or "nicht erlaubt")}
 
     verdict = self.policy.evaluate(tool.name, label, tier)
@@ -126,6 +129,7 @@ class GuardPlugin(BasePlugin):
       task.step(step_id, tool.name, label, "denied", tier=int(tier))
       task.audit.write("blocked", **common, reason="Regel", rule=rule)
       self._answered.add(step_id)
+      task.refusals.append(f"durch Regel gesperrt: {label}")
       return {"error": f"Diese Aktion ist durch eine Regel des Nutzers gesperrt ({rule}). Sie wurde NICHT ausgeführt."}
 
     decision = "auto" if not verdict.rule else f"auto ({verdict.rule.describe()})"
@@ -150,6 +154,7 @@ class GuardPlugin(BasePlugin):
       elif decision != "once":
         task.step(step_id, tool.name, label, "denied", tier=int(tier))
         self._answered.add(step_id)
+        task.refusals.append(f"vom Nutzer abgelehnt: {label}")
         return {"error": DENIED}
 
     task.step(step_id, tool.name, label, "run", tier=int(tier))
@@ -182,13 +187,19 @@ class GuardPlugin(BasePlugin):
                      error=result.get("error") if isinstance(result, dict) else None)
     out = _clip_result(result)
     notes = []
+    if isinstance(tool, AgentTool):
+      new = task.refusals[self._refusals_at.pop(step_id, len(task.refusals)):]
+      if new:
+        notes.append("Hinweis der App: Im Spezialisten wurde Folgendes NICHT ausgeführt: " + "; ".join(new[:5]) +
+                     ". Frag den Nutzer nicht erneut danach, sondern sag ihm ehrlich, dass es nicht getan wurde.")
     key = tool.name + json.dumps(tool_args, sort_keys=True, default=str)
     if task.call_counts.get(key, 0) >= REPEAT_WARN:
       notes.append(REPEAT_NOTE.format(n=task.call_counts[key]))
     if task.tool_errors_in_row >= 2:
       notes.append(REFLECT_NOTE.format(n=task.tool_errors_in_row))
-    if notes and isinstance(out, dict):
-      out = {**out, "hinweis": " ".join(notes)}
+    if notes:
+      # Spezialisten (AgentTool) liefern reinen Text; dann wird daraus ein Objekt mit Hinweis.
+      out = {**out, "hinweis": " ".join(notes)} if isinstance(out, dict) else {"result": out, "hinweis": " ".join(notes)}
     return out if json.dumps(out, default=str) != json.dumps(result, default=str) else None
 
   async def on_tool_error_callback(

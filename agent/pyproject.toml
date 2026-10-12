@@ -36,3 +36,5 @@ target-version = "py312"
 [tool.ruff.lint.per-file-ignores]
 # dbus-fast liest D-Bus-Signaturen aus den String-Annotationen ("s", "a{sv}").
 "src/aura_agent/testing/fake_mpris.py" = ["UP037", "F821", "RUF100"]
+# AT-SPI-Helfer: einzelne kaputte Elemente fremder Programme werden bewusst übersprungen; läuft als Skript mit dem System-Python.
+"src/aura_agent/platform/atspi_helper.py" = ["S110", "S112", "EXE001", "BLE001", "RUF100"]

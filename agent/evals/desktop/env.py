@@ -19,10 +19,11 @@ from pathlib import Path
 from typing import Any
 
 import aura_agent.testing
-from aura_agent.platform import x11
+from aura_agent.platform import atspi, x11
 from aura_agent.testing.fake_mpris import start_player
 
 TESTWIN = Path(aura_agent.testing.__file__).with_name("testwin.py")
+GTK_APP = Path(aura_agent.testing.__file__).with_name("gtk_app.py")
 
 # Nachgebaute Programme: .desktop-ID wie das echte Programm, damit es überdeckt wird.
 FAKE_APPS = {
@@ -61,12 +62,13 @@ class EvalEnv:
   player_bus: Any = None
   player: Any = None
   saved_env: dict[str, str | None] = field(default_factory=dict)
+  extra_procs: list[subprocess.Popen] = field(default_factory=list)
 
   def __post_init__(self) -> None:
     self.home = self.root / "home"
 
   async def setup(self, files: dict[str, str] | None = None, player: dict[str, Any] | None = None,
-                  windows: list[str] | None = None) -> None:
+                  windows: list[str] | None = None, gtk: bool = False) -> None:
     for d in ("Dokumente", "Downloads", "Bilder", "Musik", ".local/share", ".config", ".cache"):
       (self.home / d).mkdir(parents=True, exist_ok=True)
     share = self.root / "share" / "applications"
@@ -100,6 +102,15 @@ class EvalEnv:
         os.environ[k] = v
     if player is not None:
       self.player_bus, self.player = await start_player(**player)
+    atspi.CLIENT.kill()  # der Helfer soll den D-Bus dieser Umgebung nutzen
+    if gtk:
+      import asyncio
+      self.extra_procs.append(subprocess.Popen(["/usr/libexec/at-spi-bus-launcher", "--launch-immediately"],  # noqa: ASYNC220
+                                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
+      await asyncio.sleep(0.7)
+      self.extra_procs.append(subprocess.Popen([atspi.SYSTEM_PYTHON, str(GTK_APP)], env={**os.environ, "AURA_TEST_STATE": str(self.gtk_state)},  # noqa: ASYNC220
+                                               stderr=subprocess.DEVNULL))
+      await asyncio.sleep(1.5)
     for app_id in windows or []:
       name, title, cls = FAKE_APPS[app_id]
       subprocess.Popen([sys.executable, str(TESTWIN), title, cls], start_new_session=True)  # noqa: ASYNC220
@@ -114,7 +125,15 @@ class EvalEnv:
     with x11.X11() as x:
       return x.windows()
 
+  @property
+  def gtk_state(self) -> Path:
+    return self.root / "gtk-state.txt"
+
   def teardown(self) -> None:
+    atspi.CLIENT.kill()
+    for p in self.extra_procs:
+      p.terminate()
+      p.wait(timeout=5)
     _kill_testwins(self.display)
     if self.player_bus:
       self.player_bus.disconnect()

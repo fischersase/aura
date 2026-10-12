@@ -15,13 +15,14 @@ from google.adk.tools.agent_tool import AgentTool
 from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 
 from ..extensions.skills import list_skills, make_activate_skill, prompt_addon
+from ..platform import atspi
 from ..runtime.settings import AgentSettings
 from ..tools.desktop import launch_app, list_windows, open_target, window_action
 from ..tools.files import edit_file, find_files, list_dir, move_path, read_file, trash, write_file
 from ..tools.interaction import ask_user, todo_write
 from ..tools.shell import run_command
 from ..tools.system import dark_mode, media_control, media_status, now_text, settings, system_info, volume
-from .specialists import browser_agent
+from .specialists import apps_agent, browser_agent
 
 TOOLS = [
     todo_write, ask_user,
@@ -42,7 +43,8 @@ def _agents_md(settings: AgentSettings) -> str:
   return "" if not text or re.fullmatch(r"#.*", text) else text[:8000]
 
 
-def instruction(settings: AgentSettings, has_browser: bool = False, skills_text: str = "", integrations: str = ""):
+def instruction(settings: AgentSettings, has_browser: bool = False, skills_text: str = "", integrations: str = "",
+                has_apps: bool = False):
   def build(_ctx: ReadonlyContext) -> str:
     parts = [
         (f"Du bist Aura, der Assistent auf dem Linux-PC von {settings.user_name}. "
@@ -78,6 +80,8 @@ def instruction(settings: AgentSettings, has_browser: bool = False, skills_text:
          "verschieben oder kopieren mit move_path (beide legen fehlende Ordner selbst an). Löschen nur mit trash (Papierkorb), nie mit rm.\n"
          + ("- Webseiten bedienen (suchen, klicken, Formulare, Musik auf YouTube Music abspielen, Infos von Seiten holen): "
             "browser mit einer klaren, vollständigen Aufgabe. Nur eine Seite anzeigen: open_target.\n" if has_browser else "")
+         + ("- In Desktop-Programmen etwas bedienen oder ablesen (Knöpfe, Menüs, Felder, Dialoge, „Was steht im Programm X?“, "
+            "im Texteditor speichern): apps mit einer klaren Aufgabe, auch wenn das Programm schon offen ist.\n" if has_apps else "")
          + "- Alles andere: run_command (bash). Nur lesende Befehle laufen ohne Rückfrage. Pfade dürfen mit ~ beginnen."),
     ]
     if integrations:
@@ -101,6 +105,9 @@ def build_root(model: BaseLlm, settings: AgentSettings, browser: McpToolset | No
     tools.append(browser_agent(model, browser))
   if integrations is not None:
     tools.append(integrations)
+  has_apps = settings.apps and atspi.available()
+  if has_apps:
+    tools.append(apps_agent(model))
   skills = list_skills(settings.aura_dir, set(settings.disabled_skills))
   if skills:
     tools.append(make_activate_skill(skills))
@@ -109,7 +116,7 @@ def build_root(model: BaseLlm, settings: AgentSettings, browser: McpToolset | No
       model=model,
       description="Laptop-Assistent",
       instruction=instruction(settings, browser is not None, prompt_addon(skills),
-                              integrations.agent.description if integrations is not None else ""),
+                              integrations.agent.description if integrations is not None else "", has_apps),
       tools=tools,
   )
 

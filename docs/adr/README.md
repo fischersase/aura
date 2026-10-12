@@ -14,3 +14,4 @@ Belege aus Phase 0 (Spikes) liegen unter `agent/spikes/` und `agent/tests/adk_ca
 | [0007](0007-lokales-standardmodell.md) | Vorläufiges Standardmodell gemma4:26b | vorläufig, Benchmark in P3 |
 | [0008](0008-eval-suite.md) | Desktop-Eval-Suite als Abnahme (echter Zustand, abgeschottet, pass^k) | angenommen |
 | [0009](0009-browser-spezialist.md) | Browser über Playwright-MCP als eigener Spezialist, Klick-Einstufung nach Ziel | angenommen |
+| [0010](0010-programme-ueber-atspi.md) | Desktop-Programme über AT-SPI (System-Python-Helfer), Spezialist „apps“ | angenommen |

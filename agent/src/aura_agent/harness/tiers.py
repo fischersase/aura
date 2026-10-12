@@ -54,11 +54,12 @@ class ToolMeta:
 
 
 def aura_tool(tier: Tier | TierFn = Tier.T0, label: Callable[[dict[str, Any]], str] | None = None,
-              effect: Callable[[dict[str, Any]], str] | None = None) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+              effect: Callable[[dict[str, Any]], str] | None = None,
+              required: tuple[str, ...] = ()) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
   """Hängt Stufe und Beschriftung an eine Werkzeugfunktion."""
 
   def deco(fn: Callable[..., Any]) -> Callable[..., Any]:
-    fn.__aura__ = ToolMeta(tier=tier, label=label, effect=effect)  # type: ignore[attr-defined]
+    fn.__aura__ = ToolMeta(tier=tier, label=label, effect=effect, required=required)  # type: ignore[attr-defined]
     return fn
 
   return deco

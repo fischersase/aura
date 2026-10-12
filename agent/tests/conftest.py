@@ -49,3 +49,28 @@ def xvfb(monkeypatch):
   yield f":{num}"
   proc.terminate()
   proc.wait(timeout=5)
+
+
+@pytest.fixture
+def gtk_app(xvfb, private_dbus):
+  """GTK-Testprogramm mit eigenem AT-SPI-Bus (im Xvfb, auf dem eigenen D-Bus)."""
+  import time
+
+  from aura_agent.platform import atspi
+
+  launcher = "/usr/libexec/at-spi-bus-launcher"
+  if not os.path.exists(launcher) or subprocess.run(
+      [atspi.SYSTEM_PYTHON, "-c", "import gi; gi.require_version('Gtk','3.0'); gi.require_version('Atspi','2.0')"],
+      capture_output=True, check=False).returncode:
+    pytest.skip("AT-SPI oder GTK 3 fehlen (at-spi2-core, python3-gi, gir1.2-gtk-3.0, gir1.2-atspi-2.0)")
+  atspi.CLIENT.kill()
+  bus = subprocess.Popen([launcher, "--launch-immediately"], stderr=subprocess.DEVNULL)
+  time.sleep(0.7)
+  app_file = os.path.join(os.path.dirname(atspi.__file__), "..", "testing", "gtk_app.py")
+  app = subprocess.Popen([atspi.SYSTEM_PYTHON, app_file], stderr=subprocess.DEVNULL)
+  time.sleep(1.5)
+  yield app
+  atspi.CLIENT.kill()
+  for p in (app, bus):
+    p.terminate()
+    p.wait(timeout=5)

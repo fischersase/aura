@@ -38,6 +38,7 @@ class AgentSettings:
   mcp_servers: list[dict[str, Any]] = field(default_factory=list)  # von Electron aufgelöst (Schlüssel eingesetzt)
   disabled_skills: list[str] = field(default_factory=list)
   browser_headless: bool = False
+  apps: bool = True  # Spezialist für Desktop-Programme (AT-SPI)
 
   @classmethod
   def from_params(cls, p: dict[str, Any]) -> AgentSettings:

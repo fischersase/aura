@@ -224,3 +224,25 @@ async def test_user_deny_rule_blocks_even_read_only(tmp_path):
   ctl.start("t1", "c1", "lies a")
   await finish(ctl)
   assert "Regel des Nutzers" in str(tool_responses(llm.requests[-1])[0].response)
+
+
+async def test_refusal_inside_specialist_reaches_root(tmp_path, private_dbus):
+  """Lehnt der Nutzer im Spezialisten ab, erfährt der Hauptagent das, auch wenn der Spezialist es verschweigt."""
+  from google.adk.agents import LlmAgent
+  from google.adk.runners import Runner
+  from google.adk.sessions import InMemorySessionService
+  from google.adk.tools.agent_tool import AgentTool
+
+  from aura_agent.harness.guard import GuardPlugin
+
+  inner = LlmAgent(name="files", model=ScriptedLlm([[Call("run_command", {"command": "rm x"})], "Datei gefunden."]),
+                   description="Dateien", tools=[__import__("aura_agent.tools.shell", fromlist=["run_command"]).run_command])
+  root_llm = ScriptedLlm([[Call("files", {"request": "lösch x"})], "ok"])
+  root = LlmAgent(name="aura", model=root_llm, tools=[AgentTool(agent=inner)])
+  runner = Runner(app_name="aura", agent=root, session_service=InMemorySessionService(), plugins=[GuardPlugin()])
+  host = FakeHost(["deny"])
+  ctl = TaskController(runner, host, AuditLog(tmp_path / "audit"), str(tmp_path))
+  ctl.start("t1", "c1", "lösch x")
+  await finish(ctl)
+  back = str(tool_responses(root_llm.requests[-1])[0].response)
+  assert "NICHT ausgeführt" in back and "rm x" in back

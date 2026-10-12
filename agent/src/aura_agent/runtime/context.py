@@ -54,6 +54,8 @@ class TaskContext:
   call_counts: dict[str, int] = field(default_factory=dict)
   # Ändernde Aktionen und ob sie nachgeprüft sind (True/False/None = nicht prüfbar).
   changes: list[dict[str, Any]] = field(default_factory=list)
+  # Abgelehnte oder gesperrte Aktionen (für Rückmeldungen aus Spezialisten an den Hauptagenten).
+  refusals: list[str] = field(default_factory=list)
 
   def verified(self) -> bool | None:
     """Gesamturteil für task.done: None ohne ändernde Aktionen."""

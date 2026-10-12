@@ -45,7 +45,7 @@ async def run_task(task: Task, display: str, model: str, num_ctx: int) -> dict[s
   prompt = task.prompt.replace("{web}", web.base) if web else task.prompt
   t0 = time.monotonic()
   try:
-    await env.setup(files=task.files, player=task.player, windows=task.windows)
+    await env.setup(files=task.files, player=task.player, windows=task.windows, gtk=task.gtk)
     settings = AgentSettings(model=model, num_ctx=num_ctx, data_dir=root / "agent", aura_dir=root / "aura", home=str(env.home),
                              user_name="eval", session_type="x11", browser_headless=True)
     host = FakeHost(task.approve, answers=list(task.answers))
