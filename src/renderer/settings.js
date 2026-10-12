@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-const FIELDS = ['provider', 'monthlyBudgetUsd', 'hotkeyGemini', 'hotkeyRambler', 'hotkeyLive', 'hotkeyStop', 'chatModel', 'liveModel', 'ramblerModel', 'liveVoice', 'language', 'liveFps', 'panelCorner'];
+const FIELDS = ['provider', 'monthlyBudgetUsd', 'hotkeyGemini', 'hotkeyRambler', 'hotkeyLive', 'hotkeyStop', 'chatModel', 'liveModel', 'ramblerModel', 'dictationModel', 'liveVoice', 'language', 'liveFps', 'panelCorner'];
 let keyTouched = false;
 let olPanel = null;
 

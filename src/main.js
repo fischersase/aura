@@ -1,6 +1,6 @@
 const {
   app, BrowserWindow, globalShortcut, ipcMain, screen, Tray, Menu, clipboard,
-  desktopCapturer, session, nativeImage, shell
+  desktopCapturer, session, nativeImage, shell, Notification
 } = require('electron');
 const fs = require('fs');
 const path = require('path');
@@ -13,10 +13,13 @@ const chats = require('./chats');
 const zentrale = require('./zentrale');
 const agent = require('./agent/loop');
 const agentTools = require('./agent/tools');
+const agentInput = require('./agent/input');
 const agentSkills = require('./agent/skills');
 const agentMcp = require('./agent/mcp');
 const secrets = require('./secrets');
 const web = require('./web');
+const { AgentBridge, defaultAuraDir } = require('./agent2/bridge');
+const zentraleV2 = require('./agent2/zentrale-v2');
 agentMcp.setResolver(secrets.resolveServerConfig);
 
 const R = (f) => path.join(__dirname, 'renderer', f);
@@ -491,7 +494,7 @@ ipcMain.on('open:external', (_e, url) => {
   if (/^https:\/\//.test(url)) shell.openExternal(url);
 });
 
-ipcMain.on('chat:send', async (e, { id, history, includeScreen }) => {
+ipcMain.on('chat:send', async (e, { id, chatId, history, includeScreen }) => {
   const ctrl = new AbortController();
   chatAborts.set(id, ctrl);
   try {
@@ -505,7 +508,9 @@ ipcMain.on('chat:send', async (e, { id, history, includeScreen }) => {
       e.sender.send('chat:screen', { id, jpeg });
     }
     const onText = (t) => e.sender.send('chat:chunk', { id, text: t });
-    if (s.agentEnabled) {
+    if (s.agentEnabled && agentVersion() === 'v2' && agentV2.available()) {
+      await runAgentV2(e.sender, id, chatId || id, ctrl, contents, onText);
+    } else if (s.agentEnabled) {
       await runAgent(e.sender, id, ctrl, contents, onText);
     } else if (store.isLocal()) {
       await ollama.streamChat({ url: s.ollamaUrl, model: s.ollamaModel, history: contents, system: CHAT_SYSTEM(s.language), signal: ctrl.signal, onText });
@@ -591,13 +596,191 @@ async function runAgent(sender, id, ctrl, contents, onText) {
 
 ipcMain.on('agent:approval', (_e, { stepId, ok }) => {
   const r = approvals.get(stepId);
-  if (r) { approvals.delete(stepId); r(ok === 'all' ? 'all' : !!ok); }
+  if (r) { approvals.delete(stepId); r(ok === 'all' || ok === 'always' ? ok : !!ok); }
 });
+
+// ---------- Agent v2 (agent/, Python + Google ADK) ----------
+
+// v2 ist Standard; ohne mitgeliefertes Python (z. B. Entwicklung ohne agent/.venv) arbeitet v1.
+const agentVersion = () => process.env.AURA_AGENT_VERSION || store.load().agentVersion || 'v2';
+const v2Senders = new Map(); // Auftrags-ID → Fenster, das den Auftrag geschickt hat
+const v2Questions = new Map(); // Frage-ID → resolve({answer})
+
+const agentV2 = new AgentBridge({
+  app,
+  settings: () => {
+    const s = store.load();
+    const gemini = s.provider === 'gemini';
+    return {
+      provider: gemini ? 'gemini' : 'ollama',
+      ...(gemini ? { geminiModel: s.chatModel, geminiApiKey: store.getApiKey() } : {}),
+      model: s.ollamaModel,
+      ollamaUrl: s.ollamaUrl,
+      numCtx: s.ollamaContext, // dieselbe Kontextlänge wie Chat und Rambler, sonst lädt Ollama das Modell neu
+      language: s.language,
+      profile: store.profilePrompt(),
+      sessionType: process.platform === 'win32' ? 'windows' : process.env.XDG_SESSION_TYPE || '',
+      toolPolicy: s.toolPolicy || {},
+      ...browserLauncher(),
+      mcpServers: mcpServersForAgent(),
+      disabledSkills: s.disabledSkills || [],
+      dataDir: path.join(app.getPath('userData'), 'agent'),
+      auraDir: defaultAuraDir()
+    };
+  },
+  host: {
+    // Freigabe über dieselbe Karte im Panel wie beim alten Agenten.
+    approve: (req) => new Promise((resolve) => {
+      const sender = v2Senders.get(req.taskId);
+      if (!sender || sender.isDestroyed()) return resolve({ decision: 'deny' });
+      const answer = (ok) => resolve({ decision: ok === 'all' ? 'task' : ok === 'always' ? 'always' : ok ? 'once' : 'deny' });
+      answer.taskId = req.taskId;
+      approvals.set(req.stepId, answer);
+      const detail = req.effect && req.effect !== req.label ? req.effect : '';
+      sender.send('agent:approve', { chatId: req.taskId, id: req.stepId, tool: req.tool, label: req.label, detail, tier: req.tier, reason: req.reason || '' });
+      if (panel && !panelOpen) openPanel();
+    }),
+    // Rückfrage des Agenten (ask_user) als Karte im Panel.
+    ask: (req) => new Promise((resolve) => {
+      const sender = v2Senders.get(req.taskId);
+      if (!sender || sender.isDestroyed()) return resolve({ answer: '' });
+      const id = 'q' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      const answer = (text) => resolve({ answer: String(text || '') });
+      answer.taskId = req.taskId;
+      v2Questions.set(id, answer);
+      sender.send('agent:ask', { chatId: req.taskId, id, question: req.question, options: req.options || [] });
+      if (panel && !panelOpen) openPanel();
+    }),
+    screenshot: async (maxWidth) => ({ mime: 'image/jpeg', data: await screenshotJpeg(currentDisplay, maxWidth) }),
+    // Maus und Tastatur (Notlösung für Programme ohne Barrierefreiheit). x, y: 0–1000 im letzten Bildschirmfoto.
+    input: async (req) => {
+      if (req.action === 'click') {
+        const d = currentDisplay || displayUnderCursor();
+        const dip = { x: d.bounds.x + (Number(req.x) / 1000) * d.bounds.width, y: d.bounds.y + (Number(req.y) / 1000) * d.bounds.height };
+        const p = process.platform === 'win32' ? screen.dipToScreenPoint(dip) : { x: dip.x * d.scaleFactor, y: dip.y * d.scaleFactor };
+        return agentInput.click(p.x, p.y, { button: req.button === 'right' ? 'right' : 'left', double: !!req.double });
+      }
+      if (req.action === 'type') return agentInput.typeText(String(req.text || ''));
+      if (req.action === 'keys') return agentInput.pressKeys(String(req.keys || ''));
+      return { error: 'Unbekannte Eingabe' };
+    }
+  }
+});
+
+ipcMain.on('agent:answer', (_e, { id, answer }) => {
+  const r = v2Questions.get(id);
+  if (r) { v2Questions.delete(id); r(answer); }
+});
+
+// Eigene MCP-Server aus ~/.aura/mcp.json für Agent v2, mit eingesetzten Schlüsseln (${secret:NAME}).
+// Ein Server mit fehlendem Schlüssel wird mit Fehler übergeben und vom Agenten übersprungen.
+function mcpServersForAgent() {
+  let cfg = {};
+  try { cfg = JSON.parse(fs.readFileSync(agentMcp.configFile(), 'utf8')); } catch { return []; }
+  const servers = cfg.mcpServers || cfg.servers || {};
+  return Object.entries(servers).filter(([, c]) => c && !c.disabled).map(([name, c]) => {
+    try { return { name, ...secrets.resolveServerConfig(c) }; } catch (err) { return { name, error: String(err.message || err) }; }
+  });
+}
+
+// Mitgelieferter Browser-Server (Playwright-MCP), gestartet mit Electron als Node. Ohne Paket nimmt der Agent npx.
+function browserLauncher() {
+  const cli = path.join(process.resourcesPath || '', 'browser-mcp', 'node_modules', '@playwright', 'mcp', 'cli.js');
+  if (!app.isPackaged || !fs.existsSync(cli)) return {};
+  return { browserCommand: [process.execPath, cli], browserEnv: { ELECTRON_RUN_AS_NODE: '1' } };
+}
+
+// ---------- Sprachmodus mit Agent v2 ----------
+// Im Live-Modus wird eine gesprochene Bitte ein ganz normaler Agent-Auftrag; die Antwort wird kurz und vorlesbar.
+// Freigaben sind im Sprachmodus nicht möglich (kein Fenster offen): folgenreiche Aktionen lehnt die App ab,
+// und der Agent sagt, dass sie im Aura-Fenster freizugeben sind.
+const VOICE_HINT = '\n\n[Sprachmodus: Antworte in höchstens zwei kurzen, gesprochenen Sätzen, ohne Markdown, Listen oder Links. '
+  + 'Folgenreiche Aktionen können im Sprachmodus nicht freigegeben werden; sag dann, dass der Nutzer sie im Aura-Fenster schreiben soll.]';
+const voiceChatId = () => 'voice-' + new Date().toISOString().slice(0, 10);
+const voiceAgentReady = () => store.load().agentEnabled && agentVersion() === 'v2' && agentV2.available();
+
+function speakable(text) {
+  return String(text || '').replace(/```[\s\S]*?```/g, ' ').replace(/[*_`#>|]/g, '').replace(/\[(.*?)\]\(.*?\)/g, '$1')
+    .replace(/https?:\/\/\S+/g, '').replace(/\s+/g, ' ').trim().slice(0, 500);
+}
+
+async function runVoiceTask(taskId, text, jpeg) {
+  agentRuns++;
+  registerStopHotkey();
+  try {
+    const done = await agentV2.runTask({ taskId, chatId: voiceChatId(), text: text + VOICE_HINT, images: jpeg ? [{ mime: 'image/jpeg', data: jpeg }] : [] });
+    if (done && done.usage && store.load().provider === 'gemini') {
+      usage.addTokens(store.load().chatModel, { promptTokenCount: done.usage.prompt, candidatesTokenCount: done.usage.output });
+      broadcastUsage();
+    }
+    return speakable(done && done.cancelled ? 'Abgebrochen.' : done && done.text) || 'Erledigt.';
+  } finally {
+    agentRuns--;
+    registerStopHotkey();
+  }
+}
+
+// Gemini Live ruft den Agenten als Werkzeug auf (aura_ausfuehren).
+let voiceSeq = 0;
+ipcMain.handle('agent:voiceTask', async (_e, { request }) => {
+  if (!voiceAgentReady()) return { error: 'Der Agent ist nicht verfügbar.' };
+  try {
+    return { result: await runVoiceTask('voice-gl-' + (++voiceSeq), String(request || ''), null) };
+  } catch (err) {
+    return { error: String(err.message || err) };
+  }
+});
+
+// Hintergrund-Aufträge: Ist das Panel zu, wenn ein Auftrag fertig wird, meldet sich Aura mit einer Benachrichtigung.
+function notifyIfHidden(text, verified) {
+  if (panelOpen || !Notification.isSupported()) return;
+  const body = String(text || 'Fertig.').replace(/[*_`#>]/g, '').replace(/\s+/g, ' ').slice(0, 180);
+  const n = new Notification({ title: verified === false ? 'Aura: nicht alles hat geklappt' : 'Aura ist fertig', body, icon: ICON, silent: false });
+  n.on('click', () => openPanel());
+  n.show();
+}
+
+async function runAgentV2(sender, id, chatId, ctrl, contents, onText) {
+  const send = (ch, data) => { if (!sender.isDestroyed()) sender.send(ch, data); };
+  const last = contents[contents.length - 1] || { parts: [] };
+  const text = last.parts.filter((p) => p.text).map((p) => p.text).join('\n');
+  const images = last.parts.filter((p) => p.inlineData).map((p) => ({ mime: p.inlineData.mimeType, data: p.inlineData.data }));
+  v2Senders.set(id, sender);
+  const onAbort = () => {
+    // Offene Freigaben dieses Auftrags gelten als abgelehnt, dann Not-Aus im Agenten.
+    for (const [stepId, r] of approvals) { if (r.taskId === id) { approvals.delete(stepId); r(false); } }
+    for (const [qid, r] of v2Questions) { if (r.taskId === id) { v2Questions.delete(qid); r(''); } }
+    agentV2.cancel(id);
+  };
+  ctrl.signal.addEventListener('abort', onAbort, { once: true });
+  agentRuns++;
+  registerStopHotkey();
+  try {
+    const done = await agentV2.runTask({ taskId: id, chatId, text, images }, {
+      onText,
+      onStep: (st) => send('agent:step', { chatId: id, id: st.stepId, tool: st.tool, label: st.label, state: st.state, verified: st.verified }),
+      onPlan: (items) => send('agent:plan', { chatId: id, items })
+    });
+    if (done && !done.cancelled && done.verified !== null && done.verified !== undefined) send('agent:verified', { chatId: id, verified: done.verified });
+    if (done && !done.cancelled) notifyIfHidden(done.text, done.verified);
+    if (done && done.usage && store.load().provider === 'gemini') {
+      // Kosten wie beim Chat mitzählen (Monatsbudget in den Einstellungen).
+      usage.addTokens(store.load().chatModel, { promptTokenCount: done.usage.prompt, candidatesTokenCount: done.usage.output });
+      broadcastUsage();
+    }
+  } finally {
+    ctrl.signal.removeEventListener('abort', onAbort);
+    v2Senders.delete(id);
+    agentRuns--;
+    registerStopHotkey();
+  }
+}
 
 // Notbremse: alle laufenden Aufträge abbrechen und gestartete Befehle beenden.
 function stopAgent() {
   for (const c of chatAborts.values()) c.abort();
   agentTools.killAll();
+  agentV2.cancelAll();
   if (panel && !panel.isDestroyed()) panel.webContents.send('agent:stopped');
 }
 ipcMain.on('agent:stop', () => stopAgent());
@@ -628,7 +811,7 @@ ipcMain.on('agent:openFile', (_e, which) => {
     shell.openPath(f);
   }
 });
-app.on('will-quit', () => { agentMcp.closeAll(); web.stop(); });
+app.on('will-quit', () => { agentMcp.closeAll(); web.stop(); agentV2.stop(); });
 
 // Das Notbremse-Kürzel ist nur aktiv, solange der Agent arbeitet.
 let stopKeyOn = null;
@@ -641,6 +824,16 @@ function registerStopHotkey() {
 }
 
 ipcMain.handle('usage:get', () => usageSummary());
+// Zentrale-Seiten für Agent v2 (Regeln, Gedächtnis, Protokoll, Systemprüfung).
+Object.assign(zentrale.API, {
+  policy: () => zentraleV2.policy(),
+  savePolicy: (text) => zentraleV2.savePolicy(text),
+  memory: () => zentraleV2.memory(),
+  saveMemory: (text) => zentraleV2.saveMemory(text),
+  audit: () => zentraleV2.audit(),
+  doctor: () => zentraleV2.doctor({ settings: () => agentV2.settings(), bridge: agentV2 }),
+  installExtension: () => zentraleV2.installExtension()
+});
 zentrale.register();
 ipcMain.on('zentrale:open', () => { closePanel(); zentrale.open(ICON); });
 
@@ -664,8 +857,10 @@ ipcMain.handle('live:config', () => {
   const over = budgetError();
   if (over) return { error: over };
   const s = store.load();
-  if (store.isLocal()) return { provider: 'ollama', model: s.ollamaModel, language: s.language };
+  const agent = voiceAgentReady();
+  if (store.isLocal()) return { provider: 'ollama', model: s.ollamaModel, language: s.language, agent };
   return {
+    agent,
     provider: 'gemini',
     apiKey: store.getApiKey(),
     model: s.liveModel,
@@ -736,14 +931,21 @@ async function preloadStt() {
   sttWin.webContents.send('stt:preload', { model: store.load().whisperModel });
 }
 
-async function transcribe(wavBase64) {
+// language: Whisper-Sprachname (z. B. 'german'); ohne rät Whisper die Sprache selbst.
+async function transcribe(wavBase64, language) {
   await ensureStt();
   const id = ++sttSeq;
   return new Promise((resolve, reject) => {
     sttJobs.set(id, { resolve, reject });
-    sttWin.webContents.send('stt:request', { id, wavBase64, model: store.load().whisperModel });
+    sttWin.webContents.send('stt:request', { id, wavBase64, model: store.load().whisperModel, language });
   });
 }
+
+// Spracheinstellung von Aura → Whisper-Sprache. Bei kurzen Aufnahmen rät Whisper sonst oft Englisch.
+const WHISPER_LANGUAGES = { deutsch: 'german', german: 'german', english: 'english', englisch: 'english', español: 'spanish',
+  spanisch: 'spanish', français: 'french', französisch: 'french', italiano: 'italian', italienisch: 'italian',
+  türkçe: 'turkish', türkisch: 'turkish', polski: 'polish', polnisch: 'polish', nederlands: 'dutch', niederländisch: 'dutch' };
+const whisperLanguage = (language) => WHISPER_LANGUAGES[String(language || '').trim().toLowerCase()];
 
 ipcMain.on('stt:result', (_e, { id, text, error }) => {
   const job = sttJobs.get(id);
@@ -758,6 +960,25 @@ ipcMain.on('stt:progress', (_e, p) => {
   for (const w of [ramblerBar, panel, settingsWin, setupWin]) if (w && !w.isDestroyed()) w.webContents.send('stt:progress', p);
 });
 
+// Spracheingabe im Chat: Aufnahme → Text. Lokal mit Whisper (nichts verlässt den Rechner), sonst mit einem
+// günstigen Gemini-Modell (dictationModel). Der Text wird im Panel als normale Nachricht abgeschickt.
+ipcMain.handle('chat:transcribe', async (_e, { wavBase64 }) => {
+  const s = store.load();
+  try {
+    if (store.isLocal()) return { text: String(await transcribe(wavBase64, whisperLanguage(s.language)) || '').trim() };
+    if (!store.getApiKey()) return { error: 'Kein Gemini-API-Schlüssel eingerichtet.' };
+    const over = budgetError();
+    if (over) return { error: over };
+    const model = s.dictationModel || 'gemini-3.5-flash-lite';
+    const out = await gemini.transcribe({ apiKey: store.getApiKey(), model, wavBase64, language: s.language });
+    usage.addTokens(model, out.usage);
+    broadcastUsage();
+    return { text: out.text };
+  } catch (err) {
+    return { error: String(err.message || err) };
+  }
+});
+
 const liveAborts = new Map();
 
 // Ein Durchgang von lokalem Live: Sprache → Text (Whisper) → Antwort mit Bildschirmfoto (Ollama).
@@ -770,6 +991,11 @@ ipcMain.handle('live:turn', async (_e, { id, wavBase64, history, screen: withScr
     if (panel && !panel.isDestroyed()) panel.webContents.send('live:heard', { id, text: question });
     const jpeg = withScreen ? await screenshotJpeg(currentDisplay, 1280) : null;
     const s = store.load();
+    if (voiceAgentReady()) {
+      ctrl.signal.addEventListener('abort', () => agentV2.cancel('voice-' + id), { once: true });
+      const say = await runVoiceTask('voice-' + id, question, jpeg);
+      return { question, say, point: null };
+    }
     const out = await ollama.liveTurn({ url: s.ollamaUrl, model: s.ollamaModel, language: s.language, history, question, jpeg, signal: ctrl.signal });
     return { question, ...out };
   } catch (err) {
@@ -855,7 +1081,7 @@ function applyAutostart() {
     try { applyAutostartLinux(!!store.load().autostart); } catch (err) { console.warn('Autostart:', err.message); }
     return;
   }
-  // Die portable .exe entpackt sich in einen Temp-Ordner; eingetragen wird die Original-Datei.
+  // Ältere portable .exe entpackten sich in einen Temp-Ordner; eingetragen wird die Original-Datei.
   const exe = process.env.PORTABLE_EXECUTABLE_FILE || process.execPath;
   // Autostart-Einträge der alten „Gemini Overlay“ entfernen, sonst startet die alte Version mit.
   for (const name of ['electron.app.Gemini Overlay', 'Gemini Overlay']) {

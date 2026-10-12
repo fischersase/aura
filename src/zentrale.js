@@ -87,6 +87,7 @@ async function state(force) {
     provider: s.provider,
     model: s.provider === 'ollama' ? s.ollamaModel : s.chatModel,
     agentEnabled: !!s.agentEnabled,
+    agentVersion: process.env.AURA_AGENT_VERSION || s.agentVersion || 'v2',
     profileName: (s.profile && s.profile.name) || '',
     secretCount: secrets.list().filter((x) => !x.builtin).length,
     web: require('./web').info(),
@@ -176,6 +177,7 @@ const API = {
     return true;
   },
   setAgent(on) { store.save({ agentEnabled: !!on }); return true; },
+  setAgentVersion(v) { store.save({ agentVersion: v === 'v2' ? 'v2' : 'v1' }); return true; },
 
   async saveServer({ name, oldName, config, protect }) {
     if (!validName(name)) return { error: 'Name nur mit Buchstaben, Ziffern, Punkt, Minus oder Unterstrich (max. 40 Zeichen).' };

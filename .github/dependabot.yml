@@ -1,0 +1,27 @@
+# Abhängigkeiten aktuell halten: wöchentlich gesammelte Pull Requests, Sicherheitsupdates sofort.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      npm:
+        update-types: [minor, patch]
+  - package-ecosystem: uv
+    directory: /agent
+    schedule:
+      interval: weekly
+    groups:
+      python:
+        update-types: [minor, patch]
+    ignore:
+      # Google ADK ist genau festgelegt; neue Versionen nur mit Durchlauf der Eval-Suite übernehmen.
+      - dependency-name: google-adk

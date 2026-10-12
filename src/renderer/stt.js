@@ -23,8 +23,11 @@ async function load(model) {
     if (p.status === 'progress' && p.total) window.api.sttProgress({ file: p.file, loaded: p.loaded, total: p.total });
   };
   const make = async () => {
-    // WebGPU ist deutlich schneller; ohne passende Grafik weiter mit WebAssembly.
-    if (navigator.gpu) {
+    // WebGPU ist deutlich schneller; ohne passende Grafik weiter mit WebAssembly. Vorher prüfen, ob es wirklich
+    // einen Adapter gibt: Electron unter Linux meldet navigator.gpu oft ohne Adapter, und ein gescheiterter
+    // WebGPU-Versuch lässt danach auch WASM scheitern („no available backend found“).
+    const adapter = navigator.gpu ? await navigator.gpu.requestAdapter().catch(() => null) : null;
+    if (adapter) {
       try {
         return await pipeline('automatic-speech-recognition', model, { device: 'webgpu', dtype: 'fp32', progress_callback: progress });
       } catch (err) {
@@ -38,7 +41,7 @@ async function load(model) {
   return current.pipe;
 }
 
-window.api.onSttRequest(async ({ id, wavBase64, model }) => {
+window.api.onSttRequest(async ({ id, wavBase64, model, language }) => {
   try {
     let asr;
     try {
@@ -50,7 +53,8 @@ window.api.onSttRequest(async ({ id, wavBase64, model }) => {
     const out = await asr(audio, {
       chunk_length_s: 30,
       stride_length_s: 5,
-      task: 'transcribe' // Sprache erkennt Whisper selbst, auch bei Wechseln
+      task: 'transcribe',
+      ...(language ? { language } : {}) // ohne Angabe erkennt Whisper die Sprache selbst
     });
     window.api.sttResult({ id, text: String(out.text || '').trim() });
   } catch (err) {

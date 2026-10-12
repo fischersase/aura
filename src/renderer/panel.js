@@ -65,17 +65,25 @@ window.api.onPanelOpen(({ startLive, corner }) => {
   openAnim();
   if (startLive) startLiveMode();
 });
-window.api.onPanelClose(() => closeAnim());
+window.api.onPanelClose(() => {
+  if (dictation) finishDictation('keep'); // Panel zu: Text nicht verlieren, aber auch nicht ungefragt senden
+  closeAnim();
+});
 
 // Klicks auf die transparenten Bereiche des Fensters gehen an die App dahinter.
 card.addEventListener('mouseenter', () => window.api.ignoreMouse(false));
 card.addEventListener('mouseleave', () => window.api.ignoreMouse(true));
 // Unter Linux kommen Klicks neben die Karte im (durchsichtigen) Fenster an: wie ein Klick daneben schließen.
 document.addEventListener('mousedown', (e) => {
-  if (!card.contains(e.target) && !live && !streaming) window.api.hidePanel();
+  if (!card.contains(e.target) && !live && !streaming && !dictation) window.api.hidePanel();
 });
 
 document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && dictation) {
+    e.preventDefault();
+    finishDictation('cancel');
+    return;
+  }
   if (e.key === 'Escape') {
     e.preventDefault();
     if (!$('historyView').classList.contains('hidden')) showView('chat');
@@ -204,7 +212,7 @@ function send() {
   setCompact();
   setBusy(true);
   scrollDown(true);
-  window.api.sendChat({ id, history, includeScreen });
+  window.api.sendChat({ id, chatId, history, includeScreen });
 }
 
 window.api.onChatScreen(({ id, jpeg }) => {
@@ -331,9 +339,27 @@ $('historyClose').onclick = () => window.api.hidePanel();
 const TOOL_NAMES = {
   run_command: 'Befehl', find_files: 'Suche', list_folder: 'Ordner', read_file: 'Lesen',
   write_file: 'Schreiben', open: 'Öffnen', screenshot: 'Bildschirmfoto', activate_skill: 'Skill',
-  click: 'Klick', type_text: 'Tippen', press_keys: 'Tasten'
+  click: 'Klick', type_text: 'Tippen', press_keys: 'Tasten',
+  // Agent v2
+  launch_app: 'Programm', open_target: 'Öffnen', list_windows: 'Fenster', window_action: 'Fenster',
+  media_status: 'Medien', media_control: 'Medien', volume: 'Lautstärke', settings: 'Einstellung', system_info: 'System',
+  list_dir: 'Ordner', edit_file: 'Ändern', move_path: 'Verschieben', trash: 'Papierkorb', todo_write: 'Plan', ask_user: 'Frage'
 };
-const toolName = (t) => TOOL_NAMES[t] || (t.startsWith('mcp_') ? 'MCP' : t);
+// Frage auf der Freigabekarte je Werkzeug (Agent v1 und v2).
+const APPROVE_Q = {
+  write_file: 'Aura möchte diese Datei schreiben:', edit_file: 'Aura möchte diese Datei ändern:',
+  trash: 'Aura möchte das in den Papierkorb verschieben:', browser_click: 'Aura möchte auf der Webseite klicken:',
+  browser_type: 'Aura möchte auf der Webseite eingeben:', browser_fill_form: 'Aura möchte dieses Formular ausfüllen:',
+  browser_press_key: 'Aura möchte auf der Webseite eine Taste drücken:', browser_handle_dialog: 'Aura möchte einen Dialog der Webseite bestätigen:', move_path: 'Aura möchte das verschieben oder kopieren:',
+  open: 'Aura möchte dieses Programm starten:', open_target: 'Aura möchte das öffnen:', launch_app: 'Aura möchte dieses Programm starten:',
+  window_action: 'Aura möchte dieses Fenster schließen:', settings: 'Aura möchte diese Einstellung ändern:',
+  click: 'Aura möchte klicken:', type_text: 'Aura möchte tippen:', press_keys: 'Aura möchte Tasten drücken:'
+};
+const BROWSER_NAMES = { navigate: 'Seite öffnen', navigate_back: 'Zurück', snapshot: 'Seite lesen', find: 'Suchen', click: 'Klicken',
+  type: 'Tippen', fill_form: 'Formular', select_option: 'Auswählen', press_key: 'Taste', wait_for: 'Warten', tabs: 'Tabs',
+  handle_dialog: 'Dialog', take_screenshot: 'Bildschirmfoto' };
+const toolName = (t) => TOOL_NAMES[t] || (t === 'browser' ? 'Browser-Agent' : t.startsWith('browser_') ? 'Browser · ' + (BROWSER_NAMES[t.slice(8)] || t.slice(8))
+  : t.startsWith('mcp_') ? 'MCP' : t);
 const STEP_STATE = { ask: 'Wartet auf deine Freigabe', run: 'Läuft …', ok: 'Erledigt', error: 'Fehlgeschlagen', denied: 'Abgelehnt' };
 
 function stepEl(step) {
@@ -369,17 +395,97 @@ window.api.onAgentApprove((step) => {
   const box = document.createElement('div');
   box.className = 'approve';
   box.innerHTML = '<div class="q"></div><pre></pre><div class="btns"><button class="deny">Ablehnen</button><button class="all" title="Alle weiteren Schritte dieses Auftrags ohne Rückfrage">Alle erlauben</button><button class="allow">Ausführen</button></div>';
-  box.querySelector('.q').textContent = step.tool === 'write_file' ? 'Aura möchte diese Datei schreiben:' : step.tool === 'open' ? 'Aura möchte dieses Programm starten:'
-    : step.tool === 'click' ? 'Aura möchte klicken:' : step.tool === 'type_text' ? 'Aura möchte tippen:' : step.tool === 'press_keys' ? 'Aura möchte Tasten drücken:'
-    : step.tool.startsWith('mcp_') ? 'Aura möchte dieses Werkzeug nutzen:' : 'Aura möchte diesen Befehl ausführen:';
+  box.querySelector('.q').textContent = APPROVE_Q[step.tool] || (step.tool.startsWith('mcp_') ? 'Aura möchte dieses Werkzeug nutzen:' : 'Aura möchte diesen Befehl ausführen:');
   box.querySelector('pre').textContent = step.label + (step.detail ? '\n\n' + step.detail : '');
+  if (step.reason) {
+    const why = document.createElement('div');
+    why.className = 'why';
+    why.textContent = 'Warum Aura fragt: ' + step.reason;
+    box.insertBefore(why, box.querySelector('.btns'));
+  }
   const answer = (ok) => { box.remove(); window.api.agentApproval(step.id, ok); };
+  if (step.tier !== undefined) {
+    // Agent v2: dauerhaft erlauben legt eine Regel in ~/.aura/policy.toml an.
+    const always = document.createElement('button');
+    always.className = 'always';
+    always.textContent = 'Immer erlauben';
+    always.title = 'Genau diese Aktion künftig ohne Rückfrage (Regel in ~/.aura/policy.toml)';
+    always.onclick = () => answer('always');
+    box.querySelector('.btns').insertBefore(always, box.querySelector('.allow'));
+    box.querySelector('.all').textContent = 'Für diesen Auftrag';
+    box.querySelector('.allow').textContent = 'Nur jetzt';
+  }
   box.querySelector('.allow').onclick = () => answer(true);
   box.querySelector('.deny').onclick = () => answer(false);
   box.querySelector('.all').onclick = () => answer('all');
   el.appendChild(box);
   scrollDown();
   box.querySelector('.allow').focus({ preventScroll: true });
+});
+
+// ---------- Agent v2: Aufgabenliste, Rückfragen, Nachprüfung ----------
+
+const PLAN_MARK = { done: '✓', in_progress: '›', cancelled: '–', pending: '' };
+window.api.onAgentPlan(({ chatId: cid, items }) => {
+  if (!streaming || streaming.id !== cid) return;
+  streaming.el.classList.remove('thinking');
+  let plan = streaming.el.querySelector('.plan');
+  if (!plan) {
+    plan = document.createElement('ol');
+    plan.className = 'plan';
+    streaming.el.querySelector('.content').insertBefore(plan, streaming.el.querySelector('.steps'));
+  }
+  plan.innerHTML = '';
+  for (const it of items) {
+    const li = document.createElement('li');
+    li.className = it.status;
+    const mark = document.createElement('i');
+    mark.textContent = PLAN_MARK[it.status] || '';
+    const txt = document.createElement('span');
+    txt.textContent = it.text;
+    li.append(mark, txt);
+    plan.appendChild(li);
+  }
+  scrollDown();
+});
+
+window.api.onAgentAsk(({ chatId: cid, id, question, options }) => {
+  if (!streaming || streaming.id !== cid) { window.api.agentAnswer(id, ''); return; }
+  streaming.el.classList.remove('thinking');
+  const box = document.createElement('div');
+  box.className = 'ask';
+  box.innerHTML = '<div class="q"></div><div class="opts"></div><form class="free"><input type="text" placeholder="Eigene Antwort …"><button type="submit">Senden</button></form>';
+  box.querySelector('.q').textContent = question;
+  const answer = (text) => {
+    box.classList.add('answered');
+    box.querySelector('.opts').remove();
+    box.querySelector('.free').remove();
+    const a = document.createElement('div');
+    a.className = 'a';
+    a.textContent = text || '(keine Antwort)';
+    box.appendChild(a);
+    window.api.agentAnswer(id, text);
+  };
+  for (const o of options || []) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = o;
+    b.onclick = () => answer(o);
+    box.querySelector('.opts').appendChild(b);
+  }
+  const form = box.querySelector('.free');
+  form.onsubmit = (ev) => { ev.preventDefault(); const v = form.querySelector('input').value.trim(); if (v) answer(v); };
+  streaming.el.querySelector('.steps').appendChild(box);
+  scrollDown();
+  (box.querySelector('.opts button') || form.querySelector('input')).focus({ preventScroll: true });
+});
+
+window.api.onAgentVerified(({ chatId: cid, verified }) => {
+  if (!streaming || streaming.id !== cid) return;
+  const badge = document.createElement('div');
+  badge.className = 'verified ' + (verified ? 'yes' : 'no');
+  badge.textContent = verified ? '✓ Ergebnis überprüft' : '! Nicht alles hat geklappt – Aura hat es nachgeprüft';
+  streaming.el.querySelector('.content').appendChild(badge);
 });
 
 function autosize() {
@@ -393,6 +499,103 @@ input.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
 });
 $('composer').addEventListener('submit', (e) => { e.preventDefault(); send(); });
+
+// ---------- Spracheingabe (Mikrofon-Knopf) ----------
+// Wie bei Gemini oder ChatGPT: drücken, so lange sprechen wie man will (Pausen sind egal), nochmal drücken:
+// Aura erkennt den Text (lokal mit Whisper, sonst mit einem günstigen Gemini-Modell) und schickt ihn ab.
+// Esc bricht ab. Wird das Panel währenddessen geschlossen, landet der Text nur im Eingabefeld.
+const micBtn = $('micBtn');
+const recInfo = $('recInfo');
+const MIC_MAX_MS = 15 * 60 * 1000;
+const MIC_SVG = micBtn.innerHTML;
+const STOP_SVG = '<svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg>';
+const WAIT_SVG = '<svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9"/></svg>';
+let dictation = null; // { chunks, start, ready, timer, stopping }
+let noteTimer = null;
+
+const clock = (ms) => { const s = Math.floor(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+
+function micState(state) {
+  $('composer').classList.toggle('dictating', state !== 'idle');
+  micBtn.classList.toggle('rec', state === 'rec');
+  micBtn.classList.toggle('wait', state === 'wait');
+  micBtn.innerHTML = state === 'rec' ? STOP_SVG : state === 'wait' ? WAIT_SVG : MIC_SVG;
+  micBtn.title = state === 'rec' ? 'Fertig: Text erkennen und senden (Esc bricht ab)'
+    : state === 'wait' ? 'Sprache wird erkannt …' : 'Spracheingabe: sprechen, dann nochmal drücken zum Senden';
+  micBtn.style.setProperty('--lvl', 0);
+  recInfo.className = 'rec-info' + (state === 'rec' ? ' rec' : '') + (state === 'idle' ? ' hidden' : '');
+  if (state === 'wait') recInfo.textContent = 'Wird erkannt …';
+}
+
+function micNote(text) {
+  clearTimeout(noteTimer);
+  recInfo.className = 'rec-info err';
+  recInfo.textContent = text;
+  noteTimer = setTimeout(() => { if (!dictation) recInfo.className = 'rec-info hidden'; }, 6000);
+}
+
+function startDictation() {
+  if (dictation || live) return;
+  clearTimeout(noteTimer);
+  const d = { chunks: [], start: Date.now(), stopping: false };
+  d.ready = Audio16.openMic((samples, rms) => {
+    if (dictation !== d) return;
+    d.chunks.push(samples);
+    micBtn.style.setProperty('--lvl', Math.min(1, rms * 12).toFixed(2));
+  });
+  dictation = d;
+  window.api.setBusy(true); // Panel bleibt offen, auch wenn der Fokus woanders hin wandert
+  micState('rec');
+  recInfo.textContent = '● 0:00';
+  d.timer = setInterval(() => {
+    const ms = Date.now() - d.start;
+    recInfo.textContent = '● ' + clock(ms);
+    if (ms >= MIC_MAX_MS) finishDictation('send');
+  }, 250);
+  d.ready.catch((err) => {
+    if (dictation !== d) return;
+    clearInterval(d.timer);
+    dictation = null;
+    window.api.setBusy(!!streaming);
+    micState('idle');
+    micNote('Kein Mikrofon: ' + (err && err.message ? err.message : err));
+  });
+}
+
+// mode: 'send' (Knopf), 'keep' (Panel geschlossen: nur ins Eingabefeld), 'cancel' (Esc)
+async function finishDictation(mode) {
+  const d = dictation;
+  if (!d || d.stopping) return;
+  d.stopping = true;
+  clearInterval(d.timer);
+  const mic = await d.ready.catch(() => null);
+  if (mic) mic.close();
+  dictation = null;
+  const seconds = d.chunks.reduce((n, c) => n + c.length, 0) / 16000;
+  if (mode === 'cancel' || seconds < 0.4) {
+    window.api.setBusy(!!streaming);
+    micState('idle');
+    if (mode !== 'cancel') micNote('Nichts aufgenommen.');
+    return;
+  }
+  micState('wait');
+  const r = await window.api.transcribe(Audio16.wavBase64(d.chunks));
+  window.api.setBusy(!!streaming);
+  micState('idle');
+  const text = (r && r.text || '').trim();
+  if (r && r.error) return micNote(r.error);
+  if (!text) return micNote('Nichts verstanden, bitte noch einmal.');
+  input.value = input.value.trim() ? input.value.trim() + ' ' + text : text;
+  autosize();
+  // Läuft noch eine Antwort, würde send() sie abbrechen: dann bleibt der Text im Feld.
+  if (mode === 'send' && !streaming) send();
+  else input.focus();
+}
+
+micBtn.onclick = () => (dictation ? finishDictation('send') : startDictation());
+window.api.onSttProgress((p) => {
+  if (micBtn.classList.contains('wait') && p.total) recInfo.textContent = `Lade Spracherkennung … ${Math.round((p.loaded / p.total) * 100)} %`;
+});
 
 $('screenToggle').onclick = () => {
   includeScreen = !includeScreen;
@@ -446,6 +649,7 @@ const liveUi = {
 
 async function startLiveMode() {
   if (live) return;
+  if (dictation) await finishDictation('keep'); // Mikrofon freigeben, Diktiertes bleibt im Eingabefeld
   $('chatView').classList.add('hidden');
   $('historyView').classList.add('hidden');
   $('liveView').classList.remove('hidden');

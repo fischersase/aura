@@ -1,63 +1,173 @@
 name: Release
-# Baut bei jedem Push auf main die Windows-.exe sowie AppImage und .deb für Linux
-# und legt sie im Release v<version> ab.
+# Bei jedem Push auf main mit geänderter App: Tests, dann Windows-Installer (Aura-Setup.exe), AppImage und .deb bauen
+# und im Release v<version> ablegen, mit Prüfsummen (SHA256SUMS) und Herkunftsnachweis (GitHub-Attestation).
+# Danach die signierte apt-Paketquelle auf GitHub Pages aktualisieren (sudo apt update && sudo apt upgrade).
 on:
   push:
     branches: [main]
-    paths: ['src/**', 'assets/**', 'scripts/**', 'package.json', 'package-lock.json', '.github/workflows/release.yml']
+    paths: ['src/**', 'assets/**', 'scripts/**', 'packaging/**', 'agent/src/**', 'agent/pyproject.toml', 'agent/uv.lock', 'package.json', 'package-lock.json', '.github/workflows/release.yml']
   workflow_dispatch:
+
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
-  windows:
-    runs-on: windows-latest
+  # Ohne grüne Tests kein Release.
+  tests:
+    uses: ./.github/workflows/ci.yml
+
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: v
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+  windows:
+    needs: [tests, version]
+    runs-on: windows-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Release-Builds ohne Cache: ein vergifteter Cache könnte sonst in veröffentlichte Pakete gelangen.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
-          cache: npm
+          package-manager-cache: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          enable-cache: false
       # Ohne Install-Skripte: onnxruntime-node/sharp braucht die App nicht (Whisper läuft im Browser-Teil).
       - run: npm ci --ignore-scripts
       - run: node scripts/vendor.js
-      - run: npx electron-builder --win portable --x64 --publish never
-      - name: Version und Dateiname
-        id: v
+      # Agent v2: Python-Laufzeit bündeln, Größe prüfen, Selbsttest im fertigen Bündel.
+      - run: bash scripts/build-agent.sh
+        shell: bash
+      - run: npx electron-builder --win nsis --x64 --publish never
+      - name: Dateiname ohne Version (fester Download-Link)
         shell: pwsh
-        run: |
-          Get-ChildItem dist/*-portable.exe | Select-Object -First 1 | Copy-Item -Destination dist/Aura.exe
-          $v = (Get-Content package.json | ConvertFrom-Json).version
-          "version=$v" >> $env:GITHUB_OUTPUT
-      - uses: softprops/action-gh-release@v2
+        run: Get-ChildItem dist/Aura-Setup-*.exe | Select-Object -First 1 | Copy-Item -Destination dist/Aura-Setup.exe
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        if: ${{ !github.event.repository.private }}
         with:
-          tag_name: v${{ steps.v.outputs.version }}
-          name: Aura ${{ steps.v.outputs.version }}
+          subject-path: dist/Aura-Setup.exe
+      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          tag_name: v${{ needs.version.outputs.version }}
+          name: Aura ${{ needs.version.outputs.version }}
           target_commitish: ${{ github.sha }}
+          generate_release_notes: true
           make_latest: true
-          files: dist/Aura.exe
+          files: dist/Aura-Setup.exe
 
   linux:
-    needs: windows # erst wenn das Release existiert, sonst legen beide Jobs es gleichzeitig an
+    needs: [version, windows] # erst wenn das Release existiert, sonst legen beide Jobs es gleichzeitig an
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Release-Builds ohne Cache: ein vergifteter Cache könnte sonst in veröffentlichte Pakete gelangen.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
-          cache: npm
+          package-manager-cache: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          enable-cache: false
       - run: npm ci --ignore-scripts
       - run: node scripts/vendor.js
+      # Agent v2: Python-Laufzeit bündeln, Größe prüfen, Selbsttest im fertigen Bündel (docs/adr/0006).
+      - run: bash scripts/build-agent.sh
       - run: npx electron-builder --linux AppImage deb --x64 --publish never
-      - name: Version und Dateinamen
-        id: v
+      - name: Dateinamen ohne Version (feste Download-Links)
         run: |
           cp dist/*.AppImage dist/Aura-x86_64.AppImage
           cp dist/*.deb dist/aura_amd64.deb
-          echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
-      - uses: softprops/action-gh-release@v2
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        if: ${{ !github.event.repository.private }}
         with:
-          tag_name: v${{ steps.v.outputs.version }}
+          subject-path: |
+            dist/Aura-x86_64.AppImage
+            dist/aura_amd64.deb
+      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          tag_name: v${{ needs.version.outputs.version }}
           target_commitish: ${{ github.sha }}
           files: |
             dist/Aura-x86_64.AppImage
             dist/aura_amd64.deb
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: deb
+          path: dist/aura_amd64.deb
+          retention-days: 3
+
+  checksums:
+    needs: [version, linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: SHA256SUMS aller Downloads
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v${{ needs.version.outputs.version }}
+        run: |
+          mkdir sums && cd sums
+          gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p 'Aura-Setup.exe' -p 'Aura-x86_64.AppImage' -p 'aura_amd64.deb'
+          sha256sum Aura-Setup.exe Aura-x86_64.AppImage aura_amd64.deb > SHA256SUMS
+          cat SHA256SUMS
+          gh release upload "$TAG" SHA256SUMS --clobber -R "$GITHUB_REPOSITORY"
+
+  # Signierte apt-Paketquelle (nur das neueste Paket) plus Startseite auf GitHub Pages.
+  # Läuft nur im öffentlichen Repo mit eingeschaltetem Pages (Quelle: GitHub Actions) und Signierschlüssel APT_SIGNING_KEY.
+  apt-repo:
+    needs: [version, linux]
+    if: ${{ !github.event.repository.private }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: deb
+          path: dist
+      - name: Paketquelle bauen und signieren
+        env:
+          APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: bash scripts/build-apt-repo.sh dist/aura_amd64.deb "$VERSION" site
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

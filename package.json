@@ -1,22 +1,23 @@
 {
   "name": "aura-desktop",
   "productName": "Aura",
-  "version": "0.10.1",
-  "description": "Aura: hotkey assistant in Googlebook style for Windows and Linux, with Gemini or local models via Ollama",
+  "version": "0.11.0",
+  "description": "Aura: desktop assistant for Windows and Linux with chat, voice, screen help and a careful agent; runs with Gemini or local models via Ollama",
   "main": "src/main.js",
   "author": {
-    "name": "fischersase",
-    "email": "121428169+fischersase@users.noreply.github.com"
+    "name": "Sebastian Fischer",
+    "url": "https://github.com/fischersase"
   },
   "license": "MIT",
   "private": true,
   "scripts": {
     "start": "electron .",
     "postinstall": "node scripts/vendor.js",
-    "check": "for f in src/*.js src/agent/*.js src/renderer/*.js scripts/*.js; do node --check \"$f\" || exit 1; done",
-    "dist": "electron-builder --win portable",
-    "dist:win": "electron-builder --win portable",
-    "dist:linux": "electron-builder --linux AppImage deb"
+    "check": "for f in src/*.js src/agent/*.js src/agent2/*.js src/renderer/*.js scripts/*.js test/*.js; do node --check \"$f\" || exit 1; done",
+    "dist": "bash scripts/build-agent.sh && electron-builder --win nsis",
+    "dist:win": "bash scripts/build-agent.sh && electron-builder --win nsis",
+    "dist:linux": "bash scripts/build-agent.sh && electron-builder --linux AppImage deb",
+    "test": "node --test test/*.test.js"
   },
   "devDependencies": {
     "@huggingface/transformers": "4.3.1",
@@ -24,7 +25,7 @@
     "electron-builder": "26.15.3"
   },
   "build": {
-    "appId": "local.sebastian.aura",
+    "appId": "io.github.fischersase.aura",
     "productName": "Aura",
     "directories": {
       "output": "dist"
@@ -36,10 +37,27 @@
     ],
     "win": {
       "icon": "assets/icon.ico",
-      "signAndEditExecutable": false
-    },
-    "portable": {
-      "artifactName": "Aura-${version}-portable.exe"
+      "signAndEditExecutable": false,
+      "target": [
+        "nsis"
+      ],
+      "artifactName": "Aura-Setup-${version}.${ext}",
+      "extraResources": [
+        {
+          "from": "build/agent-python",
+          "to": "python",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "build/browser-mcp/node_modules",
+          "to": "browser-mcp/node_modules",
+          "filter": [
+            "**/*"
+          ]
+        }
+      ]
     },
     "linux": {
       "target": [
@@ -49,9 +67,32 @@
       "icon": "assets/icon.png",
       "category": "Utility",
       "executableName": "aura",
-      "synopsis": "Aura: hotkey assistant with Live and dictation",
-      "maintainer": "fischersase <121428169+fischersase@users.noreply.github.com>",
-      "artifactName": "Aura-${version}-${arch}.${ext}"
+      "synopsis": "Aura: desktop assistant with chat, voice and a careful agent",
+      "maintainer": "Sebastian Fischer <121428169+fischersase@users.noreply.github.com>",
+      "artifactName": "Aura-${version}-${arch}.${ext}",
+      "extraResources": [
+        {
+          "from": "build/agent-python",
+          "to": "python",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "build/browser-mcp/node_modules",
+          "to": "browser-mcp/node_modules",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "gnome-extension",
+          "to": "gnome-extension",
+          "filter": [
+            "**/*"
+          ]
+        }
+      ]
     },
     "deb": {
       "depends": [
@@ -62,9 +103,29 @@
       ],
       "recommends": [
         "wtype",
-        "speech-dispatcher"
-      ]
+        "speech-dispatcher",
+        "python3-gi",
+        "gir1.2-atspi-2.0",
+        "google-chrome-stable"
+      ],
+      "afterInstall": "packaging/linux/after-install.sh",
+      "afterRemove": "packaging/linux/after-remove.sh"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Aura",
+      "deleteAppDataOnUninstall": false
     }
   },
-  "homepage": "https://github.com/fischersase/aura"
+  "homepage": "https://github.com/fischersase/aura",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fischersase/aura.git"
+  },
+  "bugs": {
+    "url": "https://github.com/fischersase/aura/issues"
+  }
 }

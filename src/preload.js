@@ -35,6 +35,7 @@ contextBridge.exposeInMainWorld('api', {
 
   // Chat
   sendChat: (payload) => ipcRenderer.send('chat:send', payload),
+  transcribe: (wavBase64) => ipcRenderer.invoke('chat:transcribe', { wavBase64 }),
   abortChat: (id) => ipcRenderer.send('chat:abort', id),
   onChatChunk: on('chat:chunk'),
   onChatDone: on('chat:done'),
@@ -44,7 +45,7 @@ contextBridge.exposeInMainWorld('api', {
   // Aura Zentrale: gleiche Funktionen wie renderer/web-shim.js im Browser
   z: (() => {
     const z = {};
-    for (const n of ['state', 'log', 'chats', 'deleteChat', 'setAgent', 'getServer', 'saveServer', 'removeServer', 'protectServer', 'searchRegistry', 'installRegistry',
+    for (const n of ['state', 'log', 'chats', 'deleteChat', 'setAgent', 'setAgentVersion', 'policy', 'savePolicy', 'memory', 'saveMemory', 'audit', 'doctor', 'installExtension', 'getServer', 'saveServer', 'removeServer', 'protectServer', 'searchRegistry', 'installRegistry',
       'getSkill', 'saveSkill', 'deleteSkill', 'saveAgentsMd', 'secrets', 'setSecret', 'setSecretNote', 'deleteSecret', 'profile', 'saveProfile', 'openPath', 'openUrl', 'openWeb', 'webInfo', 'resetWeb']) {
       z[n] = (arg) => ipcRenderer.invoke('z:' + n, arg);
     }
@@ -60,6 +61,11 @@ contextBridge.exposeInMainWorld('api', {
   onAgentApprove: on('agent:approve'),
   onAgentStopped: on('agent:stopped'),
   agentApproval: (stepId, ok) => ipcRenderer.send('agent:approval', { stepId, ok }),
+  onAgentAsk: on('agent:ask'),
+  agentAnswer: (id, answer) => ipcRenderer.send('agent:answer', { id, answer }),
+  onAgentPlan: on('agent:plan'),
+  onAgentVerified: on('agent:verified'),
+  agentVoiceTask: (request) => ipcRenderer.invoke('agent:voiceTask', { request }),
   stopAgent: () => ipcRenderer.send('agent:stop'),
   openAgentLog: () => ipcRenderer.send('agent:openLog'),
   agentExtensions: (force) => ipcRenderer.invoke('agent:extensions', force),

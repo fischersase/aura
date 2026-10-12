@@ -1,0 +1,47 @@
+name: Bug report
+description: Something does not work as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. Open Aura with Ctrl+Alt+Space\n2. Ask …\n3. …"
+  - type: input
+    id: version
+    attributes:
+      label: Aura version
+      description: Shown next to the name in the Aura window, in the Zentrale and in the tray menu.
+      placeholder: "0.11.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: System
+      options: [Windows 11, Windows 10, Ubuntu 24.04, Ubuntu 22.04, Other Linux (please name it below)]
+    validations:
+      required: true
+  - type: dropdown
+    id: model
+    attributes:
+      label: Model
+      options: [Local (Ollama), Gemini]
+  - type: input
+    id: model-name
+    attributes:
+      label: Model name
+      placeholder: "gemma4:26b"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Agent log (Linux ~/.config/Aura/agent/agent.log, Windows %APPDATA%\Aura\agent\agent.log). Remove anything private first.
+      render: text

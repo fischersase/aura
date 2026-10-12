@@ -1,0 +1,49 @@
+[project]
+name = "aura-agent"
+version = "0.1.0"
+description = "Aura Agent v2: Laptop-Assistent auf Google ADK (Sidecar der Electron-App)"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "google-adk[mcp]==2.11.0",
+  "httpx>=0.27,<1",
+  "json-repair>=0.30",
+  # Linux: Medien und Fenster unter Wayland (D-Bus), Fenster unter X11.
+  "dbus-fast>=2.24; sys_platform == 'linux'",
+  "python-xlib>=0.33; sys_platform == 'linux'",
+  # Windows: UI Automation und Lautstärke (COM), Mediensteuerung (WinRT), Prozesse.
+  "comtypes>=1.4.17; sys_platform == 'win32'",
+  "pycaw>=20260927; sys_platform == 'win32'",
+  "psutil>=7.2; sys_platform == 'win32'",
+  "winrt-runtime>=3.2.1; sys_platform == 'win32'",
+  "winrt-Windows.Foundation>=3.2.1; sys_platform == 'win32'",
+  "winrt-Windows.Foundation.Collections>=3.2.1; sys_platform == 'win32'",
+  "winrt-Windows.Media.Control>=3.2.1; sys_platform == 'win32'",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8",
+  "pytest-asyncio>=0.24",
+  "ruff>=0.6",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aura_agent"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint.per-file-ignores]
+# dbus-fast liest D-Bus-Signaturen aus den String-Annotationen ("s", "a{sv}").
+"src/aura_agent/testing/fake_mpris.py" = ["UP037", "F821", "RUF100"]
+# AT-SPI-Helfer: einzelne kaputte Elemente fremder Programme werden bewusst übersprungen; läuft als Skript mit dem System-Python.
+"src/aura_agent/platform/atspi_helper.py" = ["S110", "S112", "EXE001", "BLE001", "RUF100"]

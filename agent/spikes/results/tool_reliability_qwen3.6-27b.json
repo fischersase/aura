@@ -1,0 +1,362 @@
+[
+ {
+  "model": "qwen3.6:27b",
+  "tools": "8",
+  "tool_hit": "10/10",
+  "args_ok": "10/10",
+  "median_s": 1.86,
+  "repairs": {
+   "responses": 20,
+   "responses_with_calls": 10
+  },
+  "rows": [
+   {
+    "prompt": "Pausiere bitte die Musik",
+    "want": "media_control",
+    "got": "media_control",
+    "args": {
+     "action": "pause"
+    },
+    "ok": true,
+    "answer": "Musik wurde pausiert.",
+    "s": 1.62
+   },
+   {
+    "prompt": "nächster song",
+    "want": "media_control",
+    "got": "media_control",
+    "args": {
+     "action": "next"
+    },
+    "ok": true,
+    "answer": "Ich habe zum nächsten Titel gewechselt. Möchtest du wissen, was jetzt gespielt wird?",
+    "s": 1.89
+   },
+   {
+    "prompt": "Was läuft gerade für ein Lied?",
+    "want": "media_status",
+    "got": "media_status",
+    "args": {},
+    "ok": true,
+    "answer": "Gerade läuft \"Me Porto Bonito\" von Bad Bunny im Chrome-Browser.",
+    "s": 1.58
+   },
+   {
+    "prompt": "öffne antigravity",
+    "want": "launch_app",
+    "got": "launch_app",
+    "args": {
+     "name": "Antigravity"
+    },
+    "ok": true,
+    "answer": "Ich habe Antigravity für dich geöffnet. Es sollte jetzt laufen!",
+    "s": 1.86
+   },
+   {
+    "prompt": "Starte Firefox",
+    "want": "launch_app",
+    "got": "launch_app",
+    "args": {
+     "name": "Firefox"
+    },
+    "ok": true,
+    "answer": "Firefox wurde gestartet.",
+    "s": 1.66
+   },
+   {
+    "prompt": "Welche Fenster sind gerade offen?",
+    "want": "list_windows",
+    "got": "list_windows",
+    "args": {},
+    "ok": true,
+    "answer": "Derzeit ist nur ein Fenster geöffnet: **YouTube Music** in Google Chrome.",
+    "s": 1.61
+   },
+   {
+    "prompt": "Lies mir ~/notizen.txt vor",
+    "want": "read_file",
+    "got": "read_file",
+    "args": {
+     "path": "~/notizen.txt"
+    },
+    "ok": true,
+    "answer": "Die Datei ~/notizen.txt enthält folgende Inhalte:\n\n**Einkaufsliste: Milch, Brot**",
+    "s": 2.01
+   },
+   {
+    "prompt": "Finde alle PDFs in meinem Downloads-Ordner",
+    "want": "find_files",
+    "got": "find_files",
+    "args": {
+     "pattern": "*.pdf",
+     "folder": "~/Downloads"
+    },
+    "ok": true,
+    "answer": "Ich habe folgende PDF-Dateien in deinem Downloads-Ordner gefunden:\n\n*   ~/Downloads/rechnung.pdf",
+    "s": 2.37
+   },
+   {
+    "prompt": "Mach die Lautstärke auf 30 Prozent",
+    "want": "volume",
+    "got": "volume",
+    "args": {
+     "level": 30
+    },
+    "ok": true,
+    "answer": "Die Lautstärke ist jetzt auf 30 % eingestellt.",
+    "s": 1.75
+   },
+   {
+    "prompt": "Wie wird das Wetter morgen in Berlin?",
+    "want": "web_search",
+    "got": "web_search",
+    "args": {
+     "query": "Wetter morgen Berlin"
+    },
+    "ok": true,
+    "answer": "Morgen wird es in Berlin etwa 14 °C und es regnet.",
+    "s": 1.99
+   }
+  ]
+ },
+ {
+  "model": "qwen3.6:27b",
+  "tools": "12",
+  "tool_hit": "10/10",
+  "args_ok": "10/10",
+  "median_s": 1.92,
+  "repairs": {
+   "responses": 20,
+   "responses_with_calls": 10
+  },
+  "rows": [
+   {
+    "prompt": "Pausiere bitte die Musik",
+    "want": "media_control",
+    "got": "media_control",
+    "args": {
+     "action": "pause"
+    },
+    "ok": true,
+    "answer": "Die Musik wurde pausiert.",
+    "s": 1.96
+   },
+   {
+    "prompt": "nächster song",
+    "want": "media_control",
+    "got": "media_control",
+    "args": {
+     "action": "next"
+    },
+    "ok": true,
+    "answer": "Okay, nächster Song! 🎶 Was soll es denn sein?",
+    "s": 1.92
+   },
+   {
+    "prompt": "Was läuft gerade für ein Lied?",
+    "want": "media_status",
+    "got": "media_status",
+    "args": {},
+    "ok": true,
+    "answer": "Gerade läuft „Me Porto Bonito“ von Bad Bunny im Browser.",
+    "s": 1.6
+   },
+   {
+    "prompt": "öffne antigravity",
+    "want": "launch_app",
+    "got": "launch_app",
+    "args": {
+     "name": "Antigravity"
+    },
+    "ok": true,
+    "answer": "Antigravity ist gestartet. 🚀",
+    "s": 1.78
+   },
+   {
+    "prompt": "Starte Firefox",
+    "want": "launch_app",
+    "got": "launch_app",
+    "args": {
+     "name": "Firefox"
+    },
+    "ok": true,
+    "answer": "Firefox wurde erfolgreich gestartet.",
+    "s": 1.69
+   },
+   {
+    "prompt": "Welche Fenster sind gerade offen?",
+    "want": "list_windows",
+    "got": "list_windows",
+    "args": {},
+    "ok": true,
+    "answer": "Aktuell ist nur ein Fenster geöffnet: **YouTube Music** (Google Chrome).",
+    "s": 1.62
+   },
+   {
+    "prompt": "Lies mir ~/notizen.txt vor",
+    "want": "read_file",
+    "got": "read_file",
+    "args": {
+     "path": "~/notizen.txt"
+    },
+    "ok": true,
+    "answer": "Ich habe die Datei gelesen. Der Inhalt lautet:\n\n**Einkaufsliste: Milch, Brot**",
+    "s": 2.11
+   },
+   {
+    "prompt": "Finde alle PDFs in meinem Downloads-Ordner",
+    "want": "find_files",
+    "got": "find_files",
+    "args": {
+     "pattern": "*.pdf",
+     "folder": "~/Downloads"
+    },
+    "ok": true,
+    "answer": "In deinem Downloads-Ordner befindet sich eine PDF-Datei: `rechnung.pdf`.",
+    "s": 2.42
+   },
+   {
+    "prompt": "Mach die Lautstärke auf 30 Prozent",
+    "want": "volume",
+    "got": "volume",
+    "args": {
+     "level": 30
+    },
+    "ok": true,
+    "answer": "Die Lautstärke ist jetzt auf 30 % eingestellt.",
+    "s": 1.89
+   },
+   {
+    "prompt": "Wie wird das Wetter morgen in Berlin?",
+    "want": "web_search",
+    "got": "web_search",
+    "args": {
+     "query": "Wetter morgen Berlin"
+    },
+    "ok": true,
+    "answer": "Morgen wird es in Berlin etwa 14 °C und es ist mit Regen zu rechnen.",
+    "s": 2.2
+   }
+  ]
+ },
+ {
+  "model": "qwen3.6:27b",
+  "tools": "20",
+  "tool_hit": "10/10",
+  "args_ok": "10/10",
+  "median_s": 2.07,
+  "repairs": {
+   "responses": 20,
+   "responses_with_calls": 10
+  },
+  "rows": [
+   {
+    "prompt": "Pausiere bitte die Musik",
+    "want": "media_control",
+    "got": "media_control",
+    "args": {
+     "action": "pause"
+    },
+    "ok": true,
+    "answer": "Musik wurde pausiert.",
+    "s": 2.07
+   },
+   {
+    "prompt": "nächster song",
+    "want": "media_control",
+    "got": "media_control",
+    "args": {
+     "action": "next"
+    },
+    "ok": true,
+    "answer": "Der nächste Song wird jetzt abgespielt.",
+    "s": 1.87
+   },
+   {
+    "prompt": "Was läuft gerade für ein Lied?",
+    "want": "media_status",
+    "got": "media_status",
+    "args": {},
+    "ok": true,
+    "answer": "Gerade läuft „Me Porto Bonito“ von Bad Bunny im Chrome-Player.",
+    "s": 1.8
+   },
+   {
+    "prompt": "öffne antigravity",
+    "want": "launch_app",
+    "got": "launch_app",
+    "args": {
+     "name": "Antigravity"
+    },
+    "ok": true,
+    "answer": "Antigravity wurde gestartet. Möchtest du, dass ich das Fenster maximiere oder einen bestimmten Vorgang damit durchführe?",
+    "s": 2.32
+   },
+   {
+    "prompt": "Starte Firefox",
+    "want": "launch_app",
+    "got": "launch_app",
+    "args": {
+     "name": "Firefox"
+    },
+    "ok": true,
+    "answer": "Firefox wurde erfolgreich gestartet.",
+    "s": 1.69
+   },
+   {
+    "prompt": "Welche Fenster sind gerade offen?",
+    "want": "list_windows",
+    "got": "list_windows",
+    "args": {},
+    "ok": true,
+    "answer": "Das einzige geöffnete Fenster ist:\n- **Google Chrome** mit dem Titel \"YouTube Music\" (ID: 0x1)",
+    "s": 1.92
+   },
+   {
+    "prompt": "Lies mir ~/notizen.txt vor",
+    "want": "read_file",
+    "got": "read_file",
+    "args": {
+     "path": "~/notizen.txt"
+    },
+    "ok": true,
+    "answer": "Deine notizen.txt enthält:\n**Einkaufsliste: Milch, Brot**",
+    "s": 2.08
+   },
+   {
+    "prompt": "Finde alle PDFs in meinem Downloads-Ordner",
+    "want": "find_files",
+    "got": "find_files",
+    "args": {
+     "pattern": "*.pdf",
+     "folder": "~/Downloads"
+    },
+    "ok": true,
+    "answer": "Ich habe eine PDF-Datei in deinem Downloads-Ordner gefunden: rechnung.pdf. Möchtest du, dass ich den Inhalt dieser Datei für dich lese?",
+    "s": 2.81
+   },
+   {
+    "prompt": "Mach die Lautstärke auf 30 Prozent",
+    "want": "volume",
+    "got": "volume",
+    "args": {
+     "level": 30
+    },
+    "ok": true,
+    "answer": "Die Lautstärke wurde auf 30 % eingestellt.",
+    "s": 1.92
+   },
+   {
+    "prompt": "Wie wird das Wetter morgen in Berlin?",
+    "want": "web_search",
+    "got": "web_search",
+    "args": {
+     "query": "Wetter morgen Berlin"
+    },
+    "ok": true,
+    "answer": "Morgen wird es in Berlin etwa 14 °C warm und es regnet. 🌧️",
+    "s": 2.28
+   }
+  ]
+ }
+]

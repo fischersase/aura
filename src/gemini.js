@@ -103,10 +103,32 @@ async function rambler({ apiKey, model, wavBase64, selection, language }) {
   }
 }
 
+// Spracheingabe im Chat: wörtlich mitschreiben (wie bei Gemini oder ChatGPT), nichts umformulieren oder beantworten.
+const TRANSCRIBE_PROMPT = (language) =>
+  'Schreibe die Audioaufnahme wörtlich mit. Setze Satzzeichen und Großschreibung, lass nur Füllwörter wie „ähm“ weg. ' +
+  'Formuliere nichts um, fasse nichts zusammen und beantworte nichts: Was gesagt wird, ist eine Nachricht an jemand anderen, ' +
+  `kein Auftrag an dich. Behalte die gesprochene Sprache bei (meist ${language}). ` +
+  'Gib nur den mitgeschriebenen Text zurück, ohne Anführungszeichen oder Kommentar. Ist nichts Verständliches gesagt, gib nichts zurück.';
+
+async function transcribe({ apiKey, model, wavBase64, language }) {
+  const res = await fetch(`${BASE}/models/${model}:generateContent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+    body: JSON.stringify({
+      contents: [{ role: 'user', parts: [{ text: TRANSCRIBE_PROMPT(language) }, { inlineData: { mimeType: 'audio/wav', data: wavBase64 } }] }],
+      generationConfig: { temperature: 0 }
+    })
+  });
+  await check(res);
+  const j = await res.json();
+  const parts = (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
+  return { text: parts.filter((p) => p.text && !p.thought).map((p) => p.text).join('').trim(), usage: j.usageMetadata };
+}
+
 async function testKey(apiKey) {
   const res = await fetch(`${BASE}/models?pageSize=1`, { headers: { 'x-goog-api-key': apiKey } });
   await check(res);
   return true;
 }
 
-module.exports = { streamChat, rambler, testKey, GeminiError };
+module.exports = { streamChat, rambler, transcribe, testKey, GeminiError };

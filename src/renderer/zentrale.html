@@ -14,12 +14,15 @@
   <button data-page="profile">Profil</button>
   <button data-page="secrets">Schlüssel</button>
   <button data-page="tools">Werkzeuge</button>
+  <button data-page="rules">Regeln</button>
   <button data-page="servers">MCP-Server</button>
   <button data-page="catalog">MCP-Katalog</button>
   <button data-page="skills">Skills</button>
   <button data-page="instructions">Anweisungen</button>
+  <button data-page="memory">Gedächtnis</button>
   <button data-page="log">Aktionsprotokoll</button>
   <button data-page="chats">Chats</button>
+  <button data-page="doctor">Systemprüfung</button>
   <div class="grow"></div>
   <button id="openWeb" class="app-only" title="Öffnet die Zentrale in deinem Standardbrowser">Im Browser öffnen</button>
   <div id="ver" class="muted small"></div>
@@ -34,6 +37,13 @@
     <div class="card">
       <label class="switch"><input type="checkbox" id="agentOn"><span></span> Aura darf am PC handeln (Agent)</label>
       <p class="muted small">Ausgeschaltet antwortet Aura nur im Chat, ohne Werkzeuge.</p>
+      <label class="small" for="agentVersion">Agent-Version
+        <select id="agentVersion">
+          <option value="v2">v2 (Google ADK, Standard)</option>
+          <option value="v1">v1 (bisheriger Agent)</option>
+        </select>
+      </label>
+      <p class="muted small">v2 plant, prüft seine Ergebnisse nach, bedient Browser und Programme und hat ein Gedächtnis. Er nutzt dein gewähltes Modell (lokal über Ollama oder Gemini). Folgenreiches fragt immer vorher; Regeln unter „Regeln“.</p>
     </div>
     <div class="card">
       <h3>Zentrale im Browser</h3>
@@ -111,11 +121,39 @@
     <textarea id="agentsMd" class="editor" spellcheck="false"></textarea>
   </section>
 
+  <!-- Regeln (Agent v2) -->
+  <section id="rules" class="page hidden">
+    <div class="head"><h1>Regeln (Agent v2)</h1><span class="grow"></span><span id="ruleStatus" class="muted small"></span><button id="saveRules" class="primary">Speichern</button></div>
+    <p class="lead">Was Aura ohne Rückfrage darf (<code>allow</code>), wo es immer fragen soll (<code>ask</code>) und was nie (<code>deny</code>).
+      „Immer erlauben“ auf einer Freigabekarte legt hier eine Regel an. Zugangsdaten und Systemzerstörung bleiben immer gesperrt.</p>
+    <p class="muted small" id="rulesFile"></p>
+    <textarea id="rulesText" class="editor" spellcheck="false"></textarea>
+  </section>
+
+  <!-- Gedächtnis (Agent v2) -->
+  <section id="memory" class="page hidden">
+    <div class="head"><h1>Gedächtnis</h1><span class="grow"></span><span id="memStatus" class="muted small"></span><button id="saveMem" class="primary">Speichern</button></div>
+    <p class="lead">Was sich Aura (Agent v2) über dich und deinen Rechner gemerkt hat. Steht bei jedem Auftrag in seiner Anweisung.
+      Du kannst Einträge ändern oder löschen. Passwörter und Kontodaten speichert Aura nie.</p>
+    <p class="muted small" id="memFile"></p>
+    <textarea id="memText" class="editor" spellcheck="false"></textarea>
+  </section>
+
   <!-- Protokoll -->
   <section id="log" class="page hidden">
-    <div class="head"><h1>Aktionsprotokoll</h1><span class="grow"></span><button data-open="log">Datei öffnen</button><button id="reloadLog">Aktualisieren</button></div>
+    <div class="head"><h1>Aktionsprotokoll</h1><span class="grow"></span><button data-open="log">Datei öffnen (v1)</button><button id="reloadLog">Aktualisieren</button></div>
     <p class="lead">Alles, was Aura als Agent getan hat, neueste zuerst.</p>
+    <h3>Agent v2</h3>
+    <div id="auditList"></div>
+    <h3>Agent v1</h3>
     <div id="logList"></div>
+  </section>
+
+  <!-- Systemprüfung -->
+  <section id="doctor" class="page hidden">
+    <div class="head"><h1>Systemprüfung</h1><span class="grow"></span><button id="runDoctor" class="primary">Erneut prüfen</button></div>
+    <p class="lead">Prüft, ob alles da ist, was der Agent für seine Fähigkeiten braucht.</p>
+    <div id="doctorList"></div>
   </section>
 
   <!-- Chats -->
