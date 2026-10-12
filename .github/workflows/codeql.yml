@@ -37,3 +37,10 @@ jobs:
           category: /language:${{ matrix.language }}
           # Private Repos im Gratis-Tarif können keine Ergebnisse hochladen; analysiert wird trotzdem.
           upload: ${{ github.event.repository.private && 'never' || 'always' }}
+          output: sarif
+      # Ergebnisse auch als Artefakt (im privaten Repo der einzige Weg, sie zu sehen).
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: codeql-${{ matrix.language }}
+          path: sarif
+          retention-days: 7
