@@ -2,7 +2,7 @@
 # Lädt das neueste Aura-.deb aus den GitHub-Releases und installiert es (Ubuntu/Debian).
 # Aufruf: make update   (oder: bash scripts/update-linux.sh; FORCE=1 installiert auch bei gleicher oder älterer Version)
 #         make local    (--local: den Stand dieses Checkouts bauen und installieren, z. B. einen Branch vor dem Release)
-# Das Repository ist privat: Download über die GitHub-CLI (gh auth login) oder ein Token in GITHUB_TOKEN.
+# Ohne Checkout geht es mit der Paketquelle: sudo apt update && sudo apt upgrade (siehe README).
 set -euo pipefail
 
 REPO="fischersase/aura"
@@ -40,6 +40,13 @@ if [ "${1:-}" = "--local" ]; then
   exit 0
 fi
 
+# Mit eingetragener Aura-Paketquelle ist apt der normale Weg.
+if [ -z "${FORCE:-}" ] && [ -e /etc/apt/sources.list.d/aura.sources ]; then
+  sudo apt update -q && sudo apt install -y --only-upgrade "$PKG"
+  echo "Jetzt installiert: $(dpkg-query -W -f='${Version}' "$PKG")"
+  exit 0
+fi
+
 up_to_date() {
   local latest="${1#v}"
   [ -z "$installed" ] || [ -n "${FORCE:-}" ] && return 0
@@ -67,15 +74,10 @@ elif [ -n "${GITHUB_TOKEN:-}" ]; then
   echo "Neueste Version: $tag"
   up_to_date "$tag"
   curl -fL --progress-bar "${auth[@]}" -H "Accept: application/octet-stream" -o "$deb" "$url"
-elif curl -fsSL -o "$deb" "https://github.com/$REPO/releases/latest/download/$ASSET" 2>/dev/null; then
+elif curl -fsSL -o "$deb" "https://github.com/$REPO/releases/latest/download/$ASSET"; then
   echo "Neueste Version heruntergeladen."
 else
-  cat >&2 <<'MSG'
-Download nicht möglich: Das Repository ist privat.
-Einmalig die GitHub-CLI einrichten und dann erneut "make update" ausführen:
-  sudo apt install gh
-  gh auth login
-MSG
+  echo "Download nicht möglich (keine Verbindung zu GitHub?)." >&2
   exit 1
 fi
 

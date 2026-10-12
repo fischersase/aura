@@ -1,23 +1,33 @@
 name: CI
-# Tests für Aura: der Python-Agent (agent/) und die JavaScript-Seite inklusive Brücke zum Agenten.
-# Läuft auf jedem Branch und jedem Pull Request; release.yml ruft diesen Workflow vor jedem Release auf.
+# Tests für Aura: der Python-Agent (agent/) unter Linux und Windows und die JavaScript-Seite inklusive Brücke zum Agenten.
+# Läuft auf jedem Push und Pull Request; release.yml ruft diesen Workflow vor jedem Release auf.
+# Actions sind auf Commit-Hashes festgelegt (Dependabot hält sie aktuell).
 on:
   push:
   pull_request:
   workflow_dispatch:
   workflow_call:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   agent:
+    name: agent (Linux)
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: agent
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          enable-cache: true
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
       # Für Desktop-, Medien-, Einstellungs- und AT-SPI-Tests: unsichtbarer Bildschirm, D-Bus, GNOME-Schemata, Papierkorb (gio), GTK 3.
       - run: sudo apt-get update -q && sudo apt-get install -y -q xvfb dbus gsettings-desktop-schemas libglib2.0-bin at-spi2-core python3-gi gir1.2-gtk-3.0 gir1.2-atspi-2.0
         working-directory: .
@@ -27,15 +37,17 @@ jobs:
 
   # Windows-Backend (Fenster, Startmenü, UI Automation, PowerShell, Papierkorb, Registry) und alle übrigen Tests.
   agent-windows:
+    name: agent (Windows)
     runs-on: windows-latest
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: agent
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          enable-cache: true
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
       - run: uv sync --locked
       # Wie im Betrieb: Electron startet den Agenten mit PYTHONUTF8=1 (src/agent2/bridge.js).
       - run: uv run pytest -q -rs
@@ -43,15 +55,17 @@ jobs:
           PYTHONUTF8: "1"
 
   js:
+    name: app (JavaScript)
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
-      - uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
       - run: npm run check
       # Für den Ende-zu-Ende-Test der Brücke (startet den echten Python-Agenten mit Drehbuch-Modell).
       - run: uv sync --locked

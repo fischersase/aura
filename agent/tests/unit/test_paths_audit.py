@@ -72,15 +72,15 @@ def test_redact_clips_long_values_and_secrets():
 
 
 WINDOWS_SECRETS = [
-    r"C:\Users\sebastian\AppData\Local\Google\Chrome\User Data\Default\Login Data",
-    r"C:\Users\sebastian\AppData\Local\Google\Chrome\User Data\Local State",
-    r"C:\Users\sebastian\AppData\Local\Microsoft\Edge\User Data\Profile 1\Network\Cookies",
-    r"C:\Users\sebastian\AppData\Roaming\Mozilla\Firefox\Profiles\ab12.default\logins.json",
-    r"C:\Users\sebastian\AppData\Roaming\Microsoft\Credentials\DFBE70A7E5CC19A398EBF1B96859CE5D",
-    r"C:\Users\sebastian\AppData\Roaming\Microsoft\Protect\S-1-5-21",
+    r"C:\Users\anna\AppData\Local\Google\Chrome\User Data\Default\Login Data",
+    r"C:\Users\anna\AppData\Local\Google\Chrome\User Data\Local State",
+    r"C:\Users\anna\AppData\Local\Microsoft\Edge\User Data\Profile 1\Network\Cookies",
+    r"C:\Users\anna\AppData\Roaming\Mozilla\Firefox\Profiles\ab12.default\logins.json",
+    r"C:\Users\anna\AppData\Roaming\Microsoft\Credentials\DFBE70A7E5CC19A398EBF1B96859CE5D",
+    r"C:\Users\anna\AppData\Roaming\Microsoft\Protect\S-1-5-21",
     r"C:\Windows\System32\config\SAM",
-    r"C:\Users\sebastian\AppData\Roaming\Aura\secrets.json",
-    r"C:\Users\sebastian\.ssh\id_ed25519",
+    r"C:\Users\anna\AppData\Roaming\Aura\secrets.json",
+    r"C:\Users\anna\.ssh\id_ed25519",
 ]
 
 
@@ -94,5 +94,5 @@ def test_windows_credential_paths_are_forbidden(path):
 def test_windows_normal_paths_are_allowed():
   from aura_agent.policy.paths import forbidden
 
-  assert forbidden(r"C:\Users\sebastian\Documents\Rechnung.pdf") is None
-  assert forbidden(r"C:\Users\sebastian\AppData\Local\Google\Chrome\User Data\Default\Bookmarks") is None
+  assert forbidden(r"C:\Users\anna\Documents\Rechnung.pdf") is None
+  assert forbidden(r"C:\Users\anna\AppData\Local\Google\Chrome\User Data\Default\Bookmarks") is None

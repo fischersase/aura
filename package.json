@@ -2,11 +2,11 @@
   "name": "aura-desktop",
   "productName": "Aura",
   "version": "0.11.0",
-  "description": "Aura: hotkey assistant in Googlebook style for Windows and Linux, with Gemini or local models via Ollama",
+  "description": "Aura: desktop assistant for Windows and Linux with chat, voice, screen help and a careful agent; runs with Gemini or local models via Ollama",
   "main": "src/main.js",
   "author": {
-    "name": "fischersase",
-    "email": "121428169+fischersase@users.noreply.github.com"
+    "name": "Sebastian Fischer",
+    "url": "https://github.com/fischersase"
   },
   "license": "MIT",
   "private": true,
@@ -25,7 +25,7 @@
     "electron-builder": "26.15.3"
   },
   "build": {
-    "appId": "local.sebastian.aura",
+    "appId": "io.github.fischersase.aura",
     "productName": "Aura",
     "directories": {
       "output": "dist"
@@ -67,8 +67,8 @@
       "icon": "assets/icon.png",
       "category": "Utility",
       "executableName": "aura",
-      "synopsis": "Aura: hotkey assistant with Live and dictation",
-      "maintainer": "fischersase <121428169+fischersase@users.noreply.github.com>",
+      "synopsis": "Aura: desktop assistant with chat, voice and a careful agent",
+      "maintainer": "Sebastian Fischer <121428169+fischersase@users.noreply.github.com>",
       "artifactName": "Aura-${version}-${arch}.${ext}",
       "extraResources": [
         {
@@ -107,7 +107,9 @@
         "python3-gi",
         "gir1.2-atspi-2.0",
         "google-chrome-stable"
-      ]
+      ],
+      "afterInstall": "packaging/linux/after-install.sh",
+      "afterRemove": "packaging/linux/after-remove.sh"
     },
     "nsis": {
       "oneClick": true,
@@ -118,5 +120,12 @@
       "deleteAppDataOnUninstall": false
     }
   },
-  "homepage": "https://github.com/fischersase/aura"
+  "homepage": "https://github.com/fischersase/aura",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fischersase/aura.git"
+  },
+  "bugs": {
+    "url": "https://github.com/fischersase/aura/issues"
+  }
 }

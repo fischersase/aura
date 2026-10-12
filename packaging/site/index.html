@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aura – desktop assistant</title>
+<meta name="description" content="Aura: desktop assistant for Windows and Linux with chat, voice and a careful agent. Runs with local models (Ollama) or Gemini.">
+<style>
+  :root { --bg: #f7f7fb; --fg: #1d1d26; --muted: #5b5b6b; --card: #fff; --code: #eef0f6; --accent: #7c5cf0; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #15151c; --fg: #ececf2; --muted: #a3a3b5; --card: #1e1e28; --code: #262633; --accent: #a78bfa; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Ubuntu, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 48px 16px 64px; }
+  header { display: flex; align-items: center; gap: 16px; margin-bottom: 8px; }
+  header img { width: 64px; height: 64px; }
+  h1 { margin: 0; font-size: 2.2rem; }
+  .lead { color: var(--muted); margin: 0 0 32px; }
+  section { background: var(--card); border-radius: 14px; padding: 20px 22px; margin: 18px 0; }
+  h2 { margin: 0 0 8px; font-size: 1.25rem; }
+  pre { background: var(--code); border-radius: 10px; padding: 12px 14px; overflow-x: auto; font-size: .9rem; margin: 10px 0; }
+  code { font-family: ui-monospace, "Cascadia Code", "DejaVu Sans Mono", monospace; }
+  a { color: var(--accent); }
+  .btn { display: inline-block; background: var(--accent); color: #fff; text-decoration: none; padding: 10px 18px; border-radius: 10px; font-weight: 600; margin: 4px 8px 4px 0; }
+  small { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <header><img src="https://raw.githubusercontent.com/fischersase/aura/main/assets/icon.png" alt=""><h1>Aura</h1></header>
+  <p class="lead">Desktop assistant for Windows and Linux: chat, voice input, screen help and an agent that plans, acts and checks its own work, asking before anything consequential. Runs fully local with Ollama or with Google Gemini.</p>
+
+  <section>
+    <h2>Windows 10/11</h2>
+    <a class="btn" href="https://github.com/fischersase/aura/releases/latest/download/Aura-Setup.exe">Download Aura-Setup.exe</a>
+    <p>Run it; it installs for your user without admin rights. To update, run the newer setup. The file is not code-signed yet, so SmartScreen may ask: <em>More info → Run anyway</em>.</p>
+  </section>
+
+  <section>
+    <h2>Ubuntu / Debian (x64)</h2>
+    <pre><code>curl -fLo /tmp/aura.deb https://github.com/fischersase/aura/releases/latest/download/aura_amd64.deb
+sudo apt install /tmp/aura.deb</code></pre>
+    <p>The package adds the signed Aura package source, so later versions come with your normal updates:</p>
+    <pre><code>sudo apt update &amp;&amp; sudo apt upgrade</code></pre>
+    <p><small>Prefer to add the source by hand first?</small></p>
+    <pre><code>sudo curl -fLo /usr/share/keyrings/aura-archive-keyring.asc https://fischersase.github.io/aura/aura-archive-keyring.asc
+printf 'Types: deb\nURIs: https://fischersase.github.io/aura/apt\nSuites: stable\nComponents: main\nArchitectures: amd64\nSigned-By: /usr/share/keyrings/aura-archive-keyring.asc\n' | sudo tee /etc/apt/sources.list.d/aura.sources
+sudo apt update &amp;&amp; sudo apt install aura-desktop</code></pre>
+    <p>Other distributions: <a href="https://github.com/fischersase/aura/releases/latest/download/Aura-x86_64.AppImage">Aura-x86_64.AppImage</a> (<code>chmod +x</code> and run).</p>
+  </section>
+
+  <section>
+    <h2>Verify your download</h2>
+    <p>Every release has <a href="https://github.com/fischersase/aura/releases/latest/download/SHA256SUMS">SHA256SUMS</a> and a build provenance attestation:</p>
+    <pre><code>gh attestation verify aura_amd64.deb -R fischersase/aura</code></pre>
+  </section>
+
+  <p><a href="https://github.com/fischersase/aura">Source code, documentation and issues on GitHub</a> · MIT License</p>
+</main>
+</body>
+</html>

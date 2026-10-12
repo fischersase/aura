@@ -1,22 +1,50 @@
+<p align="center"><img src="assets/icon.png" width="96" alt=""></p>
+
 # Aura
 
-*Formerly "Gemini Overlay".* A hotkey assistant for Windows and Linux.
+[![CI](https://github.com/fischersase/aura/actions/workflows/ci.yml/badge.svg)](https://github.com/fischersase/aura/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/fischersase/aura/actions/workflows/codeql.yml/badge.svg)](https://github.com/fischersase/aura/actions/workflows/codeql.yml)
+[![Release](https://img.shields.io/github/v/release/fischersase/aura)](https://github.com/fischersase/aura/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Gemini the way it works on a Googlebook: a glowing screen edge, a small rounded Gemini window in the corner, Gemini Live that sees your screen and points where to click, and Rambler dictation in any text field.
+A desktop assistant for Windows and Linux. Press a hotkey and a small window opens in the corner: chat, talk, share your screen, dictate into any text field, and let Aura do things on your PC for you.
 
-Aura can also act on your PC: open programs, folders and websites, find and read documents, and run terminal commands. Anything that changes something waits for your OK.
+- **Chat and voice:** type or press the microphone; *Live* mode sees your screen and points where to click.
+- **Rambler:** dictate into any text field of any program.
+- **Agent:** opens programs and websites, finds and edits files, controls music, windows and settings, runs commands. It plans first, checks its own results and asks before anything consequential.
+- **Your choice of model:** fully local and free with open models through [Ollama](https://ollama.com) (Gemma 4, Qwen, …), or Google Gemini with an API key.
 
-Runs with Google Gemini (API key) or fully local with open models through [Ollama](https://ollama.com) (Gemma 4, Qwen, DeepSeek, …).
+The user interface is German. *Formerly "Gemini Overlay".*
 
 ## Install
 
-**Windows 10/11 (x64):** download **`Aura-Setup.exe`** from the [latest release](https://github.com/fischersase/aura/releases/latest) and run it. It installs for your user only (no admin rights) and adds Aura to the Start menu; to update, run the newer setup over it, your settings stay. SmartScreen may warn because the file is unsigned: click **More info → Run anyway**. The older portable `Aura.exe` is no longer built (it would have to unpack the agent's Python on every start); you can delete it after installing.
+**Windows 10/11 (x64):** download [**Aura-Setup.exe**](https://github.com/fischersase/aura/releases/latest/download/Aura-Setup.exe) and run it. It installs for your user only (no admin rights) and adds Aura to the Start menu. The installer is not code-signed yet, so SmartScreen may ask: **More info → Run anyway**.
 
-**Linux (x64):** download **`Aura-x86_64.AppImage`** (any distro, `chmod +x` and run) or **`aura_amd64.deb`** for Debian/Ubuntu. Double-clicking the .deb may just open an archive viewer; install it from a terminal instead: `sudo apt install ~/Downloads/aura_amd64.deb`, then start "Aura" from the app menu. Upgrading from "Gemini Overlay"? Remove the old package with `sudo apt remove windows-gemini`; your settings move over automatically.
+**Ubuntu / Debian (x64):**
 
-**Update on Ubuntu:** in a clone of this repository run `make update`. It downloads the newest `.deb` from the releases (via the GitHub CLI, `gh auth login` once, because the repository is private, or a token in `GITHUB_TOKEN`), installs it and restarts Aura. `make version` shows the installed version. The running version is also shown next to the name in the Aura window, in the Zentrale and in the tray menu.
+```bash
+curl -fLo /tmp/aura.deb https://github.com/fischersase/aura/releases/latest/download/aura_amd64.deb
+sudo apt install /tmp/aura.deb
+```
 
-The setup assistant opens on first start and lets you pick Gemini or local models. The app lives in the system tray (star icon); right-click it for settings, or start "Aura" again.
+Then start "Aura" from the app menu. The package also adds the signed Aura package source, so updates come with your normal system updates (see below). Upgrading from "Gemini Overlay"? Remove it with `sudo apt remove windows-gemini`; your settings move over automatically.
+
+**Other Linux (x64):** [Aura-x86_64.AppImage](https://github.com/fischersase/aura/releases/latest/download/Aura-x86_64.AppImage), then `chmod +x` and run it.
+
+The setup assistant opens on first start and lets you pick Gemini or local models. Aura lives in the system tray (ring icon); right-click it for settings, or start "Aura" again. All downloads and instructions are also on [fischersase.github.io/aura](https://fischersase.github.io/aura/).
+
+## Update
+
+| System | How |
+| --- | --- |
+| Ubuntu / Debian | `sudo apt update && sudo apt upgrade` (or the *Software Updater*) |
+| Windows | run the newest [Aura-Setup.exe](https://github.com/fischersase/aura/releases/latest/download/Aura-Setup.exe) over the old one; settings stay |
+| AppImage | download the newest AppImage |
+| From a clone of this repository | `make update` (newest release) or `make local` (build and install your checkout) |
+
+The running version is shown next to the name in the Aura window, in the Zentrale and in the tray menu.
+
+**Verify a download:** every release has [SHA256SUMS](https://github.com/fischersase/aura/releases/latest/download/SHA256SUMS) and a build provenance attestation (`gh attestation verify aura_amd64.deb -R fischersase/aura`). The apt source is signed with key `2D1C 8196 491F 9E92 A004 F4AE 102E AFB1 7FC8 5F90`.
 
 ## Option A: Gemini (API key, no Google Cloud project needed)
 
@@ -181,20 +209,28 @@ Register it in `~/.aura/mcp.json` with `"my-tools": { "command": "node", "args":
 - Read-aloud for local Live needs `speech-dispatcher` with a voice (e.g. `espeak-ng`).
 - The tray icon needs AppIndicator support (on GNOME: the "AppIndicator" extension).
 
-## Build from source
+## Development
 
-Requires [Node.js](https://nodejs.org) 22+.
-
-```
+```bash
+git clone https://github.com/fischersase/aura.git && cd aura
 npm ci --ignore-scripts && node scripts/vendor.js && node node_modules/electron/install.js
 (cd agent && uv sync)                            # Agent v2 (needs uv: https://docs.astral.sh/uv/)
 npm start                                        # run
-npm test && (cd agent && uv run pytest)          # tests
-npm run dist:win                                 # Windows installer (in Git Bash), bundles Python + agent + browser server
-npm run dist:linux                               # Linux packages, bundles Python + agent + browser server
+npm run check && npm test                        # app tests
+(cd agent && uv run ruff check src tests spikes evals && uv run pytest -q)   # agent tests
+npm run dist:linux                               # Linux packages (bundles Python, agent and browser server)
+npm run dist:win                                 # Windows installer (in Git Bash)
 (cd agent && uv run python -m evals.desktop.run --k 3)   # desktop evals (needs Ollama)
 ```
+
+Every push runs the tests on Linux and Windows, CodeQL and a secret scan; `main` only accepts pull requests with all checks green. Every merge that changes the app builds a release ([docs/RELEASING.md](docs/RELEASING.md)). Architecture decisions are in [docs/adr](docs/adr/README.md).
 
 ## Privacy and secrets
 
 Your API key and all keys under *Schlüssel* are stored only on your computer, encrypted with the OS keystore (Windows DPAPI, Linux GNOME keyring or KWallet) in the app's settings folder. Without a keyring on Linux, the *Schlüssel* page cannot store keys and says so; install gnome-keyring or KWallet. It is never part of this repository; every push is scanned with gitleaks. With Ollama, nothing leaves your computer except the one-time model downloads.
+
+## Contributing, security, license
+
+- Contributions are welcome, see [CONTRIBUTING.md](CONTRIBUTING.md) and the [code of conduct](CODE_OF_CONDUCT.md).
+- Please report security problems privately, see [SECURITY.md](SECURITY.md).
+- Aura is released under the [MIT License](LICENSE). Bundled third-party software is listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). "Gemini" and "Google" are trademarks of Google LLC; Aura is an independent project and not affiliated with Google.
