@@ -19,6 +19,7 @@ const agentMcp = require('./agent/mcp');
 const secrets = require('./secrets');
 const web = require('./web');
 const security = require('./security');
+const { LiveRelay } = require('./live-relay');
 security.guardIpc(ipcMain); // vor der ersten IPC-Registrierung (AURA-18)
 const { AgentBridge, defaultAuraDir } = require('./agent2/bridge');
 const zentraleV2 = require('./agent2/zentrale-v2');
@@ -865,13 +866,23 @@ ipcMain.handle('live:config', () => {
   return {
     agent,
     provider: 'gemini',
-    apiKey: store.getApiKey(),
+    hasKey: !!store.getApiKey(), // the key itself stays in main (live-relay.js, AURA-15)
     model: s.liveModel,
     voice: s.liveVoice,
     language: s.language,
     fps: Number(s.liveFps) || 1
   };
 });
+
+// Gemini Live relay (AURA-15): the WebSocket lives here, the panel only exchanges messages.
+const liveRelay = new LiveRelay({ getKey: () => store.getApiKey() });
+ipcMain.handle('live:open', (e) => {
+  const over = budgetError();
+  if (over) return { error: over };
+  return liveRelay.open(e.sender);
+});
+ipcMain.on('live:send', (e, { id, data }) => liveRelay.send(e.sender, id, data));
+ipcMain.on('live:close', (e, id) => liveRelay.close(id, e.sender));
 
 ipcMain.on('live:active', (_e, active) => {
   liveActive = !!active;
