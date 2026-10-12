@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+from google.adk.memory import SqliteMemoryService
 from google.adk.models.base_llm import BaseLlm
 from google.adk.runners import Runner
 from google.adk.sessions.sqlite_session_service import SqliteSessionService
@@ -18,6 +19,7 @@ from .. import __version__
 from ..agents.root import build_root, tool_catalog
 from ..extensions.mcp import build_toolsets, integrations_agent
 from ..harness.audit import AuditLog
+from ..harness.context_manager import ContextManagerPlugin
 from ..harness.guard import GuardPlugin
 from ..models.ollama_llm import OllamaLlm
 from ..policy.engine import PolicyEngine
@@ -64,6 +66,7 @@ class RpcHost:
 def build_runner(settings: AgentSettings, model: BaseLlm | None = None, browser: bool | None = None) -> Runner:
   """browser: None = nach Einstellung (aber nie bei Testmodellen), True/False erzwingt."""
   policy = PolicyEngine(settings.aura_dir / "policy.toml", settings.tool_policy)
+  episodes = SqliteMemoryService(settings.data_dir / "memory.db")
   use_browser = settings.browser and model is None if browser is None else browser
   toolset = build_browser_toolset(settings, settings.browser_headless) if use_browser else None
   settings.ensure_dirs()
@@ -71,9 +74,10 @@ def build_runner(settings: AgentSettings, model: BaseLlm | None = None, browser:
                            num_ctx=settings.num_ctx, keep_alive=settings.keep_alive, think=False)
   return Runner(
       app_name=APP_NAME,
-      agent=build_root(llm, settings, toolset, integrations_agent(llm, build_toolsets(settings.mcp_servers))),
+      agent=build_root(llm, settings, toolset, integrations_agent(llm, build_toolsets(settings.mcp_servers)), episodes),
+      memory_service=episodes,
       session_service=SqliteSessionService(str(settings.data_dir / "sessions.db")),
-      plugins=[GuardPlugin(policy)],
+      plugins=[GuardPlugin(policy), ContextManagerPlugin(settings.num_ctx)],
   )
 
 

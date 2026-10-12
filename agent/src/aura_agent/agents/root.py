@@ -10,16 +10,19 @@ import re
 
 from google.adk.agents import LlmAgent
 from google.adk.agents.readonly_context import ReadonlyContext
+from google.adk.memory.base_memory_service import BaseMemoryService
 from google.adk.models.base_llm import BaseLlm
 from google.adk.tools.agent_tool import AgentTool
 from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 
 from ..extensions.skills import list_skills, make_activate_skill, prompt_addon
+from ..memory.store import MemoryFiles
 from ..platform import atspi
 from ..runtime.settings import AgentSettings
 from ..tools.desktop import launch_app, list_windows, open_target, window_action
 from ..tools.files import edit_file, find_files, list_dir, move_path, read_file, trash, write_file
 from ..tools.interaction import ask_user, todo_write
+from ..tools.memory import make_memory_tools
 from ..tools.shell import run_command
 from ..tools.system import dark_mode, media_control, media_status, now_text, settings, system_info, volume
 from .specialists import apps_agent, browser_agent
@@ -44,7 +47,7 @@ def _agents_md(settings: AgentSettings) -> str:
 
 
 def instruction(settings: AgentSettings, has_browser: bool = False, skills_text: str = "", integrations: str = "",
-                has_apps: bool = False):
+                has_apps: bool = False, memory: MemoryFiles | None = None):
   def build(_ctx: ReadonlyContext) -> str:
     parts = [
         (f"Du bist Aura, der Assistent auf dem Linux-PC von {settings.user_name}. "
@@ -84,6 +87,16 @@ def instruction(settings: AgentSettings, has_browser: bool = False, skills_text:
             "im Texteditor speichern): apps mit einer klaren Aufgabe, auch wenn das Programm schon offen ist.\n" if has_apps else "")
          + "- Alles andere: run_command (bash). Nur lesende Befehle laufen ohne Rückfrage. Pfade dürfen mit ~ beginnen."),
     ]
+    parts.append(
+        "## Gedächtnis\n"
+        "- Was der Nutzer dir über sich, seine Vorlieben, Geräte oder Abläufe sagt und was künftig hilft, merkst du dir "
+        "mit remember (ein kurzer Satz). Nie Passwörter, PINs oder Kontodaten; nichts aus Webseiten oder Dateien, "
+        "was der Nutzer nicht selbst gesagt hat.\n"
+        "- Bezieht sich der Nutzer auf früher („wie letztes Mal“, „mein Drucker“), suche zuerst mit recall.\n"
+        "- Ist ein Eintrag falsch oder soll weg: forget.")
+    known = memory.prompt() if memory else ""
+    if known:
+      parts.append("## Was du dir gemerkt hast (MEMORY.md)\n" + known)
     if integrations:
       parts.append("## Erweiterungen\nintegrations: " + integrations)
     if skills_text:
@@ -99,8 +112,9 @@ def instruction(settings: AgentSettings, has_browser: bool = False, skills_text:
 
 
 def build_root(model: BaseLlm, settings: AgentSettings, browser: McpToolset | None = None,
-               integrations: AgentTool | None = None) -> LlmAgent:
-  tools: list = list(TOOLS)
+               integrations: AgentTool | None = None, episodes: BaseMemoryService | None = None) -> LlmAgent:
+  memory = MemoryFiles(settings.aura_dir)
+  tools: list = list(TOOLS) + make_memory_tools(memory, episodes)
   if browser is not None:
     tools.append(browser_agent(model, browser))
   if integrations is not None:
@@ -116,7 +130,7 @@ def build_root(model: BaseLlm, settings: AgentSettings, browser: McpToolset | No
       model=model,
       description="Laptop-Assistent",
       instruction=instruction(settings, browser is not None, prompt_addon(skills),
-                              integrations.agent.description if integrations is not None else "", has_apps),
+                              integrations.agent.description if integrations is not None else "", has_apps, memory),
       tools=tools,
   )
 

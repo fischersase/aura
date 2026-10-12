@@ -7,6 +7,7 @@ sehen bekam (z. B. Ablehnungen, gekürzte Ausgaben, angehefteten Kontext).
 
 from __future__ import annotations
 
+import copy
 import uuid
 from collections.abc import AsyncGenerator, Callable
 from dataclasses import dataclass, field
@@ -51,7 +52,10 @@ class ScriptedLlm(BaseLlm):
   async def generate_content_async(
       self, llm_request: LlmRequest, stream: bool = False
   ) -> AsyncGenerator[LlmResponse, None]:
-    self._requests.append(llm_request.model_copy(deep=True))
+    # Nur Verlauf und Konfiguration kopieren: tools_dict hängt am ganzen Agentenbaum (samt diesem Modell
+    # und allen früheren Kopien); eine tiefe Kopie davon wächst mit jeder Runde exponentiell.
+    self._requests.append(LlmRequest(model=llm_request.model, contents=copy.deepcopy(llm_request.contents),
+                                     config=llm_request.config.model_copy(deep=True) if llm_request.config else None))
     step: Step = self._steps.pop(0) if self._steps else self._fallback
     if callable(step):
       step = step(llm_request)

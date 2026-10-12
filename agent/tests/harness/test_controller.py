@@ -246,3 +246,36 @@ async def test_refusal_inside_specialist_reaches_root(tmp_path, private_dbus):
   await finish(ctl)
   back = str(tool_responses(root_llm.requests[-1])[0].response)
   assert "NICHT ausgeführt" in back and "rm x" in back
+
+
+async def test_long_task_stays_within_context_and_keeps_pins(tmp_path):
+  (tmp_path / "gross.txt").write_text("Zeile mit viel Inhalt\n" * 300)
+  todo = [Call("todo_write", {"items": [{"text": "Große Datei auswerten", "status": "in_progress"}]})]
+  reads = [[Call("read_file", {"path": str(tmp_path / "gross.txt")})] for _ in range(4)]
+  lists = [[Call("list_dir", {"path": str(tmp_path / f"d{i}")})] for i in range(20)]
+  settings = AgentSettings(data_dir=tmp_path / "agent", aura_dir=tmp_path / "aura", home=str(tmp_path), num_ctx=8192)
+  llm = ScriptedLlm([todo, *reads, *lists, "fertig"])
+  ctl = TaskController(build_runner(settings, llm), FakeHost(), AuditLog(settings.data_dir / "audit"), settings.home)
+  ctl.start("t1", "c1", "Werte die große Datei aus")
+  await finish(ctl, timeout=180)
+  from aura_agent.harness.context_manager import estimate_tokens
+
+  last = llm.requests[-1]
+  assert estimate_tokens(last.contents) < 8192 * 0.6
+  system = str(last.config.system_instruction)
+  assert "Große Datei auswerten" in system and "Werte die große Datei aus" in system
+
+
+async def test_memory_survives_into_a_new_chat(tmp_path):
+  steps = [[Call("remember", {"fact": "Drucker im Büro ist ein Brother HL-L2350DW", "topic": "Geräte"})], "Gemerkt.",
+           [Call("recall", {"query": "Drucker"})], "Ein Brother HL-L2350DW."]
+  ctl, _, llm, settings = make(tmp_path, steps)
+  ctl.start("t1", "chat-a", "Mein Drucker im Büro ist ein Brother HL-L2350DW")
+  await finish(ctl)
+  ctl.start("t2", "chat-b", "Welchen Drucker hab ich?")  # neuer Chat, eigene Sitzung
+  await finish(ctl)
+  assert "Brother HL-L2350DW" in str(llm.requests[-2].config.system_instruction)  # MEMORY.md in der Anweisung
+  r = tool_responses(llm.requests[-1])[0].response
+  assert any("Brother" in f for f in r["facts"])
+  assert any("Brother" in t for t in r["earlier_conversations"])  # früheres Gespräch gefunden
+  assert (settings.aura_dir / "memory" / "MEMORY.md").exists()

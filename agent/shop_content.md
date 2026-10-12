@@ -1,0 +1,7 @@
+- generic [active] [ref=f2e1]:
+  - heading "Bohnenkaffee Hausmarke" [level=1] [ref=f2e2]
+  - paragraph [ref=f2e3]: 1 kg, 18,90 €
+  - button "Jetzt kaufen" [ref=f2e5]
+  - paragraph [ref=f2e6]:
+    - link "Details" [ref=f2e7] [cursor=pointer]:
+      - /url: /shop/details

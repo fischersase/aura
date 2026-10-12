@@ -129,6 +129,7 @@ class TaskController:
       error = f"{type(e).__name__}: {e}"
     finally:
       ctx.kill_processes()
+    await self._remember_conversation(ctx, t0)
     cancelled = ctx.abort.is_set()
     ms = round((time.monotonic() - t0) * 1000)
     self.audit.write("task_end", task=ctx.task_id, ok=not error and not cancelled, cancelled=cancelled, error=error,
@@ -138,6 +139,23 @@ class TaskController:
     else:
       self.host.emit("task.done", {"taskId": ctx.task_id, "text": final, "cancelled": cancelled, "verified": ctx.verified(),
                                    "steps": ctx.steps, "ms": ms, "usage": usage})
+
+  async def _remember_conversation(self, ctx: TaskContext, since: float) -> None:
+    """Text dieses Auftrags (Bitte und Antworten, keine Werkzeugdaten) für recall durchsuchbar machen."""
+    memory = getattr(self.runner, "memory_service", None)
+    if memory is None:
+      return
+    try:
+      session = await self.runner.session_service.get_session(app_name=APP_NAME, user_id=USER_ID, session_id=ctx.chat_id)
+      if session is None:
+        return
+      started = time.time() - (time.monotonic() - since) - 1
+      events = [e for e in session.events if (e.timestamp or 0) >= started and e.content and _text_of(e.content)
+                and not any(p.function_call or p.function_response for p in e.content.parts or [])]
+      if events:
+        await memory.add_events_to_memory(app_name=APP_NAME, user_id=USER_ID, events=events, session_id=ctx.chat_id)
+    except Exception:
+      log.exception("Gesprächsgedächtnis nicht aktualisiert")
 
   async def _turn(self, ctx: TaskContext, session_id: str, message: types.Content, usage: dict[str, int]) -> tuple[str, str | None]:
     run_config = RunConfig(streaming_mode=StreamingMode.SSE, max_llm_calls=self.max_llm_calls)
