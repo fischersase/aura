@@ -13,6 +13,8 @@ function OllamaPanel(root, settings) {
       <span class="ol-linux hidden">Unter Linux: <code>curl -fsSL https://ollama.com/install.sh | sh</code></span></div>
     <label>Ollama-Adresse</label>
     <div class="row"><input class="ol-url" type="text" spellcheck="false"><button type="button" class="ol-check">Erneut prüfen</button></div>
+    <div class="ol-remote hint bad hidden">Diese Adresse ist nicht dein Rechner: Chats, Bildschirmfotos und Diktate gehen an
+      diesen Server (bei http:// unverschlüsselt). Nur nutzen, wenn er dir gehört.</div>
     <label>Modell für Chat, Rambler und Live</label>
     <div class="row"><select class="ol-model"></select><button type="button" class="ol-pull">Herunterladen</button></div>
     <div class="ol-hint hint"></div>
@@ -67,6 +69,7 @@ function OllamaPanel(root, settings) {
     const r = await window.api.ollamaStatus(q('.ol-url').value.trim());
     recommended = r.recommended || [];
     installed = r.ok ? r.models : [];
+    q('.ol-remote').classList.toggle('hidden', !r.remote);
     q('.ol-install').classList.toggle('hidden', r.ok);
     if (r.ok) st(`Ollama ${r.version} läuft, ${installed.length} Modell(e) installiert.`, true);
     else st(r.message, false);

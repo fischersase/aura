@@ -3,13 +3,17 @@
 Electron liest die Datei, löst ${secret:NAME} aus der verschlüsselten Schlüsselverwaltung auf und
 übergibt die fertigen Konfigurationen beim initialize. Hier entstehen daraus ADK-McpToolsets.
 
-Stufen: Werkzeuge mit readOnlyHint sind T0, Werkzeuge in autoApprove T1, alles andere T2 (fragt).
+Stufen: Werkzeuge in autoApprove T1, alles andere T2 (fragt). readOnlyHint macht ein Werkzeug zu T0, aber nur bei
+lokalen Servern (stdio): deren Code läuft ohnehin auf dem Rechner, eine falsche Angabe gibt ihnen nichts zusätzlich.
+Ein entfernter Server (url) kann dagegen „nur lesen“ behaupten und trotzdem senden oder kaufen; seine Angabe zählt
+nicht (AURA-62).
+
+Lokale Server bekommen die Umgebung ohne Zugangsdaten (platform.proc.child_env) plus ihr eigenes env aus mcp.json.
 """
 
 from __future__ import annotations
 
 import logging
-import os
 import re
 from dataclasses import dataclass, field
 from typing import Any
@@ -25,6 +29,7 @@ from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 from mcp import StdioServerParameters
 
 from ..harness.tiers import RESOLVERS, Tier, ToolMeta
+from ..platform.proc import child_env
 
 log = logging.getLogger(__name__)
 
@@ -71,7 +76,7 @@ def _mcp_meta(tool: Any) -> ToolMeta | None:
     snake = re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
     return bool(getattr(annotations, name, None) or getattr(annotations, snake, None))
 
-  if annotations is not None and hint("readOnlyHint") and not hint("destructiveHint"):
+  if not server.url and annotations is not None and hint("readOnlyHint") and not hint("destructiveHint"):
     return ToolMeta(Tier.T0, label=label)
   if "*" in server.auto_approve or raw in server.auto_approve:
     return ToolMeta(Tier.T1, label=label)
@@ -93,7 +98,7 @@ def build_toolsets(configs: list[dict[str, Any]]) -> list[tuple[ServerConfig, Mc
         params = StreamableHTTPConnectionParams(url=cfg.url, headers=cfg.headers or None)
       elif cfg.command:
         params = StdioConnectionParams(server_params=StdioServerParameters(
-            command=cfg.command, args=cfg.args, env={**os.environ, **cfg.env}, cwd=cfg.cwd), timeout=60)
+            command=cfg.command, args=cfg.args, env=child_env(cfg.env), cwd=cfg.cwd), timeout=60)
       else:
         continue
       _SERVERS[cfg.prefix] = cfg

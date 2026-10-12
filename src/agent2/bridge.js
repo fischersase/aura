@@ -23,9 +23,11 @@ class AgentBridge {
     this.tasks = new Map(); // taskId → { handlers, resolve, reject }
   }
 
-  // Welches Python? 1. AURA_AGENT_PYTHON, 2. mitgeliefert (resources/python), 3. Entwicklung (agent/.venv).
+  // Welches Python? 1. AURA_AGENT_PYTHON (nur in der Entwicklung und in Tests; installierte Builds ignorieren die
+  // Variable, sonst könnte eine fremde Umgebung ein anderes Programm als Agenten unterschieben, AURA-62),
+  // 2. mitgeliefert (resources/python), 3. Entwicklung (agent/.venv).
   pythonPath() {
-    if (process.env.AURA_AGENT_PYTHON) return process.env.AURA_AGENT_PYTHON;
+    if (process.env.AURA_AGENT_PYTHON && !this.app.isPackaged) return process.env.AURA_AGENT_PYTHON;
     const win = process.platform === 'win32';
     const bundled = path.join(process.resourcesPath || '', 'python', win ? 'python.exe' : path.join('bin', 'python3'));
     if (this.app.isPackaged && fs.existsSync(bundled)) return bundled;

@@ -20,6 +20,7 @@ from mcp import StdioServerParameters
 
 from ..harness.tiers import EXTERNAL, Tier, ToolMeta
 from ..platform.base import IS_WINDOWS
+from ..platform.proc import child_env
 from ..policy.exfil import url_tier
 from ..runtime.settings import AgentSettings
 
@@ -123,7 +124,7 @@ def server_params(settings: AgentSettings, mcp_args: list[str]) -> StdioServerPa
   """Mitgeliefert (Electron als Node) oder in der Entwicklung über npx."""
   if settings.browser_command:
     return StdioServerParameters(command=settings.browser_command[0], args=[*settings.browser_command[1:], *mcp_args],
-                                 env={**os.environ, **settings.browser_env})
+                                 env=child_env(settings.browser_env))
   return StdioServerParameters(command="npx", args=["-y", PLAYWRIGHT_MCP, *mcp_args])
 
 
