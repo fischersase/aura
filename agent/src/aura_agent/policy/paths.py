@@ -60,3 +60,39 @@ def path_tier(*paths: str | Path) -> tuple[Tier, str] | None:
     if reason:
       return Tier.T3, reason
   return None
+
+
+# AURA-60: Dateien, mit denen ein Angreifer nach einer Prompt-Injection dauerhaft Kontrolle gewänne.
+# Lesen bleibt erlaubt; für Schreiben, Verschieben und Löschen gilt:
+# - Durchsetzung des Agenten (Hooks, Regeln, MCP-Server): T3 – nur der Nutzer ändert sie (Zentrale, Editor).
+# - Autostart, Shell-Start und Anweisungen an den Agenten: mindestens T2, auch beim Neuanlegen.
+_AURA_ENFORCEMENT = re.compile(r"/\.aura/(hooks\.json|policy\.toml|mcp\.json)$", re.IGNORECASE)
+_PERSISTENCE = [
+    (re.compile(r"/\.config/(autostart|systemd/user|environment\.d)(/|$)"), "Autostart beim Anmelden"),
+    (re.compile(r"/\.(bashrc|bash_profile|bash_login|profile|zshrc|zprofile|zshenv|xprofile|xsessionrc|pam_environment)$"),
+     "Startdatei der Shell (läuft bei jedem Terminal)"),
+    (re.compile(r"/\.config/fish/config\.fish$"), "Startdatei der Shell (läuft bei jedem Terminal)"),
+    (re.compile(r"/\.local/share/applications/[^/]+\.desktop$"), "Programmeintrag im Menü"),
+    (re.compile(r"/AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup(/|$)", re.IGNORECASE), "Autostart beim Anmelden"),
+    (re.compile(r"/Documents/(Windows)?PowerShell/[^/]*profile\.ps1$", re.IGNORECASE), "PowerShell-Profil (läuft bei jedem Start)"),
+    (re.compile(r"/\.aura/(AGENTS\.md|skills)(/|$)", re.IGNORECASE), "Anweisungen und Skills von Aura"),
+]
+ENFORCEMENT_IN_COMMAND = re.compile(r"\.aura[\\/](hooks\.json|policy\.toml|mcp\.json)", re.IGNORECASE)
+
+
+def control_tier(*paths: str | Path) -> tuple[Tier, str] | None:
+  """Stufe für das *Verändern* dieser Pfade (Schreiben, Verschieben, Löschen), falls strenger als üblich."""
+  worst: tuple[Tier, str] | None = None
+  for p in paths:
+    candidates = {str(p)}
+    try:
+      candidates.add(os.path.realpath(p))
+    except OSError:
+      pass
+    for c in {c.replace("\\", "/") for c in candidates}:
+      if _AURA_ENFORCEMENT.search(c):
+        return Tier.T3, "Hooks, Regeln und MCP-Server von Aura ändert nur der Nutzer selbst (Zentrale)"
+      for pattern, reason in _PERSISTENCE:
+        if pattern.search(c) and worst is None:
+          worst = (Tier.T2, f"verändert {reason}")
+  return worst

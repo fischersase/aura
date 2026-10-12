@@ -105,3 +105,13 @@ def test_env_reads_and_extra_arguments_ask(cmd):
 @pytest.mark.parametrize("cmd", PS_STILL_READ_ONLY)
 def test_harmless_forms_stay_read_only_powershell(cmd):
   assert classify(cmd)[0] == Tier.T0, classify(cmd)
+
+
+@pytest.mark.parametrize("cmd", ["Copy-Item evil.json $HOME\\.aura\\hooks.json", "Remove-Item ~\\.aura\\policy.toml",
+                                 "Set-Content ~/.aura/mcp.json '{}'"])
+def test_powershell_cannot_change_enforcement_files(cmd):
+  assert classify(cmd)[0] == Tier.T3, classify(cmd)
+
+
+def test_powershell_may_read_enforcement_files():
+  assert classify("Get-Content ~\\.aura\\policy.toml")[0] == Tier.T0

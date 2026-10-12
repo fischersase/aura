@@ -15,6 +15,7 @@ import shlex
 
 from ..harness.tiers import Tier
 from ..platform.base import IS_WINDOWS
+from .paths import ENFORCEMENT_IN_COMMAND
 
 READONLY = {
     "ls", "pwd", "whoami", "hostname", "date", "uname", "uptime", "df", "du", "free", "cat", "head", "tail",
@@ -192,6 +193,18 @@ def classify(command: str) -> tuple[Tier, str]:
 
 
 def classify_bash(command: str) -> tuple[Tier, str]:
+  tier, reason = _classify_bash(command)
+  return _protect_enforcement(command, tier, reason)
+
+
+def _protect_enforcement(command: str, tier: Tier, reason: str) -> tuple[Tier, str]:
+  """Nicht nur lesende Befehle, die Hooks, Regeln oder MCP-Server von Aura berühren, sind T3 (AURA-60)."""
+  if tier != Tier.T0 and tier != Tier.T3 and ENFORCEMENT_IN_COMMAND.search(command or ""):
+    return Tier.T3, "Hooks, Regeln und MCP-Server von Aura ändert nur der Nutzer selbst (Zentrale)"
+  return tier, reason
+
+
+def _classify_bash(command: str) -> tuple[Tier, str]:
   c = (command or "").strip()
   if not c:
     return Tier.T2, "leerer Befehl"

@@ -97,3 +97,32 @@ def test_move_into_new_folder_without_extension(fake_home):
   assert r["verified"] and (fake_home / "PDFs" / "a.pdf").exists()
   (fake_home / "b.txt").write_text("2")
   assert files.move_path("~/b.txt", "~/c.txt")["verified"] and (fake_home / "c.txt").is_file()  # Umbenennen bleibt möglich
+
+
+# AURA-60: Steuerdateien des Agenten und Autostart-Orte
+def _tier(tool, **args):
+  return tool.__aura__.classify(args)[0]
+
+
+@pytest.mark.parametrize("name", ["hooks.json", "policy.toml", "mcp.json"])
+def test_agent_cannot_change_its_own_enforcement_files(fake_home, name):
+  (fake_home / ".aura").mkdir(exist_ok=True)
+  (fake_home / ".aura" / name).write_text("{}")
+  assert _tier(files.write_file, path=f"~/.aura/{name}", content="x") == Tier.T3
+  assert _tier(files.edit_file, path=f"~/.aura/{name}", old_text="{", new_text="[") == Tier.T3
+  assert _tier(files.trash, path=f"~/.aura/{name}") == Tier.T3
+  assert _tier(files.move_path, source=f"~/.aura/{name}", destination="~/x") == Tier.T3
+  (fake_home / "evil.json").write_text("{}")
+  assert _tier(files.move_path, source="~/evil.json", destination=f"~/.aura/{name}") == Tier.T3
+  assert _tier(files.read_file, path=f"~/.aura/{name}") == Tier.T0
+
+
+@pytest.mark.parametrize("path", ["~/.config/autostart/x.desktop", "~/.config/systemd/user/x.service", "~/.bashrc",
+                                  "~/.profile", "~/.aura/AGENTS.md", "~/.aura/skills/x/SKILL.md",
+                                  "~/.local/share/applications/x.desktop"])
+def test_autostart_and_instructions_always_ask_even_when_new(fake_home, path):
+  assert _tier(files.write_file, path=path, content="x") == Tier.T2
+
+
+def test_ordinary_new_file_still_runs_without_asking(fake_home):
+  assert _tier(files.write_file, path="~/Dokumente/neu.txt", content="x") == Tier.T1
