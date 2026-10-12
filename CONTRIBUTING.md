@@ -37,6 +37,10 @@ Prompt growth has caused regressions before; prefer mechanisms in the guard over
 
 ## Pull requests
 
+Every issue follows the [working agreement](docs/engineering/working-agreement.md): an issue must be *ready*
+(goal, evidence, scope, numbered acceptance criteria, test approach) before work starts, and a pull request
+must be *done* (criteria proven, tests and evals green on all platforms, docs updated) before it is merged.
+
 - Branch from `main`, one topic per pull request, with tests for new behaviour.
 - `main` is protected: pull request required, all checks green (CI on Linux and Windows, CodeQL, secret scan),
   linear history (squash merge).
