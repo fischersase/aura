@@ -21,5 +21,5 @@ Verworfen wurde `uv sync` beim ersten Start: Es braucht Netz, ist langsam und ka
 
 ## Folgen
 
-- Die CI prüft eine Größenobergrenze von 200 MB entpackt.
+- Die CI prüft eine Größenobergrenze, anfangs 200 MB entpackt. Seit P3 gilt **230 MB**: MCP-SDK, dbus-fast und python-xlib brachten das Bündel auf 200 MB. Das .deb ist damit 153 MB groß (inklusive 19 MB Browser-Server).
 - Der Release-Job baut den Sidecar und führt `aura-agent --selftest` aus, bevor das Paket entsteht.

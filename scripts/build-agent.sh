@@ -9,7 +9,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD="$ROOT/build"
 OUT="$BUILD/agent-python"
 PY_VERSION="3.12"
-MAX_MB=200
+MAX_MB=230
 
 rm -rf "$OUT" "$BUILD/agent-dl" "$BUILD/agent-wheel"
 mkdir -p "$BUILD"
