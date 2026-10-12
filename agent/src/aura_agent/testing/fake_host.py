@@ -13,6 +13,7 @@ class FakeHost:
     self._answers = list(answers or [])
     self.approvals: list[dict[str, Any]] = []
     self.questions: list[dict[str, Any]] = []
+    self.inputs: list[dict[str, Any]] = []
     self.events: list[tuple[str, dict[str, Any]]] = []
 
   async def approve(self, request: dict[str, Any]) -> str:
@@ -24,6 +25,10 @@ class FakeHost:
   async def ask(self, request: dict[str, Any]) -> dict[str, Any]:
     self.questions.append(request)
     return {"answer": self._answers.pop(0) if self._answers else ""}
+
+  async def input(self, request: dict[str, Any]) -> dict[str, Any]:
+    self.inputs.append(request)
+    return {"ok": True, "via": "fake"}
 
   async def screenshot(self, max_width: int = 1600) -> dict[str, Any]:
     # 1x1 weißes JPEG

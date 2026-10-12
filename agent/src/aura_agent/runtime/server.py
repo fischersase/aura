@@ -57,6 +57,9 @@ class RpcHost:
   async def ask(self, request: dict[str, Any]) -> dict[str, Any]:
     return await self.peer.request("host.ask", request, timeout=APPROVAL_TIMEOUT_S)
 
+  async def input(self, request: dict[str, Any]) -> dict[str, Any]:
+    return await self.peer.request("host.input", request, timeout=30)
+
   async def screenshot(self, max_width: int = 1600) -> dict[str, Any]:
     return await self.peer.request("host.screenshot", {"maxWidth": max_width}, timeout=30)
 

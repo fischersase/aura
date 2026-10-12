@@ -13,6 +13,7 @@ const chats = require('./chats');
 const zentrale = require('./zentrale');
 const agent = require('./agent/loop');
 const agentTools = require('./agent/tools');
+const agentInput = require('./agent/input');
 const agentSkills = require('./agent/skills');
 const agentMcp = require('./agent/mcp');
 const secrets = require('./secrets');
@@ -650,7 +651,19 @@ const agentV2 = new AgentBridge({
       sender.send('agent:ask', { chatId: req.taskId, id, question: req.question, options: req.options || [] });
       if (panel && !panelOpen) openPanel();
     }),
-    screenshot: async (maxWidth) => ({ mime: 'image/jpeg', data: await screenshotJpeg(currentDisplay, maxWidth) })
+    screenshot: async (maxWidth) => ({ mime: 'image/jpeg', data: await screenshotJpeg(currentDisplay, maxWidth) }),
+    // Maus und Tastatur (Notlösung für Programme ohne Barrierefreiheit). x, y: 0–1000 im letzten Bildschirmfoto.
+    input: async (req) => {
+      if (req.action === 'click') {
+        const d = currentDisplay || displayUnderCursor();
+        const dip = { x: d.bounds.x + (Number(req.x) / 1000) * d.bounds.width, y: d.bounds.y + (Number(req.y) / 1000) * d.bounds.height };
+        const p = process.platform === 'win32' ? screen.dipToScreenPoint(dip) : { x: dip.x * d.scaleFactor, y: dip.y * d.scaleFactor };
+        return agentInput.click(p.x, p.y, { button: req.button === 'right' ? 'right' : 'left', double: !!req.double });
+      }
+      if (req.action === 'type') return agentInput.typeText(String(req.text || ''));
+      if (req.action === 'keys') return agentInput.pressKeys(String(req.keys || ''));
+      return { error: 'Unbekannte Eingabe' };
+    }
   }
 });
 

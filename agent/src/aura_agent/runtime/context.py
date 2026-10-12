@@ -29,6 +29,10 @@ class Host(Protocol):
     """Frage an den Nutzer: {taskId, question, options}. Antwort: {answer}."""
     ...
 
+  async def input(self, request: dict[str, Any]) -> dict[str, Any]:
+    """Maus/Tastatur: {action: click|type|keys, x, y (0–1000), text, keys}."""
+    ...
+
   async def screenshot(self, max_width: int = 1600) -> dict[str, Any]:
     """Bildschirmfoto als {mime, data (base64), width, height}."""
     ...

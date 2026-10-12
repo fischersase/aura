@@ -425,6 +425,58 @@
             }
           }
         }
+      },
+      "host.input": {
+        "params": {
+          "type": "object",
+          "required": [
+            "action"
+          ],
+          "properties": {
+            "action": {
+              "enum": [
+                "click",
+                "type",
+                "keys"
+              ]
+            },
+            "x": {
+              "type": "number"
+            },
+            "y": {
+              "type": "number"
+            },
+            "button": {
+              "enum": [
+                "left",
+                "right"
+              ]
+            },
+            "double": {
+              "type": "boolean"
+            },
+            "text": {
+              "type": "string"
+            },
+            "keys": {
+              "type": "string"
+            }
+          }
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "ok": {
+              "type": "boolean"
+            },
+            "error": {
+              "type": "string"
+            },
+            "via": {
+              "type": "string"
+            }
+          }
+        }
       }
     },
     "notifications": {

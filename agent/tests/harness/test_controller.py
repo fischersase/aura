@@ -362,3 +362,24 @@ async def test_plain_browsing_does_not_ask_for_links(tmp_path):
     assert url_tier("https://example.com/") is None  # ohne Daten in der Adresse
   finally:
     CURRENT.reset(token)
+
+
+async def test_pointer_fallback_tiers_and_screenshot_after(tmp_path):
+  from aura_agent.tools.pointer import click_at, press_keys, type_text
+
+  assert click_at.__aura__.classify({"element": "Knopf Abspielen", "x": 1, "y": 1})[0] == 1
+  assert click_at.__aura__.classify({"element": "Jetzt kaufen", "x": 1, "y": 1})[0] == 2
+  assert type_text.__aura__.classify({"text": "x"})[0] == 2
+  assert press_keys.__aura__.classify({"keys": "escape"})[0] == 1
+  assert press_keys.__aura__.classify({"keys": "ctrl+s"})[0] == 2
+  from aura_agent.runtime.context import CURRENT, TaskContext
+
+  host = FakeHost()
+  token = CURRENT.set(TaskContext(task_id="t", chat_id="c", host=host, audit=AuditLog(tmp_path / "a"), home=str(tmp_path)))
+  try:
+    r = await click_at(500, 250, "Knopf Abspielen")
+    assert host.inputs == [{"action": "click", "x": 500.0, "y": 250.0, "double": False, "button": "left"}]
+    assert r["ok"] and r["image"] is not None  # neues Bildschirmfoto zum Prüfen
+    assert "zwischen 0 und 1000" in (await click_at(1500, 10, "x"))["error"]
+  finally:
+    CURRENT.reset(token)

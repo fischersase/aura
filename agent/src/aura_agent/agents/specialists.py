@@ -37,6 +37,8 @@ Vorgehen:
    In element beschreibst du genau, was es ist, z. B. „Knopf Speichern“.
 3. Nach jeder Aktion ui_snapshot und prüfen, ob sich das Erwartete geändert hat (neuer Dialog, Text, Zustand).
 4. Indizes gelten nur bis zum nächsten ui_snapshot.
+5. Nur wenn ui_snapshot das Programm nicht kennt (z. B. Electron-Programme, Spiele): screenshot, dann click_at mit
+   Koordinaten 0–1000 aus dem Bild, type_text, press_keys. Nach jeder Eingabe das neue Bild prüfen.
 
 Regeln:
 - Gib nur wieder, was ui_snapshot zeigt; nichts aus Vorwissen ergänzen.
@@ -47,6 +49,7 @@ Regeln:
 
 def apps_agent(model: BaseLlm) -> AgentTool:
   from ..tools.desktop import launch_app, list_windows, window_action
+  from ..tools.pointer import click_at, press_keys, type_text
   from ..tools.screen import screenshot
   from ..tools.ui import ui_act, ui_set_text, ui_snapshot
 
@@ -58,6 +61,6 @@ def apps_agent(model: BaseLlm) -> AgentTool:
           "Dialoge wie „Speichern unter“). Nicht für Webseiten (dafür browser). Gib eine klare, vollständige Aufgabe als request mit."
       ),
       instruction=APPS_INSTRUCTION,
-      tools=[launch_app, list_windows, window_action, ui_snapshot, ui_act, ui_set_text, screenshot],
+      tools=[launch_app, list_windows, window_action, ui_snapshot, ui_act, ui_set_text, screenshot, click_at, type_text, press_keys],
   )
   return AgentTool(agent=agent)
