@@ -68,7 +68,16 @@ def gtk_app(xvfb, private_dbus):
   time.sleep(0.7)
   app_file = os.path.join(os.path.dirname(atspi.__file__), "..", "testing", "gtk_app.py")
   app = subprocess.Popen([atspi.SYSTEM_PYTHON, app_file], stderr=subprocess.DEVNULL)
-  time.sleep(1.5)
+  # Warten, bis sich das Programm bei der Barrierefreiheit gemeldet hat (auf CI-Runnern deutlich langsamer).
+  helper = os.path.join(os.path.dirname(atspi.__file__), "atspi_helper.py")
+  for _ in range(30):
+    out = subprocess.run([atspi.SYSTEM_PYTHON, helper], input='{"id":1,"method":"apps"}\n', capture_output=True, text=True, timeout=10,
+                         check=False).stdout
+    if "gtk_app.py" in out:
+      break
+    time.sleep(0.5)
+  else:
+    pytest.fail("GTK-Testprogramm meldet sich nicht über AT-SPI")
   yield app
   atspi.CLIENT.kill()
   for p in (app, bus):
