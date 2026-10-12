@@ -931,14 +931,21 @@ async function preloadStt() {
   sttWin.webContents.send('stt:preload', { model: store.load().whisperModel });
 }
 
-async function transcribe(wavBase64) {
+// language: Whisper-Sprachname (z. B. 'german'); ohne rät Whisper die Sprache selbst.
+async function transcribe(wavBase64, language) {
   await ensureStt();
   const id = ++sttSeq;
   return new Promise((resolve, reject) => {
     sttJobs.set(id, { resolve, reject });
-    sttWin.webContents.send('stt:request', { id, wavBase64, model: store.load().whisperModel });
+    sttWin.webContents.send('stt:request', { id, wavBase64, model: store.load().whisperModel, language });
   });
 }
+
+// Spracheinstellung von Aura → Whisper-Sprache. Bei kurzen Aufnahmen rät Whisper sonst oft Englisch.
+const WHISPER_LANGUAGES = { deutsch: 'german', german: 'german', english: 'english', englisch: 'english', español: 'spanish',
+  spanisch: 'spanish', français: 'french', französisch: 'french', italiano: 'italian', italienisch: 'italian',
+  türkçe: 'turkish', türkisch: 'turkish', polski: 'polish', polnisch: 'polish', nederlands: 'dutch', niederländisch: 'dutch' };
+const whisperLanguage = (language) => WHISPER_LANGUAGES[String(language || '').trim().toLowerCase()];
 
 ipcMain.on('stt:result', (_e, { id, text, error }) => {
   const job = sttJobs.get(id);
@@ -951,6 +958,25 @@ ipcMain.on('stt:result', (_e, { id, text, error }) => {
 // Fortschritt beim ersten Laden des Whisper-Modells an Rambler und Panel weitergeben.
 ipcMain.on('stt:progress', (_e, p) => {
   for (const w of [ramblerBar, panel, settingsWin, setupWin]) if (w && !w.isDestroyed()) w.webContents.send('stt:progress', p);
+});
+
+// Spracheingabe im Chat: Aufnahme → Text. Lokal mit Whisper (nichts verlässt den Rechner), sonst mit einem
+// günstigen Gemini-Modell (dictationModel). Der Text wird im Panel als normale Nachricht abgeschickt.
+ipcMain.handle('chat:transcribe', async (_e, { wavBase64 }) => {
+  const s = store.load();
+  try {
+    if (store.isLocal()) return { text: String(await transcribe(wavBase64, whisperLanguage(s.language)) || '').trim() };
+    if (!store.getApiKey()) return { error: 'Kein Gemini-API-Schlüssel eingerichtet.' };
+    const over = budgetError();
+    if (over) return { error: over };
+    const model = s.dictationModel || 'gemini-3.5-flash-lite';
+    const out = await gemini.transcribe({ apiKey: store.getApiKey(), model, wavBase64, language: s.language });
+    usage.addTokens(model, out.usage);
+    broadcastUsage();
+    return { text: out.text };
+  } catch (err) {
+    return { error: String(err.message || err) };
+  }
 });
 
 const liveAborts = new Map();

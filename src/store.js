@@ -19,6 +19,8 @@ const DEFAULTS = {
   whisperModel: 'onnx-community/whisper-small', // lokale Spracherkennung
   chatModel: 'gemini-3.8-flash',
   ramblerModel: 'gemini-3.8-flash',
+  // Spracheingabe im Chat mit Gemini: günstigstes aktuelles Modell mit Audioeingabe (0,30 $/Mio. Audio-Tokens ≈ 0,1 ct/Minute).
+  dictationModel: 'gemini-3.5-flash-lite',
   liveModel: 'gemini-3.8-live',
   liveVoice: '',
   language: 'Deutsch',

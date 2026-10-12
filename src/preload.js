@@ -35,6 +35,7 @@ contextBridge.exposeInMainWorld('api', {
 
   // Chat
   sendChat: (payload) => ipcRenderer.send('chat:send', payload),
+  transcribe: (wavBase64) => ipcRenderer.invoke('chat:transcribe', { wavBase64 }),
   abortChat: (id) => ipcRenderer.send('chat:abort', id),
   onChatChunk: on('chat:chunk'),
   onChatDone: on('chat:done'),

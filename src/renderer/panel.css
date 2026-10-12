@@ -102,6 +102,20 @@ button svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke
 .send-btn:disabled { opacity: 0; transform: scale(.4); width: 0; margin-left: -6px; pointer-events: none; }
 .send-btn.stop { background: var(--bg-3); color: var(--text); }
 
+/* Spracheingabe: Mikrofon-Knopf mit Pegel-Ring, Aufnahmezeit statt Kosten */
+.mic-btn { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--bg-2); --lvl: 0;
+  transition: background .2s, box-shadow .08s linear; }
+.mic-btn:hover { background: var(--bg-3); }
+.mic-btn.rec { background: #d93025; color: #fff; box-shadow: 0 0 0 calc(3px + var(--lvl) * 9px) rgba(217,48,37,.28); }
+.mic-btn.wait { pointer-events: none; }
+.mic-btn.wait svg { animation: mic-spin 1s linear infinite; }
+@keyframes mic-spin { to { transform: rotate(360deg); } }
+.rec-info { font-size: 13px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.rec-info.rec { color: #f28b82; }
+.rec-info.err { color: #f28b82; white-space: normal; max-width: 260px; }
+.rec-info.hidden { display: none; }
+#composer.dictating .cost { display: none; }
+
 /* Live */
 #liveView { padding: 16px 18px 18px; align-items: center; min-height: 360px; }
 .live-top { align-self: stretch; display: flex; align-items: center; gap: 10px; }

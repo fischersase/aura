@@ -56,6 +56,13 @@ What changes locally:
 - **Gemini Live** becomes turn-based: you talk, it hears the pause, the model looks at a screenshot, answers out loud (system voices) and can point at the screen. Talk over it to interrupt. It is slower than Gemini Live and pointing is less precise.
 - No costs, no budget; the window shows "lokal · 0 $".
 
+## Voice input in the chat
+
+Click the **microphone** next to the Live button, speak as long as you like (pauses are fine), click it again: Aura turns your speech into text and sends it, like the dictation in Gemini or ChatGPT. **Esc** cancels; closing the window keeps the text in the input field instead of sending it.
+
+- **Local (Ollama):** Whisper runs on your computer (Settings → *Lokale Modelle* → speech model; `whisper-small` by default, downloaded once). Nothing leaves your PC. Whisper is told your Aura language, so short recordings are not mistaken for English.
+- **Gemini:** `gemini-3.5-flash-lite`, the cheapest current model with audio input (about 0.1 cent per minute of speech), counted in your monthly budget. Change it under Settings → *Spracheingabe im Chat*.
+
 ## Agent: Aura acts on your PC
 
 Ask in the chat or by voice, e.g. "pause the music", "open Antigravity", "tidy up my downloads folder by file type", "what's on my screen?", "search the web for tomorrow's weather in Berlin", "remember that my printer is a Brother HL-L2350DW".

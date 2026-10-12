@@ -65,17 +65,25 @@ window.api.onPanelOpen(({ startLive, corner }) => {
   openAnim();
   if (startLive) startLiveMode();
 });
-window.api.onPanelClose(() => closeAnim());
+window.api.onPanelClose(() => {
+  if (dictation) finishDictation('keep'); // Panel zu: Text nicht verlieren, aber auch nicht ungefragt senden
+  closeAnim();
+});
 
 // Klicks auf die transparenten Bereiche des Fensters gehen an die App dahinter.
 card.addEventListener('mouseenter', () => window.api.ignoreMouse(false));
 card.addEventListener('mouseleave', () => window.api.ignoreMouse(true));
 // Unter Linux kommen Klicks neben die Karte im (durchsichtigen) Fenster an: wie ein Klick daneben schließen.
 document.addEventListener('mousedown', (e) => {
-  if (!card.contains(e.target) && !live && !streaming) window.api.hidePanel();
+  if (!card.contains(e.target) && !live && !streaming && !dictation) window.api.hidePanel();
 });
 
 document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && dictation) {
+    e.preventDefault();
+    finishDictation('cancel');
+    return;
+  }
   if (e.key === 'Escape') {
     e.preventDefault();
     if (!$('historyView').classList.contains('hidden')) showView('chat');
@@ -492,6 +500,103 @@ input.addEventListener('keydown', (e) => {
 });
 $('composer').addEventListener('submit', (e) => { e.preventDefault(); send(); });
 
+// ---------- Spracheingabe (Mikrofon-Knopf) ----------
+// Wie bei Gemini oder ChatGPT: drücken, so lange sprechen wie man will (Pausen sind egal), nochmal drücken:
+// Aura erkennt den Text (lokal mit Whisper, sonst mit einem günstigen Gemini-Modell) und schickt ihn ab.
+// Esc bricht ab. Wird das Panel währenddessen geschlossen, landet der Text nur im Eingabefeld.
+const micBtn = $('micBtn');
+const recInfo = $('recInfo');
+const MIC_MAX_MS = 15 * 60 * 1000;
+const MIC_SVG = micBtn.innerHTML;
+const STOP_SVG = '<svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg>';
+const WAIT_SVG = '<svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9"/></svg>';
+let dictation = null; // { chunks, start, ready, timer, stopping }
+let noteTimer = null;
+
+const clock = (ms) => { const s = Math.floor(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+
+function micState(state) {
+  $('composer').classList.toggle('dictating', state !== 'idle');
+  micBtn.classList.toggle('rec', state === 'rec');
+  micBtn.classList.toggle('wait', state === 'wait');
+  micBtn.innerHTML = state === 'rec' ? STOP_SVG : state === 'wait' ? WAIT_SVG : MIC_SVG;
+  micBtn.title = state === 'rec' ? 'Fertig: Text erkennen und senden (Esc bricht ab)'
+    : state === 'wait' ? 'Sprache wird erkannt …' : 'Spracheingabe: sprechen, dann nochmal drücken zum Senden';
+  micBtn.style.setProperty('--lvl', 0);
+  recInfo.className = 'rec-info' + (state === 'rec' ? ' rec' : '') + (state === 'idle' ? ' hidden' : '');
+  if (state === 'wait') recInfo.textContent = 'Wird erkannt …';
+}
+
+function micNote(text) {
+  clearTimeout(noteTimer);
+  recInfo.className = 'rec-info err';
+  recInfo.textContent = text;
+  noteTimer = setTimeout(() => { if (!dictation) recInfo.className = 'rec-info hidden'; }, 6000);
+}
+
+function startDictation() {
+  if (dictation || live) return;
+  clearTimeout(noteTimer);
+  const d = { chunks: [], start: Date.now(), stopping: false };
+  d.ready = Audio16.openMic((samples, rms) => {
+    if (dictation !== d) return;
+    d.chunks.push(samples);
+    micBtn.style.setProperty('--lvl', Math.min(1, rms * 12).toFixed(2));
+  });
+  dictation = d;
+  window.api.setBusy(true); // Panel bleibt offen, auch wenn der Fokus woanders hin wandert
+  micState('rec');
+  recInfo.textContent = '● 0:00';
+  d.timer = setInterval(() => {
+    const ms = Date.now() - d.start;
+    recInfo.textContent = '● ' + clock(ms);
+    if (ms >= MIC_MAX_MS) finishDictation('send');
+  }, 250);
+  d.ready.catch((err) => {
+    if (dictation !== d) return;
+    clearInterval(d.timer);
+    dictation = null;
+    window.api.setBusy(!!streaming);
+    micState('idle');
+    micNote('Kein Mikrofon: ' + (err && err.message ? err.message : err));
+  });
+}
+
+// mode: 'send' (Knopf), 'keep' (Panel geschlossen: nur ins Eingabefeld), 'cancel' (Esc)
+async function finishDictation(mode) {
+  const d = dictation;
+  if (!d || d.stopping) return;
+  d.stopping = true;
+  clearInterval(d.timer);
+  const mic = await d.ready.catch(() => null);
+  if (mic) mic.close();
+  dictation = null;
+  const seconds = d.chunks.reduce((n, c) => n + c.length, 0) / 16000;
+  if (mode === 'cancel' || seconds < 0.4) {
+    window.api.setBusy(!!streaming);
+    micState('idle');
+    if (mode !== 'cancel') micNote('Nichts aufgenommen.');
+    return;
+  }
+  micState('wait');
+  const r = await window.api.transcribe(Audio16.wavBase64(d.chunks));
+  window.api.setBusy(!!streaming);
+  micState('idle');
+  const text = (r && r.text || '').trim();
+  if (r && r.error) return micNote(r.error);
+  if (!text) return micNote('Nichts verstanden, bitte noch einmal.');
+  input.value = input.value.trim() ? input.value.trim() + ' ' + text : text;
+  autosize();
+  // Läuft noch eine Antwort, würde send() sie abbrechen: dann bleibt der Text im Feld.
+  if (mode === 'send' && !streaming) send();
+  else input.focus();
+}
+
+micBtn.onclick = () => (dictation ? finishDictation('send') : startDictation());
+window.api.onSttProgress((p) => {
+  if (micBtn.classList.contains('wait') && p.total) recInfo.textContent = `Lade Spracherkennung … ${Math.round((p.loaded / p.total) * 100)} %`;
+});
+
 $('screenToggle').onclick = () => {
   includeScreen = !includeScreen;
   $('screenToggle').classList.toggle('on', includeScreen);
@@ -544,6 +649,7 @@ const liveUi = {
 
 async function startLiveMode() {
   if (live) return;
+  if (dictation) await finishDictation('keep'); // Mikrofon freigeben, Diktiertes bleibt im Eingabefeld
   $('chatView').classList.add('hidden');
   $('historyView').classList.add('hidden');
   $('liveView').classList.remove('hidden');
