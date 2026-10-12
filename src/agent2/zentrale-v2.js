@@ -82,6 +82,29 @@ function readAudit(limit = 400) {
   return rows.slice(-limit).reverse();
 }
 
+// ---------- GNOME-Erweiterung für Fenster unter Wayland ----------
+
+const EXT_UUID = 'aura-bridge@aura';
+const extTarget = () => path.join(os.homedir(), '.local', 'share', 'gnome-shell', 'extensions', EXT_UUID);
+function extSource() {
+  const packaged = path.join(process.resourcesPath || '', 'gnome-extension', EXT_UUID);
+  if (fs.existsSync(packaged)) return packaged;
+  return path.join(__dirname, '..', '..', 'gnome-extension', EXT_UUID);
+}
+
+async function installExtension() {
+  const src = extSource();
+  if (!fs.existsSync(src)) return { ok: false, message: 'Erweiterung nicht im Paket gefunden.' };
+  fs.mkdirSync(path.dirname(extTarget()), { recursive: true });
+  fs.cpSync(src, extTarget(), { recursive: true });
+  const r = await run('gnome-extensions', ['enable', EXT_UUID]);
+  return {
+    ok: true,
+    message: r.ok ? 'Installiert und eingeschaltet. Bitte einmal ab- und wieder anmelden, damit GNOME sie lädt.'
+      : 'Installiert. Nach dem Ab- und Anmelden unter „Erweiterungen“ einschalten (oder: gnome-extensions enable aura-bridge@aura).'
+  };
+}
+
 // ---------- Systemprüfung ----------
 
 const run = (cmd, args, timeout = 8000) => new Promise((resolve) => {
@@ -122,8 +145,17 @@ async function doctor({ settings, bridge }) {
 
   // Sitzung und Werkzeuge
   const session = process.env.XDG_SESSION_TYPE || (process.env.WAYLAND_DISPLAY ? 'wayland' : process.env.DISPLAY ? 'x11' : 'unbekannt');
-  add('Sitzung', session === 'x11' ? 'ok' : 'warn', session,
-    session === 'x11' ? '' : 'Unter Wayland gehen Fensterliste und Fenstersteuerung noch nicht; Programme, Browser, Dateien und Musik schon.');
+  if (session === 'wayland') {
+    const bridge = await run('gdbus', ['introspect', '--session', '--dest', 'org.aura.Bridge', '--object-path', '/org/aura/Bridge']);
+    const installed = fs.existsSync(extTarget());
+    add('Sitzung', 'ok', 'wayland');
+    if (bridge.ok) add('Fenster unter Wayland', 'ok', 'Erweiterung „Aura Bridge“ läuft');
+    else checks.push({ name: 'Fenster unter Wayland', state: 'warn', action: 'installExtension',
+      detail: installed ? 'Erweiterung installiert, aber nicht aktiv' : 'Erweiterung „Aura Bridge“ fehlt',
+      fix: installed ? 'Ab- und anmelden; falls nötig: gnome-extensions enable aura-bridge@aura' : 'Knopf „Installieren“, danach ab- und anmelden' });
+  } else {
+    add('Sitzung', session === 'x11' ? 'ok' : 'warn', session, session === 'x11' ? '' : 'Unbekannte Sitzung; Fenstersteuerung evtl. nicht verfügbar.');
+  }
   for (const [tool, why, pkg] of [['gio', 'Programme starten, Papierkorb', 'libglib2.0-bin'], ['pactl', 'Lautstärke', 'pulseaudio-utils'],
     ['pdftotext', 'PDFs lesen', 'poppler-utils'], ['xdg-open', 'Webseiten und Dateien öffnen', 'xdg-utils']]) {
     const ok = await which(tool);
@@ -142,5 +174,6 @@ module.exports = {
   saveMemory: (text) => write(memoryFile(), text),
   audit: () => readAudit(),
   doctor,
+  installExtension,
   checkPolicy
 };

@@ -444,7 +444,10 @@ async function renderDoctor() {
   const checks = await z.doctor();
   $('doctorList').innerHTML = `<table><tr><th></th><th>Bereich</th><th>Befund</th><th>Was tun</th></tr>${checks.map((c) => `
     <tr><td class="${c.state === 'ok' ? 'ok' : 'bad'}">${DOC_ICON[c.state] || ''}</td><td>${esc(c.name)}</td><td>${esc(c.detail)}</td>
-    <td class="args">${esc(c.fix)}</td></tr>`).join('')}</table>`;
+    <td class="args">${esc(c.fix)}${c.action ? ` <button class="small" data-doc-action="${esc(c.action)}">Installieren</button>` : ''}</td></tr>`).join('')}</table>`;
+  $('doctorList').querySelectorAll('[data-doc-action]').forEach((b) => {
+    b.onclick = async () => { const r = await z[b.dataset.docAction](); b.replaceWith(document.createTextNode(' ' + r.message)); };
+  });
 }
 $('runDoctor').onclick = renderDoctor;
 

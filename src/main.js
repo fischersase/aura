@@ -831,7 +831,8 @@ Object.assign(zentrale.API, {
   memory: () => zentraleV2.memory(),
   saveMemory: (text) => zentraleV2.saveMemory(text),
   audit: () => zentraleV2.audit(),
-  doctor: () => zentraleV2.doctor({ settings: () => agentV2.settings(), bridge: agentV2 })
+  doctor: () => zentraleV2.doctor({ settings: () => agentV2.settings(), bridge: agentV2 }),
+  installExtension: () => zentraleV2.installExtension()
 });
 zentrale.register();
 ipcMain.on('zentrale:open', () => { closePanel(); zentrale.open(ICON); });

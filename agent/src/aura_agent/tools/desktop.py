@@ -1,7 +1,6 @@
 """Programme und Fenster: öffnen, auflisten, wechseln, schließen. Jede Aktion prüft ihr Ergebnis nach.
 
-X11 über EWMH (platform/x11.py). Unter Wayland läuft vorerst nur der Programmstart
-mit Prozessprüfung; Fenster unter Wayland kommen in Phase 3 (GNOME-Erweiterung).
+X11 über EWMH (platform/x11.py), GNOME Wayland über die Erweiterung aura-bridge (platform/gnome_wayland.py).
 """
 
 from __future__ import annotations
@@ -16,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from ..harness.tiers import Tier, aura_tool
-from ..platform import x11
+from ..platform import gnome_wayland, x11
 from ..policy.exfil import url_tier
 from ..policy.paths import path_tier
 from .apps import App, best_matches, installed_apps
@@ -51,31 +50,66 @@ def _windows() -> list[x11.WindowInfo]:
     return x.windows()
 
 
+async def _list() -> list[x11.WindowInfo] | None:
+  """Offene Fenster über X11 oder (unter Wayland) die GNOME-Erweiterung. None: hier nicht möglich."""
+  if gnome_wayland.is_wayland():
+    try:
+      return await gnome_wayland.windows()
+    except Exception:  # noqa: BLE001 - Erweiterung fehlt oder ist aus
+      return None
+  if x11.available():
+    return await asyncio.to_thread(_windows)
+  return None
+
+
+def _no_windows() -> str:
+  return gnome_wayland.NOT_INSTALLED if gnome_wayland.is_wayland() else "Fenster lassen sich in dieser Sitzung nicht steuern (kein X11)."
+
+
+async def _do(window_id: str, action: str) -> None:
+  if window_id.startswith("w"):
+    await gnome_wayland.act(window_id, action)
+    return
+
+  def act() -> None:
+    with x11.X11() as x:
+      {"focus": x.focus, "minimize": x.minimize, "maximize": x.maximize, "close": x.close_window}[action](window_id)
+
+  await asyncio.to_thread(act)
+
+
 def _brief(w: x11.WindowInfo) -> dict[str, Any]:
   return {"id": w.id, "app": w.app, "title": w.title, "active": w.active, "minimized": w.minimized}
 
 
 async def _wait_for(check, timeout: float) -> Any:
+  """Wartet, bis check() etwas Wahres liefert. check darf synchron oder async sein."""
   end = time.monotonic() + timeout
   while True:
-    found = await asyncio.to_thread(check)
+    found = check()
+    if asyncio.iscoroutine(found):
+      found = await found
     if found or time.monotonic() > end:
       return found
     await asyncio.sleep(POLL_S)
 
 
+async def _find(window_id: str) -> x11.WindowInfo | None:
+  return next((w for w in (await _list() or []) if w.id == window_id), None)
+
+
 @aura_tool(Tier.T0, label=lambda a: "Fenster")
 async def list_windows() -> dict[str, Any]:
   """Listet die offenen Fenster: ID, Programm, Titel, ob aktiv oder minimiert."""
-  if not x11.available():
-    return {"error": "Fensterliste geht in dieser Sitzung noch nicht (kein X11)."}
-  wins = await asyncio.to_thread(_windows)
+  wins = await _list()
+  if wins is None:
+    return {"error": _no_windows()}
   return {"count": len(wins), "windows": [_brief(w) for w in wins]}
 
 
 def _resolve(window: str, wins: list[x11.WindowInfo]) -> tuple[x11.WindowInfo | None, str]:
   w = window.strip()
-  if w.lower().startswith("0x"):
+  if w.lower().startswith("0x") or (w.startswith("w") and w[1:].isdigit()):
     hit = [x for x in wins if x.id == w.lower()]
     return (hit[0], "") if hit else (None, f"Kein Fenster mit ID {w}.")
   q = w.lower()
@@ -117,32 +151,37 @@ async def window_action(window: str, action: str) -> dict[str, Any]:
     window: Fenster-ID aus list_windows (z. B. "0x2400003") oder ein Teil von Titel oder Programmname.
     action: "focus", "minimize", "maximize" oder "close".
   """
-  if not x11.available():
-    return {"error": "Fenster steuern geht in dieser Sitzung noch nicht (kein X11)."}
   if action not in ("focus", "minimize", "maximize", "close"):
     return {"error": "action muss focus, minimize, maximize oder close sein."}
-  wins = await asyncio.to_thread(_windows)
+  wins = await _list()
+  if wins is None:
+    return {"error": _no_windows()}
   target, err = _resolve(window, wins)
   if not target:
     return {"error": err}
+  await _do(target.id, action)
 
-  def act() -> None:
-    with x11.X11() as x:
-      {"focus": x.focus, "minimize": x.minimize, "maximize": x.maximize, "close": x.close_window}[action](target.id)
-
-  await asyncio.to_thread(act)
-
-  def state() -> x11.WindowInfo | None:
-    return next((w for w in _windows() if w.id == target.id), None)
+  async def gone_check() -> bool:
+    return await _find(target.id) is None
 
   if action == "close":
-    gone = await _wait_for(lambda: state() is None, 3)
+    gone = await _wait_for(gone_check, 3)
     return {"window": _brief(target), "verified": bool(gone),
             **({} if gone else {"error": "Fenster ist noch offen (vielleicht fragt das Programm nach dem Speichern)."})}
   want = {"focus": lambda w: w.active, "minimize": lambda w: w.minimized, "maximize": lambda w: True}[action]
-  after = await _wait_for(lambda: (s := state()) is not None and want(s) and s, 2)
+
+  async def state_check() -> x11.WindowInfo | None:
+    s = await _find(target.id)
+    return s if s is not None and want(s) else None
+
+  after = await _wait_for(state_check, 2)
   return {"window": _brief(after or target), "verified": bool(after),
           **({} if after else {"error": f"„{action}“ wurde gesendet, aber der Fensterzustand hat sich nicht geändert."})}
+
+
+async def _is_active(window_id: str) -> bool:
+  w = await _find(window_id)
+  return bool(w and w.active)
 
 
 def _start(app: App) -> None:
@@ -172,19 +211,15 @@ async def launch_app(name: str) -> dict[str, Any]:
   """
   apps = await asyncio.to_thread(installed_apps)
   hits = best_matches(apps, name)
-  if not hits and x11.available():
+  all_windows = await _list()
+  if not hits and all_windows:
     # Kein Programmeintrag, aber vielleicht ein offenes Fenster mit diesem Namen: nach vorne holen.
     q = name.lower()
-    wins = [w for w in await asyncio.to_thread(_windows) if q in w.title.lower() or q in w.app.lower()]
+    wins = [w for w in all_windows if q in w.title.lower() or q in w.app.lower()]
     if wins:
       target = wins[0]
-
-      def focus_existing() -> None:
-        with x11.X11() as x:
-          x.focus(target.id)
-
-      await asyncio.to_thread(focus_existing)
-      active = await _wait_for(lambda: any(w.id == target.id and w.active for w in _windows()), 2)
+      await _do(target.id, "focus")
+      active = await _wait_for(lambda: _is_active(target.id), 2)
       return {"app": target.title or target.app, "already_running": True, "window": _brief(target), "verified": bool(active)}
   if not hits:
     close = get_close_matches(name.lower(), [a.name.lower() for a in apps], n=5, cutoff=0.5)
@@ -192,31 +227,25 @@ async def launch_app(name: str) -> dict[str, Any]:
   app = hits[0]
   alternatives = [a.name for a in hits[1:4]]
 
-  if not x11.available():
+  if all_windows is None:
     await asyncio.to_thread(_start, app)
     running = await _wait_for(lambda: _process_running(app), 8)
-    return {"app": app.name, "verified": False, "process_running": bool(running),
-            "note": "Fenster lassen sich in dieser Sitzung noch nicht prüfen (kein X11)."}
+    return {"app": app.name, "verified": False, "process_running": bool(running), "note": _no_windows()}
 
-  before = await asyncio.to_thread(_windows)
+  before = all_windows
   existing = [w for w in before if _matches(app, w)]
   if existing:
     target = existing[0]
-
-    def focus() -> None:
-      with x11.X11() as x:
-        x.focus(target.id)
-
-    await asyncio.to_thread(focus)
-    active = await _wait_for(lambda: any(w.id == target.id and w.active for w in _windows()), 2)
+    await _do(target.id, "focus")
+    active = await _wait_for(lambda: _is_active(target.id), 2)
     return {"app": app.name, "already_running": True, "window": _brief(target), "verified": bool(active),
             **({} if active else {"error": "Fenster existiert, ließ sich aber nicht nach vorne holen."})}
 
   before_ids = {w.id for w in before}
   await asyncio.to_thread(_start, app)
 
-  def new_window() -> x11.WindowInfo | None:
-    fresh = [w for w in _windows() if w.id not in before_ids]
+  async def new_window() -> x11.WindowInfo | None:
+    fresh = [w for w in (await _list() or []) if w.id not in before_ids]
     mine = [w for w in fresh if _matches(app, w)]
     return (mine or [])[0] if mine else None
 

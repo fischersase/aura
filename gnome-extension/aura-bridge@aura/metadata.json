@@ -1,0 +1,8 @@
+{
+  "uuid": "aura-bridge@aura",
+  "name": "Aura Bridge",
+  "description": "Gibt dem Aura-Agenten unter Wayland Zugriff auf die Fensterliste: auflisten, nach vorne holen, minimieren, maximieren, schließen (nur über den Session-D-Bus des Nutzers).",
+  "shell-version": ["45", "46", "47", "48", "49"],
+  "url": "https://github.com/fischersase/aura",
+  "version": 1
+}
