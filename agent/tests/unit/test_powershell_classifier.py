@@ -115,3 +115,9 @@ def test_powershell_cannot_change_enforcement_files(cmd):
 
 def test_powershell_may_read_enforcement_files():
   assert classify("Get-Content ~\\.aura\\policy.toml")[0] == Tier.T0
+
+
+@pytest.mark.parametrize("cmd", ["Get-Content .env", "type $HOME\\.aws\\credentials", "Get-Content $env:APPDATA\\gcloud\\credentials.db",
+                                 "Get-Content $env:APPDATA\\'GitHub CLI'\\hosts.yml", "Get-Content ~\\.npmrc"])
+def test_powershell_cannot_read_cloud_and_tool_credentials(cmd):
+  assert classify(cmd)[0] == Tier.T3, classify(cmd)

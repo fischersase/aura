@@ -114,6 +114,12 @@ FORBIDDEN = [
     (re.compile(r"login data|\bcookies\b|local state|logins\.json|key4\.db|cookies\.sqlite", _I), "Browser-Passwörter oder Cookies"),
     (re.compile(r"\breg(\.exe)?\s+(save|export)\s+hklm|system32[\\/]config[\\/](sam|security|system)\b", _I), "Systempasswörter"),
     (re.compile(r"aura[\\/]secrets|\.aura[\\/]secrets", _I), "Aura-Schlüssel"),
+    # AURA-16: Cloud-CLIs, Entwicklerwerkzeuge, .env-Dateien
+    (re.compile(r"\.(netrc|git-credentials|npmrc|pypirc|vault-token)\b|\.aws[\\/](credentials|config|sso)|"
+                r"\.docker[\\/]config\.json|\.kube[\\/]config|gcloud[\\/]|(^|[\s\\/~])\.azure([\\/]|\s|$)|"
+                r"github cli['\"]?[\\/]hosts\.yml|\.config[\\/]gh[\\/]hosts\.yml|\.cargo[\\/]credentials|npm[\\/]etc[\\/]npmrc", _I),
+     "Zugangsdaten"),
+    (re.compile(r"(^|[\s\\/~'\"])\.env(rc|\.[\w.-]+)?(\s|$|['\"])", _I), "Umgebungsdatei mit Zugangsdaten (.env)"),
     (re.compile(r"(set|add|remove)-mppreference|\bnetsh(\.exe)?\s+(advfirewall|firewall)|set-netfirewallprofile|disable-netfirewall|"
                 r"new-netfirewallrule|set-executionpolicy|\bbcdedit\b|enablelua|[\\/]policies[\\/]|disable-computerrestore|"
                 r"\bvssadmin\b.*\bdelete\b|\bwbadmin\b.*\bdelete\b|clear-eventlog|\bwevtutil(\.exe)?\s+(cl|clear-log)\b|"

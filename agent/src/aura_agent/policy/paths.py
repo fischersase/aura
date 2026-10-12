@@ -27,6 +27,13 @@ FORBIDDEN_PATHS = [
     (re.compile(r"/Aura/agent/(audit|sessions\.db)"), "Protokoll und Gedächtnis von Aura"),
     (re.compile(r"^/etc/(shadow|gshadow|sudoers)"), "Systempasswörter"),
     (re.compile(r"/\.(netrc|pgpass|git-credentials|docker/config\.json|kube/config)$|/\.aws/credentials$"), "Zugangsdaten"),
+    # AURA-16: Cloud-CLIs, Paket- und Entwicklerwerkzeuge, .env-Dateien
+    (re.compile(r"/\.config/gcloud(/|$)|/AppData/Roaming/gcloud(/|$)|/\.azure(/|$)|/\.aws/(config|sso/cache)"), "Cloud-Zugangsdaten"),
+    (re.compile(r"/(\.config/gh|AppData/Roaming/GitHub CLI)/hosts\.yml$"), "GitHub-Zugangsdaten"),
+    (re.compile(r"/\.(npmrc|pypirc|vault-token)$|/AppData/Roaming/npm/etc/npmrc$|/\.cargo/credentials(\.toml)?$|"
+                r"/\.gem/credentials$|/\.composer/auth\.json$|/\.terraform\.d/credentials\.tfrc\.json$|"
+                r"/\.config/rclone/rclone\.conf$|/\.config/(op|Bitwarden CLI)(/|$)"), "Zugangsdaten von Entwicklerwerkzeugen"),
+    (re.compile(r"/\.env(rc|\.[^/]+)?$"), "Umgebungsdatei mit Zugangsdaten (.env)"),
     # Windows
     (re.compile(r"/AppData/Local/(Google/Chrome|Microsoft/Edge|BraveSoftware/Brave-Browser|Chromium|Vivaldi)/User Data/"
                 r"([^/]+/(Login Data|Cookies|Network/Cookies|Web Data)|Local State$)", re.IGNORECASE), "Browser-Passwörter oder Cookies"),
