@@ -80,3 +80,28 @@ def test_deleting_inside_home_is_t2_not_t3():
 def test_reason_names_the_command():
   tier, reason = classify("Stop-Process -Name chrome")
   assert tier == Tier.T2 and "Stop-Process" in reason
+
+
+# AURA-13: Umgebungsvariablen (können Schlüssel enthalten) und Programme mit weiteren, ausführenden Argumenten.
+PS_BYPASSES = [
+    "$env:GEMINI_API_KEY", "Write-Output $env:GITHUB_TOKEN", "Get-ChildItem env:", "gci Env:\\", "dir env:",
+    "Get-Item env:GEMINI_API_KEY", "Get-Content env:PATH", "Get-ItemProperty HKCU:\\Environment",
+    "Get-CimInstance Win32_Environment", "wsl -l -e id", "wsl --list -- id", "node -v -e 1", "python --version -c 1",
+    "py -0 -c 1", "pwsh -v -Command x", "git branch -D main", "git log --output=x", "git remote add x https://e.example",
+    "arp -a -d 10.0.0.1",
+]
+
+PS_STILL_READ_ONLY = [
+    "Get-ChildItem $env:USERPROFILE\\Downloads", "Test-Path $env:APPDATA\\Code", "wsl -l -v", "wsl --status",
+    "python --version", "node -v", "py --list", "git remote -v", "git branch -a", "git status", "arp -a",
+]
+
+
+@pytest.mark.parametrize("cmd", PS_BYPASSES)
+def test_env_reads_and_extra_arguments_ask(cmd):
+  assert classify(cmd)[0] == Tier.T2, classify(cmd)
+
+
+@pytest.mark.parametrize("cmd", PS_STILL_READ_ONLY)
+def test_harmless_forms_stay_read_only_powershell(cmd):
+  assert classify(cmd)[0] == Tier.T0, classify(cmd)

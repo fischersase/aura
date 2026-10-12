@@ -9,14 +9,13 @@ from __future__ import annotations
 import asyncio
 import base64
 import contextlib
-import os
 from pathlib import Path
 from typing import Any
 
 from ..harness.guard import clip
 from ..harness.tiers import aura_tool
 from ..platform.base import IS_WINDOWS
-from ..platform.proc import kill_tree, spawn_kwargs
+from ..platform.proc import child_env, kill_tree, spawn_kwargs
 from ..policy.shell_classifier import classify
 from ..runtime.context import current
 from .paths import expand
@@ -65,7 +64,7 @@ async def run_command(command: str, cwd: str = "~", timeout_s: int = 120) -> dic
   proc = await asyncio.create_subprocess_exec(
       *shell_argv(command), cwd=str(workdir), stdin=asyncio.subprocess.DEVNULL,
       stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT, **spawn_kwargs(),
-      env={**os.environ, "PAGER": "cat", "GIT_PAGER": "cat", "TERM": "dumb"},
+      env=child_env({"PAGER": "cat", "GIT_PAGER": "cat", "TERM": "dumb"}),
   )
   if task:
     task.processes.add(proc)

@@ -44,8 +44,8 @@ function hasCmd(name) {
 const READONLY = new Set([
   'ls', 'dir', 'pwd', 'whoami', 'hostname', 'date', 'uname', 'uptime', 'df', 'du', 'free', 'cat', 'type', 'head', 'tail',
   'wc', 'which', 'where', 'where.exe', 'file', 'stat', 'find', 'fd', 'fdfind', 'locate', 'plocate', 'grep', 'rg', 'sort', 'uniq',
-  'echo', 'ps', 'lsblk', 'lscpu', 'lsusb', 'lspci', 'nvidia-smi', 'ip', 'ipconfig', 'ifconfig', 'systeminfo', 'ver', 'tree',
-  'env', 'printenv', 'id', 'groups', 'lsb_release', 'hostnamectl', 'sensors', 'xdg-user-dir',
+  'echo', 'lsblk', 'lscpu', 'lsusb', 'lspci', 'ipconfig', 'systeminfo', 'ver', 'tree',
+  'id', 'groups', 'lsb_release', 'xdg-user-dir',
   'get-childitem', 'gci', 'get-content', 'gc', 'get-item', 'get-itemproperty', 'get-date', 'get-process', 'get-service',
   'get-computerinfo', 'get-volume', 'get-psdrive', 'get-netipaddress', 'get-location', 'select-string', 'select-object',
   'sort-object', 'measure-object', 'format-table', 'format-list', 'test-path', 'resolve-path', 'out-string'
@@ -60,9 +60,17 @@ const RISKY_ARGS = {
   date: /(^|\s)(-s|--set)/
 };
 
+// Wie agent/src/aura_agent/policy/shell_classifier.py (AURA-13): keine Programme, die andere starten oder das System
+// umstellen (env, ip, hostnamectl, nvidia-smi …), und keine Umgebungsvariablen außer harmlosen (können Schlüssel enthalten).
+const SAFE_VARS = new Set(['HOME', 'USER', 'PWD', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'TEMP', 'TMP']);
+function readsEnv(c) {
+  if (/(^|[^$\w])env:|\/proc\/[^\s/]+\/environ/i.test(c)) return true; // Laufwerk env: (nicht $env:NAME)
+  return [...c.matchAll(/\$(?:env:)?([A-Za-z_][A-Za-z0-9_]*)/gi)].some((m) => !SAFE_VARS.has(m[1].toUpperCase()));
+}
+
 function isReadOnly(command) {
   const c = String(command || '').trim();
-  if (!c || /[;&<>`\n\r]|\$\(|\$\{/.test(c)) return false;
+  if (!c || /[;&<>`\n\r]|\$\(|\$\{/.test(c) || readsEnv(c)) return false;
   return c.split('|').every((seg) => {
     const words = seg.trim().split(/\s+/);
     const name = (words[0] || '').toLowerCase();
