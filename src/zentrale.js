@@ -24,7 +24,7 @@ function open(icon) {
     icon,
     autoHideMenuBar: true,
     backgroundColor: '#1b1c1d',
-    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true }
+    webPreferences: { preload: path.join(__dirname, 'preload-zentrale.js'), contextIsolation: true }
   });
   win.loadFile(path.join(__dirname, 'renderer', 'zentrale.html'));
   win.on('closed', () => { win = null; });

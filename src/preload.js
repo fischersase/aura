@@ -1,3 +1,5 @@
+// Preload of the panel, setup and settings windows (AURA-18). Overlay, Rambler, speech recognition and the Zentrale
+// have their own preloads; main checks every channel's sender anyway (src/security.js IPC_ACCESS).
 const { contextBridge, ipcRenderer } = require('electron');
 
 const on = (channel) => (fn) => {
@@ -42,18 +44,6 @@ contextBridge.exposeInMainWorld('api', {
   onChatError: on('chat:error'),
   onChatScreen: on('chat:screen'),
 
-  // Aura Zentrale: gleiche Funktionen wie renderer/web-shim.js im Browser
-  z: (() => {
-    const z = {};
-    for (const n of ['state', 'log', 'chats', 'deleteChat', 'setAgent', 'setAgentVersion', 'policy', 'savePolicy', 'memory', 'saveMemory', 'audit', 'doctor', 'installExtension', 'getServer', 'saveServer', 'removeServer', 'protectServer', 'searchRegistry', 'installRegistry',
-      'getSkill', 'saveSkill', 'deleteSkill', 'saveAgentsMd', 'secrets', 'setSecret', 'setSecretNote', 'deleteSecret', 'profile', 'saveProfile', 'openPath', 'openUrl', 'openWeb', 'webInfo', 'resetWeb']) {
-      z[n] = (arg) => ipcRenderer.invoke('z:' + n, arg);
-    }
-    z.setPolicy = (tool, policy) => ipcRenderer.invoke('z:setPolicy', { tool, policy });
-    z.toggleServer = (name, enabled) => ipcRenderer.invoke('z:toggleServer', { name, enabled });
-    z.toggleSkill = (name, enabled) => ipcRenderer.invoke('z:toggleSkill', { name, enabled });
-    return z;
-  })(),
   openZentrale: () => ipcRenderer.send('zentrale:open'),
 
   // Agent
@@ -80,13 +70,6 @@ contextBridge.exposeInMainWorld('api', {
   showPointer: (p) => ipcRenderer.send('pointer:show', p),
   clearPointer: () => ipcRenderer.send('pointer:clear'),
 
-  // Overlay
-  onGlowMode: on('glow:mode'),
-  onGlowLevel: on('glow:level'),
-  onPointerShow: on('pointer:show'),
-  onPointerClear: on('pointer:clear'),
-  overlayIdle: () => ipcRenderer.send('overlay:idle'),
-
   // Lokal (Ollama + Whisper)
   ollamaStatus: (url) => ipcRenderer.invoke('ollama:status', url),
   ollamaPull: (url, name) => ipcRenderer.invoke('ollama:pull', { url, name }),
@@ -95,22 +78,5 @@ contextBridge.exposeInMainWorld('api', {
   liveTurn: (payload) => ipcRenderer.invoke('live:turn', payload),
   abortLiveTurn: () => ipcRenderer.send('live:abortTurn'),
   onLiveHeard: on('live:heard'),
-  onSttProgress: on('stt:progress'),
-
-  // Spracherkennungs-Fenster
-  sttReady: () => ipcRenderer.send('stt:ready'),
-  sttResult: (r) => ipcRenderer.send('stt:result', r),
-  sttProgress: (p) => ipcRenderer.send('stt:progress', p),
-  onSttRequest: on('stt:request'),
-  onSttPreload: on('stt:preload'),
-
-  // Rambler
-  onRamblerStart: on('rambler:start'),
-  onRamblerStop: on('rambler:stop'),
-  onRamblerState: on('rambler:state'),
-  ramblerAudio: (wavBase64) => ipcRenderer.send('rambler:audio', { wavBase64 }),
-  ramblerCancel: () => ipcRenderer.send('rambler:cancel'),
-  ramblerUndo: () => ipcRenderer.send('rambler:undo'),
-  ramblerFull: () => ipcRenderer.send('rambler:full'),
-  ramblerError: (m) => ipcRenderer.send('rambler:error', m)
+  onSttProgress: on('stt:progress')
 });

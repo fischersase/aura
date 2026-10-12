@@ -51,7 +51,7 @@ the system prompt.
 | X2 | **Hostile or compromised MCP server** | Returns arbitrary tool results and tool descriptions/annotations; runs as a local process with the user's rights (stdio) or as a remote service (HTTP) | A1, A2 (its own secrets), A4 |
 | X3 | **Malicious website in the user's normal browser** | Can send requests to `127.0.0.1` (CSRF, DNS rebinding) | Zentrale web server → A2, A5 |
 | X4 | **Other local process in the same user session** | Can call session D-Bus (`org.aura.Bridge`), read user files, ptrace, write `~/.aura` | A1–A5 (mostly out of scope, see 7) |
-| X5 | **Compromised renderer** (XSS in panel/Zentrale/settings, malicious navigation) | Calls everything exposed by [src/preload.js](../../src/preload.js) | A2, A5, A1 via approvals |
+| X5 | **Compromised renderer** (XSS in panel/Zentrale/settings, malicious navigation) | Calls the channels its window may use ([src/security.js](../../src/security.js) `IPC_ACCESS`) | A2, A5, A1 via approvals |
 | X6 | **Supply-chain attacker** | npm, PyPI/uv, GitHub Actions, Playwright MCP from npm, Whisper model on Hugging Face, Ollama model registry, release assets | A6 → A1 on every install |
 | X7 | **Curious or compromised cloud provider** | Sees everything sent when provider = Gemini | A4 |
 | X8 | **The model itself** (hallucination, misalignment, jailbreak by the user's own text) | Proposes wrong or destructive tool calls | A1, A4 |
@@ -65,7 +65,7 @@ the system prompt.
             │ HTTP 127.0.0.1    │                             │ HTTPS / WSS (Live, dictation, chat)
  ┌──────────▼───────────────────▼────────────────────────────────────────┐
  │ Electron main (src/main.js, store.js, secrets.js, web.js)              │
- │   ▲ B1 IPC (preload.js / contextBridge)                                │
+ │   ▲ B1 IPC (per-window preloads / contextBridge)                       │
  │ Renderers: panel, settings, setup, Zentrale, overlay, stt, rambler     │
  └──────────┬─────────────────────────────────────────────────────────────┘
             │ B2 stdio JSON-RPC (src/agent2/bridge.js ↔ aura_agent/rpc)
@@ -81,12 +81,12 @@ the system prompt.
 
 ### B1 Renderer ↔ main (IPC)
 
-Code: [src/preload.js](../../src/preload.js), [src/main.js](../../src/main.js), [src/zentrale.js](../../src/zentrale.js).
+Code: [src/preload*.js](../../src/preload.js), [src/security.js](../../src/security.js), [src/main.js](../../src/main.js), [src/zentrale.js](../../src/zentrale.js).
 
 | STRIDE | Threat | Existing mitigations | Residual risk | Open work |
 |---|---|---|---|---|
-| S | A non-Aura page loaded in an Aura window (navigation, `window.open`) gets the `window.api` bridge | Renderers load local files only; `contextIsolation: true`, `nodeIntegration: false` in `BrowserWindow` options ([main.js](../../src/main.js) ~L110, L186, L214, L915) | No `will-navigate` / `setWindowOpenHandler` guard; no sender validation on IPC handlers | AURA-14 (navigation guard), AURA-18 (validate `event.senderFrame` URL in every handler) |
-| T | Compromised renderer rewrites policy, MCP servers, skills, `AGENTS.md`, hooks via `z:*` handlers | Handlers only exist in main; values typed/validated per handler | Any renderer can call any `z:*` handler, including `saveServer` (runs a command) and `savePolicy` | AURA-18 |
+| S | A non-Aura page loaded in an Aura window (navigation, `window.open`) gets the `window.api` bridge | Renderers load local files only; `contextIsolation: true`, `nodeIntegration: false` in `BrowserWindow` options ([main.js](../../src/main.js) ~L110, L186, L214, L915) | Navigation guard (AURA-14) and per-channel sender validation (AURA-18) in place | — |
+| T | Compromised renderer rewrites policy, MCP servers, skills, `AGENTS.md`, hooks via `z:*` handlers | Handlers only exist in main; `z:*` accepts only the Zentrale window's main frame (`guardIpc`), and only its preload exposes `z` | An XSS inside the Zentrale itself still reaches `z:*` (mitigated by CSP and no remote content) | AURA-18 (done) |
 | R | Approvals clicked by a forged renderer cannot be told apart from the user | Audit log records every approval ([harness/audit.py](../../agent/src/aura_agent/harness/audit.py)) | Origin of the click not recorded | AURA-18 |
 | I | Renderer obtains secrets | `publicSettings()` strips `apiKeyEnc` ([store.js](../../src/store.js)); `secrets.list()` returns only the last 4 chars ([secrets.js](../../src/secrets.js)) | **Gemini key is sent to the renderer** by `live:config` and rambler/chat paths, and put in the Live WebSocket URL `?key=` ([renderer/live.js](../../src/renderer/live.js) L83) | AURA-15 (ephemeral tokens or main-process proxy) |
 | D | Renderer floods IPC (e.g. `ollama:pull`, `chat:send`) | Budget check `budgetError()` for Gemini | Low impact, local | — |
@@ -186,7 +186,7 @@ Code: [gnome-extension/aura-bridge@aura/extension.js](../../gnome-extension/aura
 | AURA-15 | Medium | Gemini API key exposed to the renderer and placed in the Live WebSocket URL query string | B1, B3 | Open |
 | AURA-16 | Medium | Protected-path list gaps: gcloud, azure, `.env`, `.npmrc`, `gh` | B4 | Open |
 | AURA-17 | Medium | Secrets inside logged command values (audit/agent log) | B2, B4 | PR #5 |
-| AURA-18 | Medium | IPC handlers without sender validation | B1, B5 | Open |
+| AURA-18 | Medium | IPC handlers without sender validation | B1, B5 | Fixed (0.11.1) |
 | AURA-19 | Medium | Release v0.11.0 published without build provenance attestation | B6 | Open |
 | AURA-20 | Medium | Release assets can be overwritten (`--clobber`) / release published incomplete | B6 | Open |
 | AURA-22 | Medium | apt signing key scope, missing `Valid-Until`, unverified input `.deb` | B6 | Open |

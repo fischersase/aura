@@ -19,6 +19,7 @@ const agentMcp = require('./agent/mcp');
 const secrets = require('./secrets');
 const web = require('./web');
 const security = require('./security');
+security.guardIpc(ipcMain); // vor der ersten IPC-Registrierung (AURA-18)
 const { AgentBridge, defaultAuraDir } = require('./agent2/bridge');
 const zentraleV2 = require('./agent2/zentrale-v2');
 agentMcp.setResolver(secrets.resolveServerConfig);
@@ -95,7 +96,8 @@ function displayUnderCursor() {
   return screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
 }
 
-function baseWindow(opts) {
+// preload: jedes Fenster bekommt nur die Funktionen, die es braucht (AURA-18).
+function baseWindow({ preload = 'preload.js', ...opts }) {
   return new BrowserWindow({
     frame: false,
     transparent: true,
@@ -109,7 +111,7 @@ function baseWindow(opts) {
     show: false,
     backgroundColor: '#00000000',
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, preload),
       contextIsolation: true,
       nodeIntegration: false,
       backgroundThrottling: false
@@ -121,7 +123,7 @@ function baseWindow(opts) {
 // ---------- Fenster ----------
 
 function createOverlay() {
-  overlay = baseWindow({ focusable: false, alwaysOnTop: true });
+  overlay = baseWindow({ focusable: false, alwaysOnTop: true, preload: 'preload-overlay.js' });
   overlay.setAlwaysOnTop(true, 'screen-saver');
   overlay.setIgnoreMouseEvents(true);
   // Eigene Fenster nicht mit aufnehmen (Live-Bildschirmfreigabe, Screenshots).
@@ -158,7 +160,7 @@ function placePanel(display) {
 }
 
 function createRamblerBar() {
-  ramblerBar = baseWindow({ width: RAMBLER_W, height: RAMBLER_H, focusable: false, alwaysOnTop: true });
+  ramblerBar = baseWindow({ width: RAMBLER_W, height: RAMBLER_H, focusable: false, alwaysOnTop: true, preload: 'preload-rambler.js' });
   ramblerBar.setAlwaysOnTop(true, 'screen-saver');
   ramblerBar.setContentProtection(true);
   ramblerBar.loadFile(R('rambler.html'));
@@ -913,7 +915,7 @@ function ensureStt() {
   if (sttWin && !sttWin.isDestroyed()) return sttReady;
   sttWin = new BrowserWindow({
     show: false,
-    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, backgroundThrottling: false }
+    webPreferences: { preload: path.join(__dirname, 'preload-stt.js'), contextIsolation: true, backgroundThrottling: false }
   });
   sttReady = new Promise((resolve) => ipcMain.once('stt:ready', resolve));
   sttWin.loadFile(R('stt.html'));
