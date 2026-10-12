@@ -213,9 +213,19 @@ jobs:
         with:
           name: deb
           path: dist
+      - name: Verify the package against the published release before signing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v${{ needs.version.outputs.version }}
+        run: |
+          gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p SHA256SUMS -D dist
+          (cd dist && grep ' aura_amd64.deb$' SHA256SUMS | sha256sum -c -)
+          gh attestation verify dist/aura_amd64.deb -R "$GITHUB_REPOSITORY"
+      # APT_SIGNING_KEY_NEXT lives only in the github-pages environment; during the key rotation both keys sign.
       - name: Build and sign the repository
         env:
           APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
+          APT_SIGNING_KEY_NEXT: ${{ secrets.APT_SIGNING_KEY_NEXT }}
           VERSION: ${{ needs.version.outputs.version }}
         run: bash scripts/build-apt-repo.sh dist/aura_amd64.deb "$VERSION" site
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0

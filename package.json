@@ -140,7 +140,8 @@
       "fpm": [
         "--deb-suggests=google-chrome-stable",
         "packaging/linux/copyright=/usr/share/doc/aura-desktop/copyright",
-        "packaging/linux/lintian-overrides=/usr/share/lintian/overrides/aura-desktop"
+        "packaging/linux/lintian-overrides=/usr/share/lintian/overrides/aura-desktop",
+        "packaging/linux/aura-archive-keyring.asc=/usr/share/keyrings/aura-archive-keyring.asc"
       ],
       "packageCategory": "utils"
     },

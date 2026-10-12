@@ -60,6 +60,7 @@ fi
 # ---------- Aura: Paketquelle für Updates (wie bei Chrome oder VS Code) ----------
 # Danach bringt "sudo apt update && sudo apt upgrade" neue Aura-Versionen. Wer das nicht will:
 # vor der Installation "echo AURA_APT_REPO=no | sudo tee /etc/default/aura".
+# Der Schlüssel /usr/share/keyrings/aura-archive-keyring.asc ist eine Paketdatei (eine Quelle: packaging/linux/).
 # Nur eintragen, wenn die Quelle erreichbar ist (sonst bräche "apt update" ab); jedes spätere Update versucht es erneut.
 AURA_APT_URL='https://fischersase.github.io/aura/apt'
 aura_repo_online() {
@@ -68,20 +69,6 @@ aura_repo_online() {
   else return 1; fi
 }
 if [ -d /etc/apt/sources.list.d ] && ! grep -qs '^AURA_APT_REPO=no' /etc/default/aura && aura_repo_online; then
-  install -d -m 0755 /usr/share/keyrings
-  cat > /usr/share/keyrings/aura-archive-keyring.asc <<'KEY'
------BEGIN PGP PUBLIC KEY BLOCK-----
-
-mDMEaszt9hYJKwYBBAHaRw8BAQdAVZgWyk/jQMLp9P1Gbkq1itGdljGtyVKEEMQ6
-WT1qkie0PkF1cmEgUmVsZWFzZXMgPDEyMTQyODE2OStmaXNjaGVyc2FzZUB1c2Vy
-cy5ub3JlcGx5LmdpdGh1Yi5jb20+iJkEExYKAEEWIQQtHIGWSR+ekqAE9K4QLq+x
-f8hfkAUCaszt9gIbAwUJCWYBgAULCQgHAgIiAgYVCgkICwIEFgIDAQIeBwIXgAAK
-CRAQLq+xf8hfkNuKAP9zv58jdt1JPRpo3c8X54RJXmf9dpOklU3eUQzI7Bz4zAD+
-MmjdPFAPQdLGVZG8CpReSAQu4jO+XY0irtV42pWuVQ4=
-=unTA
------END PGP PUBLIC KEY BLOCK-----
-KEY
-  chmod 0644 /usr/share/keyrings/aura-archive-keyring.asc
   if [ ! -e /etc/apt/sources.list.d/aura.sources ]; then
     cat > /etc/apt/sources.list.d/aura.sources <<'SRC'
 Types: deb
