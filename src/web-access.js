@@ -1,0 +1,54 @@
+// What the Zentrale in the browser (src/web.js) may call (AURA-63). The desktop window keeps the full API over IPC;
+// a browser tab is easier to compromise (extensions, other local pages that got the token), so anything that can
+// run commands, weaken the safety rules or change secrets needs a confirmation in the desktop app.
+
+// Read-only or harmless.
+const ALLOW = new Set([
+  'state', 'log', 'chats', 'deleteChat', 'policy', 'memory', 'saveMemory', 'audit', 'doctor', 'getServer',
+  'searchRegistry', 'getSkill', 'secrets', 'setSecretNote', 'profile', 'saveProfile', 'setAgent', 'openUrl',
+  'webInfo', 'resetWeb'
+]);
+
+// Allowed after the user confirms in the desktop app. Value: German text for the dialog (UI language today).
+const CONFIRM = {
+  saveServer: (a) => `MCP-Server „${a.name}“ speichern: ${serverCommand(a.config)}`,
+  installRegistry: (a) => `MCP-Server „${a.name || (a.server && a.server.name) || '?'}“ aus dem Verzeichnis installieren`,
+  toggleServer: (a) => `MCP-Server „${a.name}“ ${a.enabled ? 'einschalten (startet ihn)' : 'ausschalten'}`,
+  removeServer: (a) => `MCP-Server „${a}“ entfernen`,
+  protectServer: (a) => `Schlüssel des MCP-Servers „${a}“ in die Schlüsselverwaltung verschieben`,
+  setPolicy: (a) => `Regel für „${a.tool}“ auf „${a.policy}“ setzen`,
+  savePolicy: () => 'Regeln (policy.toml) überschreiben',
+  saveSkill: (a) => `Skill „${a.name || 'neu'}“ speichern`,
+  deleteSkill: (a) => `Skill „${a}“ löschen`,
+  toggleSkill: (a) => `Skill „${a.name}“ ${a.enabled ? 'einschalten' : 'ausschalten'}`,
+  saveAgentsMd: () => 'Anweisungen an den Agenten (AGENTS.md) überschreiben',
+  setSecret: (a) => `Schlüssel „${a.name}“ setzen`,
+  deleteSecret: (a) => `Schlüssel „${a}“ löschen`,
+  setAgentVersion: (a) => `Agent-Version auf „${a}“ umstellen`,
+  installExtension: () => 'GNOME-Erweiterung installieren'
+};
+
+// Not over the web at all: opening local files and folders, starting another web session.
+const DENY = new Set(['openPath', 'openWeb']);
+
+function serverCommand(config) {
+  const c = config || {};
+  const text = c.url ? String(c.url) : [c.command, ...(Array.isArray(c.args) ? c.args : [])].map(String).join(' ');
+  return text.length > 300 ? text.slice(0, 300) + ' …' : text;
+}
+
+// 'allow' | 'confirm' | 'deny'. Unknown names are denied, so new API functions are not reachable from the browser
+// until someone decides.
+function webAccess(name) {
+  if (ALLOW.has(name)) return 'allow';
+  if (Object.prototype.hasOwnProperty.call(CONFIRM, name)) return 'confirm';
+  return 'deny';
+}
+
+function describe(name, arg) {
+  const fn = CONFIRM[name];
+  if (!fn) return name;
+  try { return fn(arg === undefined || arg === null ? {} : arg); } catch { return name; }
+}
+
+module.exports = { webAccess, describe, ALLOW, CONFIRM, DENY };

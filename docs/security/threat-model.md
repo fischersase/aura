@@ -152,9 +152,9 @@ Code: [src/web.js](../../src/web.js), [src/renderer/web-shim.js](../../src/rende
 |---|---|---|---|---|
 | S | Malicious site or other LAN host calls the API | Binds `127.0.0.1` only; 256-bit random token per app start, passed in URL fragment (never sent to server logs/Referer), compared with `timingSafeEqual`; `resetToken()` logs out all tabs | Token lives in the tab's JS memory/history; any local process can read it from browser history files | — |
 | T | CSRF / DNS rebinding | `Host` must be `127.0.0.1:<port>` or `localhost:<port>` (421 otherwise); foreign `Origin` → 403; POST requires `Content-Type: application/json` (forces CORS preflight, which is never answered); body ≤ 2 MiB | — | — |
-| I | Clickjacking, script injection, leakage | CSP `default-src 'none'; script-src 'self'; frame-ancestors 'none'`, `X-Frame-Options: DENY`, `nosniff`, `no-referrer`, COOP/CORP, `no-store` | API functions mirror the IPC `z:*` set, so a token holder controls MCP servers, policy and hooks-equivalent settings | AURA-18 (shared allow-list) |
+| I | Clickjacking, script injection, leakage | CSP `default-src 'none'; script-src 'self'; frame-ancestors 'none'`, `X-Frame-Options: DENY`, `nosniff`, `no-referrer`, COOP/CORP, `no-store` | A token holder can read Aura's state; changes to MCP servers, rules, skills, AGENTS.md and secrets need a confirmation in the desktop app, `openPath`/`openWeb` are not served ([src/web-access.js](../../src/web-access.js)) | AURA-63 (done) |
 | D | Port squatting by another local process | Tries ports 47800–47805, then random | Same-user attacker could pre-bind and phish the token (out of scope) | — |
-| E | API runs arbitrary functions | Explicit `API` table, `hasOwnProperty` check | — | — |
+| E | API runs arbitrary functions | Explicit `API` table, `hasOwnProperty` check; web allow-list with deny by default for new functions | — | — |
 
 ### B6 Build/release ↔ user
 
