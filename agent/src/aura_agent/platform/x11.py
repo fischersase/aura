@@ -106,7 +106,7 @@ class X11:
   def _client_message(self, win: Window, name: str, data: list[int]) -> None:
     ev = protocol.event.ClientMessage(window=win, client_type=self._atom(name), data=(32, (data + [0] * 5)[:5]))
     self.root.send_event(ev, event_mask=X.SubstructureRedirectMask | X.SubstructureNotifyMask)
-    self.d.flush()
+    self.d.sync()  # auf den Server warten: bei sofort geschlossener Verbindung gingen Befehle unter Last verloren (AURA-58)
 
   def focus(self, wid: str) -> None:
     win = self._window(wid)
@@ -116,7 +116,7 @@ class X11:
       win.map()
       win.raise_window()
       win.set_input_focus(X.RevertToParent, X.CurrentTime)
-      self.d.flush()
+      self.d.sync()  # auf den Server warten: bei sofort geschlossener Verbindung gingen Befehle unter Last verloren (AURA-58)
 
   def minimize(self, wid: str) -> None:
     self._client_message(self._window(wid), "WM_CHANGE_STATE", [3])  # IconicState
@@ -131,4 +131,4 @@ class X11:
       self._client_message(win, "_NET_CLOSE_WINDOW", [X.CurrentTime, 2])
     else:
       win.destroy()
-      self.d.flush()
+      self.d.sync()  # auf den Server warten: bei sofort geschlossener Verbindung gingen Befehle unter Last verloren (AURA-58)
