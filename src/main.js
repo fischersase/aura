@@ -421,6 +421,16 @@ async function grabViaPanel(maxWidth) {
   return r.jpeg;
 }
 
+// Der Agent sieht den Bildschirm (Werkzeug screenshot, T0): Ist das Panel offen, zeigt es den Schritt ohnehin.
+// Sonst ein Hinweis, höchstens einmal pro Minute, damit es nicht unbemerkt geschieht (AURA-62).
+let lastScreenshotNotice = 0;
+function noteAgentScreenshot() {
+  if (panel && panelOpen && panel.isVisible()) return;
+  if (Date.now() - lastScreenshotNotice < 60000 || !Notification.isSupported()) return;
+  lastScreenshotNotice = Date.now();
+  new Notification({ title: 'Aura', body: 'Aura hat für die laufende Aufgabe ein Bildschirmfoto gemacht.', icon: ICON, silent: true }).show();
+}
+
 async function screenshotJpeg(display, maxWidth = 1600) {
   if (USE_STREAM_CAPTURE) return grabViaPanel(maxWidth);
   const d = display || displayUnderCursor();
@@ -569,7 +579,7 @@ async function runAgent(sender, id, ctrl, contents, onText) {
     approve,
     signal: ctrl.signal,
     ctx: {
-      screenshot: () => screenshotJpeg(currentDisplay),
+      screenshot: () => { noteAgentScreenshot(); return screenshotJpeg(currentDisplay); },
       // 0–1000 im Bildschirmfoto → echte Bildschirm-Pixel
       toScreen: (x, y) => {
         const d = currentDisplay || displayUnderCursor();
@@ -655,7 +665,10 @@ const agentV2 = new AgentBridge({
       sender.send('agent:ask', { chatId: req.taskId, id, question: req.question, options: req.options || [] });
       if (panel && !panelOpen) openPanel();
     }),
-    screenshot: async (maxWidth) => ({ mime: 'image/jpeg', data: await screenshotJpeg(currentDisplay, maxWidth) }),
+    screenshot: async (maxWidth) => {
+      noteAgentScreenshot();
+      return { mime: 'image/jpeg', data: await screenshotJpeg(currentDisplay, maxWidth) };
+    },
     // Maus und Tastatur (Notlösung für Programme ohne Barrierefreiheit). x, y: 0–1000 im letzten Bildschirmfoto.
     input: async (req) => {
       if (req.action === 'click') {
@@ -1024,12 +1037,13 @@ ipcMain.on('live:abortTurn', () => liveAborts.forEach((c) => c.abort()));
 
 ipcMain.handle('ollama:status', async (_e, url) => {
   const u = url || store.load().ollamaUrl;
+  const remote = !ollama.isLocalUrl(u);
   try {
     const v = await ollama.version(u);
     const models = await ollama.listModels(u);
-    return { ok: true, version: v, models, recommended: ollama.RECOMMENDED };
+    return { ok: true, version: v, models, recommended: ollama.RECOMMENDED, remote };
   } catch (err) {
-    return { ok: false, message: String(err.message || err), recommended: ollama.RECOMMENDED };
+    return { ok: false, message: String(err.message || err), recommended: ollama.RECOMMENDED, remote };
   }
 });
 

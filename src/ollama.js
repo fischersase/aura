@@ -217,4 +217,11 @@ async function liveTurn({ url, model, language, history, question, jpeg, signal 
   return { say: String(j.say || '').trim(), point };
 }
 
-module.exports = { setContextSize, DEFAULT_URL, RECOMMENDED, OllamaError, version, listModels, pull, streamChat, chatFull, toMessages, rambler, liveTurn };
+// Läuft Ollama auf diesem Rechner? Sonst gehen Chats, Bildschirmfotos und Diktate an einen anderen Rechner (AURA-62).
+function isLocalUrl(url) {
+  let host;
+  try { host = new URL(String(url || DEFAULT_URL)).hostname.toLowerCase(); } catch { return false; }
+  return host === 'localhost' || host === '[::1]' || host === '::1' || /^127(\.\d{1,3}){3}$/.test(host);
+}
+
+module.exports = { isLocalUrl, setContextSize, DEFAULT_URL, RECOMMENDED, OllamaError, version, listModels, pull, streamChat, chatFull, toMessages, rambler, liveTurn };
