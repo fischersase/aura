@@ -56,6 +56,12 @@ class TaskContext:
   changes: list[dict[str, Any]] = field(default_factory=list)
   # Abgelehnte oder gesperrte Aktionen (für Rückmeldungen aus Spezialisten an den Hauptagenten).
   refusals: list[str] = field(default_factory=list)
+  # Hat der Auftrag fremde Inhalte gelesen (Webseiten, Dateien, Programme, MCP)? Dann sind Wege nach außen strenger.
+  tainted_by: list[str] = field(default_factory=list)
+
+  @property
+  def tainted(self) -> bool:
+    return bool(self.tainted_by)
 
   def verified(self) -> bool | None:
     """Gesamturteil für task.done: None ohne ändernde Aktionen."""

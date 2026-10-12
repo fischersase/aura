@@ -21,6 +21,7 @@ from ..extensions.mcp import build_toolsets, integrations_agent
 from ..harness.audit import AuditLog
 from ..harness.context_manager import ContextManagerPlugin
 from ..harness.guard import GuardPlugin
+from ..harness.hooks import Hooks
 from ..models.ollama_llm import OllamaLlm
 from ..policy.engine import PolicyEngine
 from ..rpc.peer import INVALID_PARAMS, PROTOCOL_VERSION, Peer, RpcError
@@ -77,7 +78,7 @@ def build_runner(settings: AgentSettings, model: BaseLlm | None = None, browser:
       agent=build_root(llm, settings, toolset, integrations_agent(llm, build_toolsets(settings.mcp_servers)), episodes),
       memory_service=episodes,
       session_service=SqliteSessionService(str(settings.data_dir / "sessions.db")),
-      plugins=[GuardPlugin(policy), ContextManagerPlugin(settings.num_ctx)],
+      plugins=[GuardPlugin(policy, Hooks(settings.aura_dir / "hooks.json")), ContextManagerPlugin(settings.num_ctx)],
   )
 
 

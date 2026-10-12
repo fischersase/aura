@@ -14,8 +14,15 @@ APP_NAME = "aura"
 USER_ID = "local"
 
 
+def _remember_tier(_a: dict[str, Any]) -> Tier | tuple[Tier, str]:
+  task = current()
+  if task is not None and task.tainted:
+    return Tier.T2, "der Auftrag hat fremde Inhalte gelesen; Einträge ins Gedächtnis bestätigst du selbst"
+  return Tier.T1
+
+
 def make_memory_tools(files: MemoryFiles, episodes: BaseMemoryService | None) -> list:
-  @aura_tool(Tier.T1, label=lambda a: str(a.get("fact", ""))[:120])
+  @aura_tool(_remember_tier, label=lambda a: str(a.get("fact", ""))[:120], effect=lambda a: f"Ins Gedächtnis: {a.get('fact', '')}")
   def remember(fact: str, topic: str = "Allgemein") -> dict[str, Any]:
     """Merkt sich dauerhaft einen nützlichen Fakt über den Nutzer oder seinen Rechner (steht dann in MEMORY.md).
 

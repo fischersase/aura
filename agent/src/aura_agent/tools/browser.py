@@ -19,6 +19,7 @@ from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 from mcp import StdioServerParameters
 
 from ..harness.tiers import EXTERNAL, Tier, ToolMeta
+from ..policy.exfil import url_tier
 from ..runtime.settings import AgentSettings
 
 PLAYWRIGHT_MCP = "@playwright/mcp@0.0.80"
@@ -54,7 +55,7 @@ def _nav_tier(a: dict[str, Any]) -> tuple[Tier, str]:
   url = str(a.get("url", ""))
   if url.startswith("file:"):
     return Tier.T2, "öffnet eine lokale Datei im Browser"
-  return Tier.T1, ""
+  return url_tier(url) or (Tier.T1, "")
 
 
 def _dialog_tier(a: dict[str, Any]) -> tuple[Tier, str]:

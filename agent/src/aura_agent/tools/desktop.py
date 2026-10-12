@@ -17,6 +17,7 @@ from typing import Any
 
 from ..harness.tiers import Tier, aura_tool
 from ..platform import x11
+from ..policy.exfil import url_tier
 from ..policy.paths import path_tier
 from .apps import App, best_matches, installed_apps
 from .paths import expand
@@ -230,7 +231,7 @@ async def launch_app(name: str) -> dict[str, Any]:
 def _open_tier(a: dict[str, Any]) -> tuple[Tier, str]:
   t = str(a.get("target", "")).strip()
   if t.startswith(("http://", "https://", "mailto:")):
-    return Tier.T1, ""
+    return url_tier(t) or (Tier.T1, "")
   p = expand(t)
   blocked = path_tier(p)
   if blocked:
