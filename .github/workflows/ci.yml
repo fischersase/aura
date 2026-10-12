@@ -37,7 +37,10 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --locked
+      # Wie im Betrieb: Electron startet den Agenten mit PYTHONUTF8=1 (src/agent2/bridge.js).
       - run: uv run pytest -q -rs
+        env:
+          PYTHONUTF8: "1"
 
   js:
     runs-on: ubuntu-24.04

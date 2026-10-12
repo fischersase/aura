@@ -24,7 +24,7 @@ def expand(p: str | None, home: str | None = None) -> Path:
   if s == "~" or s.startswith(("~/", "~\\")):
     s = home + s[1:]
   if _FAKE_HOME.match(s) and not Path(s).exists():
-    s = _FAKE_HOME.sub(home, s)
+    s = _FAKE_HOME.sub(lambda _m: home, s)  # Funktion statt Text: Windows-Pfade enthalten \\
   path = Path(s)
   if not path.is_absolute():
     path = Path(home) / path

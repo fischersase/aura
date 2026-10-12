@@ -16,3 +16,4 @@ Belege aus Phase 0 (Spikes) liegen unter `agent/spikes/` und `agent/tests/adk_ca
 | [0009](0009-browser-spezialist.md) | Browser über Playwright-MCP als eigener Spezialist, Klick-Einstufung nach Ziel | angenommen |
 | [0010](0010-programme-ueber-atspi.md) | Desktop-Programme über AT-SPI (System-Python-Helfer), Spezialist „apps“ | angenommen |
 | [0011](0011-wayland-gnome-erweiterung.md) | Fenster unter GNOME Wayland über die eigene Shell-Erweiterung „Aura Bridge“ | angenommen |
+| [0012](0012-windows-backend.md) | Windows-Backend hinter denselben Werkzeugen (user32, UI Automation, SMTC, PowerShell-Einstufung), NSIS-Installer | angenommen |

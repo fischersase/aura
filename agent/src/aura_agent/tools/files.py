@@ -137,7 +137,7 @@ def _search(root: Path, name: str, contains: str, limit: int, deadline: float) -
       elif match(p.name):
         if needle:
           try:
-            if p.stat().st_size > 2 * 1024 * 1024 or needle not in p.read_text(errors="ignore").lower():
+            if p.stat().st_size > 2 * 1024 * 1024 or needle not in p.read_text(encoding="utf-8", errors="ignore").lower():
               continue
           except OSError:
             continue
@@ -201,7 +201,7 @@ def _write_effect(a: dict[str, Any]) -> str:
   new = str(a.get("content", ""))
   if p.is_file():
     try:
-      old = p.read_text(errors="replace")
+      old = p.read_text(encoding="utf-8", errors="replace")
     except OSError:
       old = ""
     if a.get("append"):
@@ -242,7 +242,7 @@ def write_file(path: str, content: str, append: bool = False) -> dict[str, Any]:
 def _edit_effect(a: dict[str, Any]) -> str:
   p = expand(a.get("path"), _home())
   try:
-    old = p.read_text(errors="replace")
+    old = p.read_text(encoding="utf-8", errors="replace")
   except OSError:
     return f"Datei nicht lesbar: {show(p, _home())}"
   return _diff(old, old.replace(str(a.get("old_text", "")), str(a.get("new_text", "")), 1), show(p, _home()))

@@ -5,6 +5,7 @@ Format:
     "before_tool": [{"tool": "run_command", "command": "/home/me/bin/pruefe.sh"}],
     "after_tool":  [{"tool": "*", "command": "logger -t aura"}]
   }
+Unter Windows z. B. "C:\\Users\\me\\pruefe.ps1" (läuft mit PowerShell) oder eine .cmd-Datei.
 
 Ein Hook bekommt den Aufruf als JSON auf stdin: {"event", "tool", "args", "label", "tier", "task"} (nach dem Werkzeug
 zusätzlich "result"). Vor dem Werkzeug gilt:
@@ -26,8 +27,21 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from ..platform.base import IS_WINDOWS
+from ..platform.proc import spawn_kwargs
+
 log = logging.getLogger(__name__)
 TIMEOUT_S = 10.0
+
+
+def hook_argv(command: str) -> list[str]:
+  """Befehl eines Hooks zerlegen. Windows: Pfade mit \\ bleiben erhalten, .ps1 läuft über PowerShell."""
+  if not IS_WINDOWS:
+    return shlex.split(command)
+  parts = [p[1:-1] if len(p) >= 2 and p[0] == p[-1] == '"' else p for p in shlex.split(command, posix=False)]
+  if parts and parts[0].lower().endswith(".ps1"):
+    return ["powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", *parts]
+  return parts
 
 
 @dataclass(frozen=True)
@@ -57,7 +71,8 @@ class Hooks:
   @staticmethod
   async def _run(hook: Hook, payload: dict[str, Any]) -> tuple[int, str, str]:
     proc = await asyncio.create_subprocess_exec(
-        *shlex.split(hook.command), stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        *hook_argv(hook.command), stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        **spawn_kwargs(new_group=False))
     try:
       out, err = await asyncio.wait_for(proc.communicate(json.dumps(payload, ensure_ascii=False, default=str).encode()), TIMEOUT_S)
     except TimeoutError:

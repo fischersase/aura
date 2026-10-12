@@ -1,6 +1,7 @@
 """Hüllen-Tests (L3): ganzer Auftragsablauf mit Drehbuch-Modell und Host-Attrappe."""
 
 import asyncio
+import re
 import sys
 import time
 from pathlib import Path
@@ -223,7 +224,7 @@ async def test_always_allow_creates_rule_and_skips_next_question(tmp_path):
   ctl.start("t2", "c1", "nochmal")
   await finish(ctl)
   assert len(host.approvals) == 1
-  assert "touch" in (settings.aura_dir / "policy.toml").read_text()
+  assert re.escape(cmd.split()[0]) in (settings.aura_dir / "policy.toml").read_text(encoding="utf-8")
 
 
 async def test_user_deny_rule_blocks_even_read_only(tmp_path):
@@ -333,12 +334,16 @@ async def test_user_hooks_can_block_force_ask_and_observe(tmp_path):
   aura = tmp_path / "aura"
   aura.mkdir()
   seen = tmp_path / "seen.jsonl"
-  block = tmp_path / "block.sh"
-  block.write_text("#!/bin/sh\ncat > /dev/null\necho 'Keine Downloads am Wochenende' >&2\nexit 2\n")
-  ask = tmp_path / "ask.sh"
-  ask.write_text("#!/bin/sh\ncat > /dev/null\necho '{\"decision\": \"ask\"}'\n")
-  observe = tmp_path / "observe.sh"
-  observe.write_text(f"#!/bin/sh\ncat >> {seen}\necho >> {seen}\n")
+  if WINDOWS:
+    block, ask, observe = tmp_path / "block.ps1", tmp_path / "ask.ps1", tmp_path / "observe.ps1"
+    block.write_text("$null = [Console]::In.ReadToEnd(); [Console]::Error.WriteLine('Keine Downloads am Wochenende'); exit 2\n")
+    ask.write_text("$null = [Console]::In.ReadToEnd(); Write-Output '{\"decision\": \"ask\"}'\n")
+    observe.write_text(f"[IO.File]::AppendAllText('{seen}', [Console]::In.ReadToEnd() + [Environment]::NewLine)\n")
+  else:
+    block, ask, observe = tmp_path / "block.sh", tmp_path / "ask.sh", tmp_path / "observe.sh"
+    block.write_text("#!/bin/sh\ncat > /dev/null\necho 'Keine Downloads am Wochenende' >&2\nexit 2\n")
+    ask.write_text("#!/bin/sh\ncat > /dev/null\necho '{\"decision\": \"ask\"}'\n")
+    observe.write_text(f"#!/bin/sh\ncat >> {seen}\necho >> {seen}\n")
   for f in (block, ask, observe):
     f.chmod(f.stat().st_mode | stat.S_IEXEC)
   (aura / "hooks.json").write_text(_json.dumps({

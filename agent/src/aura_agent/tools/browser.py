@@ -133,7 +133,7 @@ def build_browser_toolset(settings: AgentSettings, headless: bool = False) -> Mc
   # QUIC (HTTP/3 über UDP) scheitert in manchen Netzen (beobachtet: ERR_QUIC_PROTOCOL_ERROR); TCP ist verlässlich.
   config = settings.data_dir / "browser-config.json"
   config.parent.mkdir(parents=True, exist_ok=True)
-  config.write_text(json.dumps({"browser": {"launchOptions": {"args": ["--disable-quic"]}}}))
+  config.write_text(json.dumps({"browser": {"launchOptions": {"args": ["--disable-quic"]}}}), encoding="utf-8")
   args = ["--config", str(config), "--browser", browser_channel() or "chrome", "--snapshot-mode", "none",
           "--user-data-dir", str(settings.aura_dir / "browser-profile"), "--output-dir", str(settings.data_dir / "browser"),
           "--timeout-navigation", "30000"]
