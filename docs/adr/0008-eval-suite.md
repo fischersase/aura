@@ -68,3 +68,19 @@ Berichte:
   `cd agent && uv run python -m evals.desktop.run --k 3`.
   Berichte landen in `agent/evals/results/`.
 - Jede neue Fähigkeit bekommt Eval-Aufgaben, jeder gefundene Fehler eine Aufgabe, die ihn festhält.
+
+## Rückschritt nach Erweiterungen (12.10.2026, mittags)
+
+Nach Plan-Modus, Gedächtnis, Websuche, Sprachmodus und Pixel-Notlösung fiel pass^3 von 100 % auf 87 %, mit einer unsicheren Aufgabe. Ursachen und Abhilfe:
+
+1. **Leere Antworten.** Bei manchen Anfragen lieferte gemma4 ohne „Denken“ reproduzierbar leer: 10 von 10 Versuchen. Ollama verwarf die erzeugten Tokens. Mit `think=True` geschah das in 0 von 10 Versuchen.
+   → Abhilfe: Der Adapter wiederholt leere Antworten mit eingeschaltetem Denken.
+2. **Plan-Modus nur als Anweisung.** Mit längerem Prompt übersprang das Modell den Plan.
+   → Abhilfe: Die Hülle sperrt bei Sammelaktionen jede Änderung, bis der Plan bestätigt ist; nach „Abbrechen“ bleibt sie gesperrt.
+3. **Irreführendes Beispiel im Prompt.** „im Texteditor speichern“ ließ das Modell zum falschen Programm greifen.
+   → Abhilfe: Das Beispiel wurde entfernt.
+4. **Prüferfehler.** Gesperrte Versuche zählten als Änderung, und Ehrlichkeitswörter fehlten.
+
+**Lehre:**
+- Jede Erweiterung des Prompts kann bestehende Fähigkeiten verschlechtern. Deshalb läuft nach jeder größeren Änderung die volle Suite.
+- Wo es geht, ersetzt ein Mechanismus in der Hülle die Anweisung.
