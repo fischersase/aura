@@ -58,6 +58,8 @@ class TaskContext:
   refusals: list[str] = field(default_factory=list)
   # Hat der Auftrag fremde Inhalte gelesen (Webseiten, Dateien, Programme, MCP)? Dann sind Wege nach außen strenger.
   tainted_by: list[str] = field(default_factory=list)
+  # Hat der Auftrag lokale Daten gelesen (Dateien, Befehlsausgaben, Bildschirm, Gedächtnis)?
+  local_data_from: list[str] = field(default_factory=list)
 
   @property
   def tainted(self) -> bool:

@@ -64,6 +64,18 @@ class RpcHost:
     self.peer.notify(method, params)
 
 
+def make_model(settings: AgentSettings) -> BaseLlm:
+  """Lokal über Ollama (Standard) oder Gemini, wenn der Nutzer Gemini als Anbieter gewählt hat."""
+  if settings.provider == "gemini":
+    if not settings.gemini_api_key:
+      raise RpcError(INVALID_PARAMS, "Gemini ist gewählt, aber es ist kein API-Schlüssel hinterlegt.")
+    from google.adk.models.google_llm import Gemini
+
+    return Gemini(model=settings.gemini_model, client_kwargs={"api_key": settings.gemini_api_key})
+  return OllamaLlm(model=f"ollama/{settings.model}", base_url=settings.ollama_url, num_ctx=settings.num_ctx,
+                   keep_alive=settings.keep_alive, think=False)
+
+
 def build_runner(settings: AgentSettings, model: BaseLlm | None = None, browser: bool | None = None) -> Runner:
   """browser: None = nach Einstellung (aber nie bei Testmodellen), True/False erzwingt."""
   policy = PolicyEngine(settings.aura_dir / "policy.toml", settings.tool_policy)
@@ -71,8 +83,7 @@ def build_runner(settings: AgentSettings, model: BaseLlm | None = None, browser:
   use_browser = settings.browser and model is None if browser is None else browser
   toolset = build_browser_toolset(settings, settings.browser_headless) if use_browser else None
   settings.ensure_dirs()
-  llm = model or OllamaLlm(model=f"ollama/{settings.model}", base_url=settings.ollama_url,
-                           num_ctx=settings.num_ctx, keep_alive=settings.keep_alive, think=False)
+  llm = model or make_model(settings)
   return Runner(
       app_name=APP_NAME,
       agent=build_root(llm, settings, toolset, integrations_agent(llm, build_toolsets(settings.mcp_servers)), episodes),
@@ -107,9 +118,10 @@ class AgentServer:
     runner = build_runner(self.settings, self._model)
     self.controller = TaskController(runner, self.host, AuditLog(self.settings.data_dir / "audit"),
                                      self.settings.home, self.settings.max_llm_calls)
-    if self._model is None and p.get("warmUp", True):
+    if self._model is None and p.get("warmUp", True) and self.settings.provider == "ollama":
       asyncio.create_task(self._warm_up())
-    return {"protocol": PROTOCOL_VERSION, "version": __version__, "model": self.settings.model}
+    model = self.settings.gemini_model if self.settings.provider == "gemini" else self.settings.model
+    return {"protocol": PROTOCOL_VERSION, "version": __version__, "model": model, "provider": self.settings.provider}
 
   def _require(self) -> TaskController:
     if not self.controller:

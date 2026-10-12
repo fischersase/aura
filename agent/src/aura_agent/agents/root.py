@@ -91,7 +91,9 @@ def instruction(settings: AgentSettings, has_browser: bool = False, skills_text:
          "- Dateien: list_dir, find_files, read_file; schreiben mit write_file, kleine Änderungen mit edit_file, "
          "verschieben oder kopieren mit move_path (beide legen fehlende Ordner selbst an). Löschen nur mit trash (Papierkorb), nie mit rm.\n"
          + ("- Webseiten bedienen (suchen, klicken, Formulare, Musik auf YouTube Music abspielen, Infos von Seiten holen): "
-            "browser mit einer klaren, vollständigen Aufgabe. Nur eine Seite anzeigen: open_target.\n" if has_browser else "")
+            "browser mit einer klaren, vollständigen Aufgabe. Nur eine Seite anzeigen: open_target.\n"
+            "- Etwas im Internet nachschlagen (Wetter, Nachrichten, Fakten, Öffnungszeiten): browser mit dem Auftrag, "
+            "auf DuckDuckGo zu suchen und die Antwort mit Quelle zurückzugeben.\n" if has_browser else "")
          + ("- In Desktop-Programmen etwas bedienen oder ablesen (Knöpfe, Menüs, Felder, Dialoge, „Was steht im Programm X?“, "
             "im Texteditor speichern): apps mit einer klaren Aufgabe, auch wenn das Programm schon offen ist.\n" if has_apps else "")
          + "- Was gerade auf dem Bildschirm zu sehen ist: screenshot.\n"

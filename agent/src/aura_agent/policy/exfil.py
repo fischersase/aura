@@ -2,7 +2,8 @@
 
 Hat ein Auftrag Webseiten, Dateien oder Programmtexte gelesen, könnte eine darin versteckte Anweisung
 versuchen, Daten über eine Webadresse hinauszuschicken (z. B. https://angreifer.example/?d=…).
-Solche Adressen mit Parametern fragen dann immer.
+Gefährlich ist die Kombination: eingeschleuste Anweisung (fremder Inhalt) UND lokale Daten im Kontext.
+Dann fragen Adressen, die Daten tragen können (Parameter oder langer Pfad). Reines Surfen fragt nicht.
 """
 
 from __future__ import annotations
@@ -15,9 +16,10 @@ from ..runtime.context import current
 
 def url_tier(url: str) -> tuple[Tier, str] | None:
   task = current()
-  if task is None or not task.tainted:
+  if task is None or not task.tainted or not task.local_data_from:
     return None
   u = urlparse(str(url or ""))
   if u.scheme in ("http", "https") and (u.query or len(u.path) > 60):
-    return Tier.T2, f"Webadresse mit Daten nach dem Lesen fremder Inhalte ({', '.join(task.tainted_by[:3])})"
+    return Tier.T2, (f"Webadresse kann Daten tragen; der Auftrag hat fremde Inhalte ({', '.join(task.tainted_by[:2])}) "
+                     f"und lokale Daten ({', '.join(task.local_data_from[:2])}) gelesen")
   return None

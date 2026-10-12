@@ -11,7 +11,7 @@ const DEFAULTS = {
   hotkeyLive: 'Control+Alt+L',
   hotkeyStop: 'Control+Alt+Escape', // Notbremse, nur aktiv solange der Agent arbeitet
   agentEnabled: true, // Aura darf Werkzeuge nutzen (Befehle, Dateien, Programme öffnen)
-  agentVersion: 'v1', // 'v2' = neuer Agent (agent/, Google ADK, nur lokal über Ollama); Umgebungsvariable AURA_AGENT_VERSION gewinnt
+  agentVersion: 'v2', // 'v2' = Agent auf Google ADK (agent/), 'v1' = bisheriger Agent; Umgebungsvariable AURA_AGENT_VERSION gewinnt
   provider: 'gemini', // 'gemini' (API-Key) oder 'ollama' (lokal)
   ollamaUrl: 'http://127.0.0.1:11434',
   ollamaModel: 'gemma4:e4b', // Chat, Rambler-Nachbearbeitung und Live bei provider 'ollama'

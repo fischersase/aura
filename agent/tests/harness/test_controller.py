@@ -344,3 +344,21 @@ async def test_user_hooks_can_block_force_ask_and_observe(tmp_path):
   assert [a["tool"] for a in host.approvals] == ["system_info"]  # T0, aber Hook verlangt Rückfrage
   events = [_json.loads(line) for line in seen.read_text().splitlines() if line.strip()]
   assert [e["tool"] for e in events] == ["system_info"] and events[0]["event"] == "after_tool"
+
+
+async def test_plain_browsing_does_not_ask_for_links(tmp_path):
+  from aura_agent.harness.tiers import Tier
+  from aura_agent.policy.exfil import url_tier
+  from aura_agent.runtime.context import CURRENT, TaskContext
+
+  ctx = TaskContext(task_id="t", chat_id="c", host=FakeHost(), audit=AuditLog(tmp_path / "a"), home=str(tmp_path))
+  token = CURRENT.set(ctx)
+  try:
+    link = "https://www.wetter.com/wetter_aktuell/wettervorhersage/morgen/deutschland/berlin/DE0001020.html?q=1"
+    ctx.tainted_by.append("browser_snapshot")
+    assert url_tier(link) is None  # nur Webseiten gelesen: normales Surfen
+    ctx.local_data_from.append("read_file")
+    assert url_tier(link)[0] == Tier.T2  # Webseite + lokale Datei: Abfluss möglich
+    assert url_tier("https://example.com/") is None  # ohne Daten in der Adresse
+  finally:
+    CURRENT.reset(token)

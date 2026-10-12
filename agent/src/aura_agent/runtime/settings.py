@@ -39,6 +39,10 @@ class AgentSettings:
   disabled_skills: list[str] = field(default_factory=list)
   browser_headless: bool = False
   apps: bool = True  # Spezialist für Desktop-Programme (AT-SPI)
+  # Anbieter: "ollama" (lokal, Standard) oder "gemini" (Cloud, nur wenn der Nutzer es in den Einstellungen wählt).
+  provider: str = "ollama"
+  gemini_model: str = "gemini-3.8-flash"
+  gemini_api_key: str = field(default="", repr=False)
 
   @classmethod
   def from_params(cls, p: dict[str, Any]) -> AgentSettings:
@@ -61,6 +65,12 @@ class AgentSettings:
       s.mcp_servers = [x for x in p["mcpServers"] if isinstance(x, dict) and x.get("name")]
     if isinstance(p.get("disabledSkills"), list):
       s.disabled_skills = [str(x) for x in p["disabledSkills"]]
+    if p.get("provider") in ("ollama", "gemini"):
+      s.provider = p["provider"]
+    if p.get("geminiModel"):
+      s.gemini_model = str(p["geminiModel"])
+    if p.get("geminiApiKey"):
+      s.gemini_api_key = str(p["geminiApiKey"])
     if p.get("auraDir"):
       s.aura_dir = Path(p["auraDir"])
     return s

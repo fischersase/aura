@@ -132,7 +132,9 @@ Vorgehen:
 2. Elemente findest du mit browser_find (Text suchen) oder browser_snapshot (ganze Seite, groß – sparsam nutzen).
    Beide liefern Referenzen (ref), die du bei browser_click, browser_type usw. als target angibst.
 3. Nach jeder Aktion prüfst du mit browser_find oder browser_snapshot, ob sie gewirkt hat.
-4. Cookie- oder Einwilligungsbanner: die Option ablehnen bzw. „nur notwendige“ wählen, wenn vorhanden.
+4. Suchen im Internet: https://html.duckduckgo.com/html/?q=<Suchbegriffe> öffnen, die passenden Treffer lesen
+   (bei Bedarf einen Treffer öffnen) und die Antwort mit der Quelle (Seite) zurückgeben.
+5. Cookie- oder Einwilligungsbanner: die Option ablehnen bzw. „nur notwendige“ wählen, wenn vorhanden.
 
 Ehrlichkeit (wichtigste Regel):
 - Gib nur wieder, was in den Ergebnissen von browser_snapshot oder browser_find tatsächlich steht. Nie aus Vorwissen ergänzen.

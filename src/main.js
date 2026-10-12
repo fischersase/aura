@@ -507,7 +507,7 @@ ipcMain.on('chat:send', async (e, { id, chatId, history, includeScreen }) => {
       e.sender.send('chat:screen', { id, jpeg });
     }
     const onText = (t) => e.sender.send('chat:chunk', { id, text: t });
-    if (s.agentEnabled && agentVersion() === 'v2') {
+    if (s.agentEnabled && agentVersion() === 'v2' && agentV2.available()) {
       await runAgentV2(e.sender, id, chatId || id, ctrl, contents, onText);
     } else if (s.agentEnabled) {
       await runAgent(e.sender, id, ctrl, contents, onText);
@@ -600,7 +600,8 @@ ipcMain.on('agent:approval', (_e, { stepId, ok }) => {
 
 // ---------- Agent v2 (agent/, Python + Google ADK) ----------
 
-const agentVersion = () => process.env.AURA_AGENT_VERSION || store.load().agentVersion || 'v1';
+// v2 ist Standard; ohne mitgeliefertes Python (z. B. portable Windows-Version) arbeitet v1.
+const agentVersion = () => process.env.AURA_AGENT_VERSION || store.load().agentVersion || 'v2';
 const v2Senders = new Map(); // Auftrags-ID → Fenster, das den Auftrag geschickt hat
 const v2Questions = new Map(); // Frage-ID → resolve({answer})
 
@@ -608,7 +609,10 @@ const agentV2 = new AgentBridge({
   app,
   settings: () => {
     const s = store.load();
+    const gemini = s.provider === 'gemini';
     return {
+      provider: gemini ? 'gemini' : 'ollama',
+      ...(gemini ? { geminiModel: s.chatModel, geminiApiKey: store.getApiKey() } : {}),
       model: s.ollamaModel,
       ollamaUrl: s.ollamaUrl,
       numCtx: s.ollamaContext, // dieselbe Kontextlänge wie Chat und Rambler, sonst lädt Ollama das Modell neu
@@ -705,6 +709,11 @@ async function runAgentV2(sender, id, chatId, ctrl, contents, onText) {
     });
     if (done && !done.cancelled && done.verified !== null && done.verified !== undefined) send('agent:verified', { chatId: id, verified: done.verified });
     if (done && !done.cancelled) notifyIfHidden(done.text, done.verified);
+    if (done && done.usage && store.load().provider === 'gemini') {
+      // Kosten wie beim Chat mitzählen (Monatsbudget in den Einstellungen).
+      usage.addTokens(store.load().chatModel, { promptTokenCount: done.usage.prompt, candidatesTokenCount: done.usage.output });
+      broadcastUsage();
+    }
   } finally {
     ctrl.signal.removeEventListener('abort', onAbort);
     v2Senders.delete(id);

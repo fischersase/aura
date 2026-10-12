@@ -113,6 +113,19 @@
                   "items": {
                     "type": "string"
                   }
+                },
+                "provider": {
+                  "enum": [
+                    "ollama",
+                    "gemini"
+                  ]
+                },
+                "geminiModel": {
+                  "type": "string"
+                },
+                "geminiApiKey": {
+                  "type": "string",
+                  "description": "Nur wenn provider = gemini; wird nie protokolliert."
                 }
               }
             }
@@ -134,6 +147,12 @@
             },
             "model": {
               "type": "string"
+            },
+            "provider": {
+              "enum": [
+                "ollama",
+                "gemini"
+              ]
             }
           }
         }

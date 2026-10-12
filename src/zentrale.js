@@ -87,7 +87,7 @@ async function state(force) {
     provider: s.provider,
     model: s.provider === 'ollama' ? s.ollamaModel : s.chatModel,
     agentEnabled: !!s.agentEnabled,
-    agentVersion: process.env.AURA_AGENT_VERSION || s.agentVersion || 'v1',
+    agentVersion: process.env.AURA_AGENT_VERSION || s.agentVersion || 'v2',
     profileName: (s.profile && s.profile.name) || '',
     secretCount: secrets.list().filter((x) => !x.builtin).length,
     web: require('./web').info(),
