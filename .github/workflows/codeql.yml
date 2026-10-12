@@ -17,6 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
+      actions: read
       contents: read
       security-events: write
     strategy:
@@ -34,3 +35,5 @@ jobs:
       - uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
         with:
           category: /language:${{ matrix.language }}
+          # Private Repos im Gratis-Tarif können keine Ergebnisse hochladen; analysiert wird trotzdem.
+          upload: ${{ github.event.repository.private && 'never' || 'always' }}
