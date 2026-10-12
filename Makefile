@@ -1,9 +1,13 @@
 # Kurzbefehle für Aura
-.PHONY: update version
+.PHONY: update local version
 
 # Neueste Aura-Version für Ubuntu herunterladen, installieren und neu starten
 update:
 	@bash scripts/update-linux.sh
+
+# Den Stand dieses Checkouts (z. B. Branch agent-v2) bauen und installieren, ohne auf ein Release zu warten
+local:
+	@bash scripts/update-linux.sh --local
 
 # Installierte Version anzeigen
 version:
