@@ -126,3 +126,14 @@ def test_shell_cannot_change_enforcement_files(cmd):
 
 def test_shell_may_read_enforcement_files():
   assert classify("cat ~/.aura/policy.toml")[0] == Tier.T0
+
+
+@pytest.mark.parametrize("cmd", ["cat ~/.aws/credentials", "cat .env", "grep KEY proj/.env.local", "ls ~/.azure",
+                                 "cat ~/.config/gcloud/credentials.db", "cat ~/.config/gh/hosts.yml", "cat ~/.npmrc"])
+def test_shell_cannot_read_cloud_and_tool_credentials(cmd):
+  assert classify(cmd)[0] == Tier.T3, classify(cmd)
+
+
+@pytest.mark.parametrize("cmd", ["cat environment.yml", "ls -la ~/projekt", "cat ~/notes/env.txt"])
+def test_shell_similar_names_stay_read_only(cmd):
+  assert classify(cmd)[0] == Tier.T0, classify(cmd)

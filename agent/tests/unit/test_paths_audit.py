@@ -140,3 +140,22 @@ def test_audit_log_scrubs_command_values(tmp_path):
   log.write("tool_start", task="t", args={"command": _J(["curl -H 'Authorization: Bea", "rer abcdefghijklmnop123' x"])})
   f = next(tmp_path.glob("*.jsonl"))
   assert "abcdefghijklmnop123" not in f.read_text() and AuditLog.verify(f) == (True, 1)
+
+
+@pytest.mark.parametrize("path", [
+    "/home/a/.config/gcloud/application_default_credentials.json", "/home/a/.azure/msal_token_cache.json",
+    "/home/a/.aws/config", "/home/a/.config/gh/hosts.yml", "/home/a/.npmrc", "/home/a/.pypirc", "/home/a/.vault-token",
+    "/home/a/.cargo/credentials.toml", "/home/a/proj/.env", "/home/a/proj/.env.local", "/home/a/.envrc",
+    r"C:\Users\a\AppData\Roaming\GitHub CLI\hosts.yml", r"C:\Users\a\AppData\Roaming\gcloud\credentials.db",
+])
+def test_cloud_and_tool_credentials_are_forbidden(path):
+  from aura_agent.policy.paths import forbidden
+
+  assert forbidden(path), path
+
+
+@pytest.mark.parametrize("path", ["/home/a/proj/environment.py", "/usr/bin/env", "/home/a/.envoy/x", "/home/a/notes/env.txt"])
+def test_similar_names_stay_readable(path):
+  from aura_agent.policy.paths import forbidden
+
+  assert forbidden(path) is None, path

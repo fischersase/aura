@@ -169,6 +169,12 @@ FORBIDDEN = [
     (re.compile(r"(^|\s)secret-tool(\s|$)"), "Schlüsselbund"),
     (re.compile(r"\.aura/secrets|Aura/secrets\.json"), "Aura-Schlüssel"),
     (re.compile(r"/etc/shadow|/etc/sudoers"), "Systempasswörter"),
+    # AURA-16: wie policy/paths.py, auch für die Shell (cat, grep … sind sonst „nur lesend“)
+    (re.compile(r"\.(netrc|pgpass|git-credentials|npmrc|pypirc|vault-token)\b|\.aws/(credentials|config|sso)|\.docker/config\.json|"
+                r"\.kube/config|\.config/gcloud|(^|[\s/~])\.azure(/|\s|$)|\.config/gh/hosts\.yml|\.cargo/credentials|"
+                r"\.gem/credentials|\.composer/auth\.json|\.terraform\.d/credentials|\.config/rclone/rclone\.conf|"
+                r"\.config/(op|Bitwarden CLI)/"), "Zugangsdaten"),
+    (re.compile(r"(^|[\s/~'\"])\.env(rc|\.[\w.-]+)?(\s|$|['\"])"), "Umgebungsdatei mit Zugangsdaten (.env)"),
     (re.compile(r"org\.gnome\.desktop\.(lockdown|privacy|screensaver)\s+\S+\s+\S"), "Sicherheitseinstellungen"),
     # Nicht rückgängig zu machen: ganzes System oder ganzer Benutzerordner.
     (re.compile(r"\brm\s+(-\w*\s+)*(/|~|\$HOME|/home|/home/\w+)/?(\*)?(\s|$)"), "Löschen von System- oder Benutzerordner"),
