@@ -5,6 +5,7 @@
 # Aufruf: bash scripts/build-agent.sh   (braucht uv: https://docs.astral.sh/uv/)
 # Läuft unter Linux und unter Windows (Git Bash, z. B. auf dem windows-latest-Runner).
 set -euo pipefail
+umask 022 # keine gruppen-schreibbaren Dateien im Paket (lintian, reproduzierbare Rechte)
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD="$ROOT/build"
@@ -48,14 +49,18 @@ rm -rf "$LIB"/{test,idlelib,tkinter,turtledemo,ensurepip,lib2to3} "$OUT"/include
 rm -rf "$LIB"/site-packages/pip "$LIB"/site-packages/pip-*.dist-info "$OUT"/bin/pip* "$OUT"/Scripts/pip*
 if [ "$WINDOWS" = 1 ]; then
   rm -rf "$OUT"/tcl "$OUT"/libs "$OUT"/DLLs/_tkinter.pyd "$OUT"/DLLs/tcl*.dll "$OUT"/DLLs/tk*.dll
+  # Startskripte der Pakete (adk.exe, uvicorn.exe …) braucht Aura nicht; es startet nur "python -m aura_agent".
+  rm -rf "$OUT"/Scripts
 else
-  rm -rf "$OUT"/lib/libtcl* "$OUT"/lib/libtk* "$OUT"/lib/tcl* "$OUT"/lib/tk* "$OUT"/lib/itcl* "$OUT"/lib/thread*
+  rm -rf "$OUT"/lib/libtcl* "$OUT"/lib/libtk* "$OUT"/lib/tcl* "$OUT"/lib/tk* "$OUT"/lib/itcl* "$OUT"/lib/thread* \
+    "$LIB"/lib-dynload/_tkinter.* "$LIB"/config-"$PY_VERSION"-*  # config-*: nur zum Kompilieren von C-Erweiterungen
+  # Nur der Interpreter bleibt. Die Startskripte der Pakete (adk, uvicorn …) enthalten den absoluten Pfad dieses
+  # Build-Ordners als Interpreter und werden nicht gebraucht; IDLE, pydoc, 2to3, *-config ebenso.
+  find "$OUT/bin" -mindepth 1 ! -name 'python3.12' ! -name 'python3' ! -name 'python' -exec rm -rf {} +
 fi
 find "$OUT" -name __pycache__ -type d -prune -exec rm -rf {} +
-# Debug-Symbole entfernen (libpython allein hat sonst ~30 MB).
-if [ "$WINDOWS" = 0 ] && command -v strip >/dev/null; then
-  find "$OUT" -name '*.so*' -type f -exec strip --strip-unneeded {} + 2>/dev/null || true
-fi
+# Kein strip: python-build-standalone ist schon schlank (strip spart ~1 MB), und strip auf der Programmdatei
+# python3.12 beschädigt sie ("symbol lookup error"). Gemessen am 12.10.2026 (AURA-21).
 "$PY" -m compileall -q -j 0 "$LIB" >/dev/null || true
 
 SIZE="$(du -sm "$OUT" | cut -f1)"

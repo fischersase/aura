@@ -1,0 +1,19 @@
+# Aura ist ein Drittanbieter-Paket wie Google Chrome oder VS Code (eigene Paketquelle, nicht im Debian-Archiv):
+# Installation unter /opt mit gebündeltem Electron (Chromium) und gebündeltem Python. Das ist gewollt.
+aura-desktop: dir-or-file-in-opt
+aura-desktop: embedded-library
+# Gebündeltes Python bringt eigene Interpreter mit; Skripte laufen damit, nicht mit dem System-Python.
+aura-desktop: python3-script-but-no-python3-dep
+aura-desktop: unusual-interpreter
+aura-desktop: script-not-executable
+# Vorkompilierte .pyc-Dateien des gebündelten Python für schnelleren Start (scripts/build-agent.sh).
+aura-desktop: package-installs-python-pycache-dir
+# Playwright-MCP läuft mit Electron als Node (ELECTRON_RUN_AS_NODE), nicht mit einem System-Node.
+aura-desktop: missing-dep-for-interpreter node *
+# Von Electron gelieferte Bibliotheken (libffmpeg, libvulkan, swiftshader) unverändert übernommen.
+aura-desktop: shared-library-is-executable
+aura-desktop: unstripped-binary-or-object [opt/Aura/libvulkan.so.1]
+# Gebündeltes Python unverändert (strip spart kaum etwas und beschädigt python3.12, siehe scripts/build-agent.sh).
+aura-desktop: unstripped-binary-or-object [opt/Aura/resources/python/*]
+# Modul der Standardbibliothek mit "#! /usr/local/bin/python"-Zeile; wird importiert, nicht ausgeführt.
+aura-desktop: shell-script-fails-syntax-check [opt/Aura/resources/python/lib/python3.12/cgi.py]
