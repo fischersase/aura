@@ -29,6 +29,8 @@ else:
   from ..platform import gnome_wayland, x11
 
 LAUNCH_WAIT_S = 15.0
+STATE_WAIT_S = 2.0  # Wartezeit auf Fokus/Minimieren/Maximieren, je Versuch
+CLOSE_WAIT_S = 3.0  # Wartezeit, bis ein geschlossenes Fenster verschwunden ist
 POLL_S = 0.3
 # Programme und Skripte: Öffnen startet Code, daher T2.
 EXECUTABLE_SUFFIXES = (".sh", ".run", ".appimage", ".py", ".jar", ".deb", ".exe", ".msi", ".bat", ".cmd", ".ps1", ".vbs",
@@ -193,7 +195,7 @@ async def window_action(window: str, action: str) -> dict[str, Any]:
     return await _find(target.id) is None
 
   if action == "close":
-    gone = await _wait_for(gone_check, 3)
+    gone = await _wait_for(gone_check, CLOSE_WAIT_S)
     return {"window": _brief(target), "verified": bool(gone),
             **({} if gone else {"error": "Fenster ist noch offen (vielleicht fragt das Programm nach dem Speichern)."})}
   want = {"focus": lambda w: w.active, "minimize": lambda w: w.minimized, "maximize": lambda w: True}[action]
@@ -202,7 +204,7 @@ async def window_action(window: str, action: str) -> dict[str, Any]:
     s = await _find(target.id)
     return s if s is not None and want(s) else None
 
-  after = await _wait_for(state_check, 2)
+  after = await _wait_for(state_check, STATE_WAIT_S)
   return {"window": _brief(after or target), "verified": bool(after),
           **({} if after else {"error": f"„{action}“ wurde gesendet, aber der Fensterzustand hat sich nicht geändert."})}
 

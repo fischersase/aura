@@ -26,6 +26,9 @@ def test_app(tmp_path, monkeypatch, xvfb):
       """))
   monkeypatch.setenv("XDG_DATA_DIRS", str(tmp_path / "share"))
   monkeypatch.setattr(desktop, "LAUNCH_WAIT_S", 8.0)
+  # Großzügig für ausgelastete CI-Rechner: ein Fehlschlag soll einen echten Fehler zeigen, kein Timing (AURA-58).
+  monkeypatch.setattr(desktop, "STATE_WAIT_S", 10.0)
+  monkeypatch.setattr(desktop, "CLOSE_WAIT_S", 15.0)
   yield
   # nur die Testfenster dieses Bildschirms beenden
   from evals.desktop.env import _kill_testwins
