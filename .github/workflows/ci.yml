@@ -66,6 +66,8 @@ jobs:
         with:
           node-version: 22
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      # Abhängigkeiten aus dem Lockfile (ohne Install-Skripte); Tests laden Module, die electron importieren.
+      - run: npm ci --ignore-scripts
       - run: npm run check
       # Für den Ende-zu-Ende-Test der Brücke (startet den echten Python-Agenten mit Drehbuch-Modell).
       - run: uv sync --locked
