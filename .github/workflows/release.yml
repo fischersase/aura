@@ -1,11 +1,13 @@
 name: Release
-# Bei jedem Push auf main mit geänderter App: Tests, dann Windows-Installer (Aura-Setup.exe), AppImage und .deb bauen
-# und im Release v<version> ablegen, mit Prüfsummen (SHA256SUMS) und Herkunftsnachweis (GitHub-Attestation).
-# Danach die signierte apt-Paketquelle auf GitHub Pages aktualisieren (sudo apt update && sudo apt upgrade).
+# Builds and publishes a release when main contains a version (package.json) that has no tag yet:
+# tests → Windows installer and Linux packages (each smoke-tested and attested) → SHA256SUMS (attested) →
+# publish the draft → update the signed apt repository on GitHub Pages.
+# A push without a version bump does nothing: existing releases are never overwritten (AURA-20).
 on:
   push:
     branches: [main]
-    paths: ['src/**', 'assets/**', 'scripts/**', 'packaging/**', 'agent/src/**', 'agent/pyproject.toml', 'agent/uv.lock', 'package.json', 'package-lock.json', '.github/workflows/release.yml']
+    paths: ['src/**', 'assets/**', 'scripts/**', 'packaging/**', 'agent/src/**', 'agent/pyproject.toml', 'agent/uv.lock',
+            'package.json', 'package-lock.json', 'gnome-extension/**', 'protocol/**', '.github/workflows/release.yml']
   workflow_dispatch:
 
 permissions:
@@ -16,25 +18,54 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Ohne grüne Tests kein Release.
-  tests:
-    uses: ./.github/workflows/ci.yml
-
   version:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.v.outputs.version }}
+      release: ${{ steps.v.outputs.release }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - id: v
-        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$version" >/dev/null 2>&1; then
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::v$version is already released; bump the version in package.json to release again."
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  # No release without green tests.
+  tests:
+    needs: version
+    if: needs.version.outputs.release == 'true'
+    uses: ./.github/workflows/ci.yml
+
+  draft:
+    needs: [version, tests]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Create the draft release (a leftover draft from a failed run is replaced)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v${{ needs.version.outputs.version }}
+        run: |
+          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json isDraft -q .isDraft 2>/dev/null | grep -q true; then
+            gh release delete "$TAG" -R "$GITHUB_REPOSITORY" --yes
+          fi
+          gh release create "$TAG" -R "$GITHUB_REPOSITORY" --draft --target "$GITHUB_SHA" --title "Aura ${TAG#v}" --generate-notes
 
   windows:
-    needs: [tests, version]
+    needs: [version, draft]
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     permissions:
       contents: write
       id-token: write
@@ -43,7 +74,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # Release-Builds ohne Cache: ein vergifteter Cache könnte sonst in veröffentlichte Pakete gelangen.
+      # Release builds without caches: a poisoned cache could otherwise reach published packages.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
@@ -51,33 +82,38 @@ jobs:
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           enable-cache: false
-      # Ohne Install-Skripte: onnxruntime-node/sharp braucht die App nicht (Whisper läuft im Browser-Teil).
       - run: npm ci --ignore-scripts
       - run: node scripts/vendor.js
-      # Agent v2: Python-Laufzeit bündeln, Größe prüfen, Selbsttest im fertigen Bündel.
       - run: bash scripts/build-agent.sh
         shell: bash
       - run: npx electron-builder --win nsis --x64 --publish never
-      - name: Dateiname ohne Version (fester Download-Link)
+      - name: Fixed file name (stable download link)
         shell: pwsh
         run: Get-ChildItem dist/Aura-Setup-*.exe | Select-Object -First 1 | Copy-Item -Destination dist/Aura-Setup.exe
+      # Like a user: install silently, then check the installed agent (selftest and bridge end-to-end test).
+      - name: Smoke-test the installer
+        shell: pwsh
+        run: |
+          Start-Process dist/Aura-Setup.exe -ArgumentList '/S' -Wait
+          $py = Get-ChildItem "$env:LOCALAPPDATA\Programs" -Recurse -Filter python.exe | Where-Object { $_.FullName -like '*resources\python\python.exe' } | Select-Object -First 1
+          if (-not $py) { throw 'Installed Python not found' }
+          & $py.FullName -I -m aura_agent --selftest
+          if ($LASTEXITCODE) { throw 'Selftest failed' }
+          $env:AURA_AGENT_PYTHON = $py.FullName
+          node --test test/agent2.test.js
+          if ($LASTEXITCODE) { throw 'Bridge test failed' }
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
-        if: ${{ !github.event.repository.private }}
         with:
           subject-path: dist/Aura-Setup.exe
-      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
-        with:
-          tag_name: v${{ needs.version.outputs.version }}
-          name: Aura ${{ needs.version.outputs.version }}
-          target_commitish: ${{ github.sha }}
-          generate_release_notes: true
-          make_latest: true
-          files: dist/Aura-Setup.exe
+      - name: Upload to the draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "v${{ needs.version.outputs.version }}" dist/Aura-Setup.exe -R "$env:GITHUB_REPOSITORY" --clobber
 
   linux:
-    needs: [version, windows] # erst wenn das Release existiert, sonst legen beide Jobs es gleichzeitig an
+    needs: [version, draft]
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     permissions:
       contents: write
       id-token: write
@@ -86,7 +122,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # Release-Builds ohne Cache: ein vergifteter Cache könnte sonst in veröffentlichte Pakete gelangen.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
@@ -96,39 +131,44 @@ jobs:
           enable-cache: false
       - run: npm ci --ignore-scripts
       - run: node scripts/vendor.js
-      # Agent v2: Python-Laufzeit bündeln, Größe prüfen, Selbsttest im fertigen Bündel (docs/adr/0006).
-      - run: bash scripts/build-agent.sh
+      - run: umask 022 && bash scripts/build-agent.sh
       - run: npx electron-builder --linux AppImage deb --x64 --publish never
-      - name: Dateinamen ohne Version (feste Download-Links)
+      - name: Fixed file names (stable download links)
         run: |
           cp dist/*.AppImage dist/Aura-x86_64.AppImage
           cp dist/*.deb dist/aura_amd64.deb
+      - name: Smoke-test the .deb in a minimal Debian container
+        run: |
+          docker run --rm -v "$PWD/dist:/pkg:ro" debian:13 bash -euc '
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update -qq && apt-get install -y -qq --no-install-recommends /pkg/aura_amd64.deb >/dev/null
+            ! ldd /opt/Aura/aura | grep "not found"
+            /opt/Aura/resources/python/bin/python3 -I -m aura_agent --selftest'
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
-        if: ${{ !github.event.repository.private }}
         with:
           subject-path: |
             dist/Aura-x86_64.AppImage
             dist/aura_amd64.deb
-      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
-        with:
-          tag_name: v${{ needs.version.outputs.version }}
-          target_commitish: ${{ github.sha }}
-          files: |
-            dist/Aura-x86_64.AppImage
-            dist/aura_amd64.deb
+      - name: Upload to the draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v${{ needs.version.outputs.version }}
+        run: gh release upload "$TAG" dist/Aura-x86_64.AppImage dist/aura_amd64.deb -R "$GITHUB_REPOSITORY" --clobber
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: deb
           path: dist/aura_amd64.deb
           retention-days: 3
 
-  checksums:
-    needs: [version, linux]
+  publish:
+    needs: [version, windows, linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     steps:
-      - name: SHA256SUMS aller Downloads
+      - name: Download all assets and write SHA256SUMS
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: v${{ needs.version.outputs.version }}
@@ -137,12 +177,24 @@ jobs:
           gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p 'Aura-Setup.exe' -p 'Aura-x86_64.AppImage' -p 'aura_amd64.deb'
           sha256sum Aura-Setup.exe Aura-x86_64.AppImage aura_amd64.deb > SHA256SUMS
           cat SHA256SUMS
-          gh release upload "$TAG" SHA256SUMS --clobber -R "$GITHUB_REPOSITORY"
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: sums/SHA256SUMS
+      - name: Verify every attestation, then publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v${{ needs.version.outputs.version }}
+        run: |
+          cd sums
+          for f in Aura-Setup.exe Aura-x86_64.AppImage aura_amd64.deb SHA256SUMS; do
+            gh attestation verify "$f" -R "$GITHUB_REPOSITORY"
+          done
+          gh release upload "$TAG" SHA256SUMS -R "$GITHUB_REPOSITORY" --clobber
+          gh release edit "$TAG" -R "$GITHUB_REPOSITORY" --draft=false --latest
 
-  # Signierte apt-Paketquelle (nur das neueste Paket) plus Startseite auf GitHub Pages.
-  # Läuft nur im öffentlichen Repo mit eingeschaltetem Pages (Quelle: GitHub Actions) und Signierschlüssel APT_SIGNING_KEY.
+  # Signed apt repository (latest package only) plus landing page on GitHub Pages.
   apt-repo:
-    needs: [version, linux]
+    needs: [version, publish]
     if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -161,7 +213,7 @@ jobs:
         with:
           name: deb
           path: dist
-      - name: Paketquelle bauen und signieren
+      - name: Build and sign the repository
         env:
           APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
           VERSION: ${{ needs.version.outputs.version }}
