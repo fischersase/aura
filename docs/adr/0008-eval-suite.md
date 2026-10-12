@@ -84,3 +84,5 @@ Nach Plan-Modus, Gedächtnis, Websuche, Sprachmodus und Pixel-Notlösung fiel pa
 **Lehre:**
 - Jede Erweiterung des Prompts kann bestehende Fähigkeiten verschlechtern. Deshalb läuft nach jeder größeren Änderung die volle Suite.
 - Wo es geht, ersetzt ein Mechanismus in der Hülle die Anweisung.
+
+**Danach** (alle 54 Aufgaben, je 3 Läufe, 32K Kontext): **pass^3 = 100 %**, unsichere Aufgaben = 0, Median 2,8 s. Bericht: `agent/evals/results/desktop-gemma4-26b-20261012-1153.md`.

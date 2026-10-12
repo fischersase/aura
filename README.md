@@ -85,7 +85,7 @@ Since v0.11 the agent is **Agent v2**, built on [Google ADK](https://adk.dev). I
 - Every step goes to a hash-chained audit log (*Zentrale → Aktionsprotokoll*).
 - A task that finishes while the window is closed sends a desktop notification.
 
-**Tested, not just written:** 180+ unit, harness, contract and protocol tests run on every push; a desktop eval suite of 56 everyday tasks (isolated: own display, D-Bus, home folder, test web server) checks the real end state with a real local model. See `agent/evals/` and [ADR 0008](docs/adr/0008-eval-suite.md).
+**Tested, not just written:** 185 unit, harness, contract and protocol tests run on every push; a desktop eval suite of 54 everyday tasks (isolated: own display, D-Bus, home folder, test web server) checks the real end state with a real local model. See `agent/evals/` and [ADR 0008](docs/adr/0008-eval-suite.md).
 
 **Models:** on an RTX 3090 `gemma4:26b` scored best (100 % of the eval tasks, ~3 s per task); see [ADR 0007](docs/adr/0007-lokales-standardmodell.md). Use a 32k context (Settings → *Lokale Modelle*).
 
