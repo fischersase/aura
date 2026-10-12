@@ -22,6 +22,21 @@ jobs:
       - run: bash scripts/build-agent.sh
         shell: bash
       - run: npx electron-builder --win nsis --x64 --publish never
+      # Wie beim Nutzer: still installieren, dann den Agenten aus der Installation prüfen
+      # (Selbsttest und Ende-zu-Ende-Test der Brücke mit dem installierten Python).
+      - name: Installer testen
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem dist/Aura-Setup-*.exe | Select-Object -First 1
+          Start-Process $setup.FullName -ArgumentList '/S' -Wait
+          $py = Get-ChildItem "$env:LOCALAPPDATA\Programs" -Recurse -Filter python.exe | Where-Object { $_.FullName -like '*resources\python\python.exe' } | Select-Object -First 1
+          if (-not $py) { throw 'Installiertes Python nicht gefunden' }
+          "Installiert: $($py.FullName)"
+          & $py.FullName -I -m aura_agent --selftest
+          if ($LASTEXITCODE) { throw 'Selbsttest fehlgeschlagen' }
+          $env:AURA_AGENT_PYTHON = $py.FullName
+          node --test test/agent2.test.js
+          if ($LASTEXITCODE) { throw 'Brücken-Test fehlgeschlagen' }
       - uses: actions/upload-artifact@v4
         with:
           name: Aura-Setup

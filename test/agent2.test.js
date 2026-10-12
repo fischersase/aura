@@ -9,7 +9,9 @@ const { Peer } = require('../src/agent2/rpc');
 const { AgentBridge } = require('../src/agent2/bridge');
 
 const ROOT = path.join(__dirname, '..');
-const VENV_PY = path.join(ROOT, 'agent', '.venv', 'bin', 'python');
+const VENV_PY = path.join(ROOT, 'agent', '.venv', process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python');
+// AURA_AGENT_PYTHON: z. B. das Python eines installierten Aura (CI prüft so den Windows-Installer).
+const HAS_PYTHON = fs.existsSync(VENV_PY) || (process.env.AURA_AGENT_PYTHON && fs.existsSync(process.env.AURA_AGENT_PYTHON));
 
 function pair() {
   const a = new Peer((line) => setImmediate(() => b.feed(line)));
@@ -48,7 +50,7 @@ test('rpc: Zeilen dürfen zerstückelt ankommen', async () => {
   assert.deepStrictEqual(got, [1, 1]);
 });
 
-test('bridge: echter Python-Agent mit Drehbuch – lesen, fragen, ablehnen', { skip: !fs.existsSync(VENV_PY) && 'agent/.venv fehlt (cd agent && uv sync)' }, async () => {
+test('bridge: echter Python-Agent mit Drehbuch – lesen, fragen, ablehnen', { skip: !HAS_PYTHON && 'agent/.venv fehlt (cd agent && uv sync)' }, async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'aura-bridge-'));
   const victim = path.join(tmp, 'bleibt.txt');
   fs.writeFileSync(victim, 'x');

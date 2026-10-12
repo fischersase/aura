@@ -10,7 +10,7 @@ Runs with Google Gemini (API key) or fully local with open models through [Ollam
 
 ## Install
 
-**Windows:** download **`Aura.exe`** from the [latest release](https://github.com/fischersase/aura/releases/latest) and run it. SmartScreen may warn because the file is unsigned: click **More info → Run anyway**.
+**Windows 10/11 (x64):** download **`Aura-Setup.exe`** from the [latest release](https://github.com/fischersase/aura/releases/latest) and run it. It installs for your user only (no admin rights) and adds Aura to the Start menu; to update, run the newer setup over it, your settings stay. SmartScreen may warn because the file is unsigned: click **More info → Run anyway**. The older portable `Aura.exe` is no longer built (it would have to unpack the agent's Python on every start); you can delete it after installing.
 
 **Linux (x64):** download **`Aura-x86_64.AppImage`** (any distro, `chmod +x` and run) or **`aura_amd64.deb`** for Debian/Ubuntu. Double-clicking the .deb may just open an archive viewer; install it from a terminal instead: `sudo apt install ~/Downloads/aura_amd64.deb`, then start "Aura" from the app menu. Upgrading from "Gemini Overlay"? Remove the old package with `sudo apt remove windows-gemini`; your settings move over automatically.
 
@@ -60,13 +60,15 @@ What changes locally:
 
 Ask in the chat or by voice, e.g. "pause the music", "open Antigravity", "tidy up my downloads folder by file type", "what's on my screen?", "search the web for tomorrow's weather in Berlin", "remember that my printer is a Brother HL-L2350DW".
 
-Since v0.11 the agent is **Agent v2**, built on [Google ADK](https://adk.dev). It runs as its own process next to the app (`agent/`, Python, bundled in the Linux package) and works with your local Ollama model by default, or with Gemini if you chose Gemini in the settings. Architecture decisions and their evidence are in [docs/adr](docs/adr/README.md).
+Since v0.11 the agent is **Agent v2**, built on [Google ADK](https://adk.dev). It runs as its own process next to the app (`agent/`, Python, bundled in the Windows installer and the Linux packages) and works with your local Ollama model by default, or with Gemini if you chose Gemini in the settings. Architecture decisions and their evidence are in [docs/adr](docs/adr/README.md).
 
 **How it works**
 
 - **Plans, then acts.** Bigger or vague tasks ("tidy up", "sort") are explored first; Aura shows the plan and asks before changing anything. It keeps a task list visible in the window and asks you instead of guessing when something is unclear.
 - **Checks its own results.** Opening a program waits for its window, pausing music reads the player state back, file changes are re-read. A claimed success that the check contradicts gets corrected; the answer shows *Ergebnis überprüft* or a warning.
-- **Uses the most reliable way, not pixels.** Music via MPRIS, programs via the accessibility tree (AT-SPI), web pages via their structure (Playwright in its own Chrome profile), windows via EWMH on X11 or the *Aura Bridge* GNOME extension on Wayland. Screenshot clicks are only a fallback.
+- **Uses the most reliable way, not pixels.** Web pages via their structure (Playwright in its own Chrome profile; Edge on Windows without Chrome). Screenshot clicks are only a fallback.
+  - Linux: music via MPRIS, programs via the accessibility tree (AT-SPI), windows via EWMH on X11 or the *Aura Bridge* GNOME extension on Wayland.
+  - Windows: music via the Windows media controls, programs via UI Automation, windows via user32, programs from the Start menu (Store apps too), commands in PowerShell, settings in the registry ([ADR 0012](docs/adr/0012-windows-backend.md)).
 - **Specialists** with their own context: `browser` (web pages, web search via DuckDuckGo), `apps` (desktop programs), `integrations` (your MCP servers).
 - **Memory.** Facts you tell it go to `~/.aura/memory/MEMORY.md` (readable, editable); earlier conversations are searchable. Passwords, PINs and account data are never stored.
 
@@ -77,19 +79,19 @@ Since v0.11 the agent is **Agent v2**, built on [Google ADK](https://adk.dev). I
 | T0 read | list files, read a file, media status, screenshot | runs |
 | T1 local, reversible | open a program, pause music, new file, focus a window | runs |
 | T2 consequential | delete (always to the trash), overwrite (with a diff), send, buy, install, close a window, unknown commands | asks you: *Nur jetzt*, *Für diesen Auftrag*, *Immer erlauben* (creates a rule), *Ablehnen* |
-| T3 forbidden | SSH/GPG keys, browser passwords, keyrings, `rm -rf ~`, disk formatting, lock-screen settings | never, no rule can allow it |
+| T3 forbidden | SSH/GPG keys, browser passwords, keyrings and Windows credentials, `rm -rf ~` / `Remove-Item -Recurse C:\`, disk formatting, lock-screen, Defender and firewall settings | never, no rule can allow it |
 
-- Rules in `~/.aura/policy.toml` (*Zentrale → Regeln*), your own hooks in `~/.aura/hooks.json` (block or force a question before a tool, observe after).
+- Rules in `~/.aura/policy.toml` (*Zentrale → Regeln*), your own hooks in `~/.aura/hooks.json` (block or force a question before a tool, observe after; on Windows `~` is your user folder, hooks may be `.ps1` or `.cmd`).
 - Content from web pages, files and programs is treated as data, never as instructions. After reading such content together with local data, addresses that could carry data out always ask.
 - **Emergency stop:** the stop button or Ctrl+Alt+Esc cancels the task and kills the commands it started (hard after 2 s).
 - Every step goes to a hash-chained audit log (*Zentrale → Aktionsprotokoll*).
 - A task that finishes while the window is closed sends a desktop notification.
 
-**Tested, not just written:** 185 unit, harness, contract and protocol tests run on every push; a desktop eval suite of 54 everyday tasks (isolated: own display, D-Bus, home folder, test web server) checks the real end state with a real local model. See `agent/evals/` and [ADR 0008](docs/adr/0008-eval-suite.md).
+**Tested, not just written:** over 300 unit, harness, contract and protocol tests run on every push, on Linux and on Windows (real windows, Start menu, UI Automation, PowerShell, recycle bin); a desktop eval suite of 54 everyday tasks (isolated: own display, D-Bus, home folder, test web server) checks the real end state with a real local model. See `agent/evals/` and [ADR 0008](docs/adr/0008-eval-suite.md).
 
 **Models:** on an RTX 3090 `gemma4:26b` scored best (100 % of the eval tasks, ~3 s per task); see [ADR 0007](docs/adr/0007-lokales-standardmodell.md). Use a 32k context (Settings → *Lokale Modelle*).
 
-**Previous agent:** *Zentrale → Übersicht → Agent-Version → v1* switches back. Windows uses v1 for now.
+**Previous agent:** *Zentrale → Übersicht → Agent-Version → v1* switches back.
 
 ## Aura Zentrale
 
@@ -181,7 +183,7 @@ npm ci --ignore-scripts && node scripts/vendor.js && node node_modules/electron/
 (cd agent && uv sync)                            # Agent v2 (needs uv: https://docs.astral.sh/uv/)
 npm start                                        # run
 npm test && (cd agent && uv run pytest)          # tests
-npx electron-builder --win portable              # Windows .exe
+npm run dist:win                                 # Windows installer (in Git Bash), bundles Python + agent + browser server
 npm run dist:linux                               # Linux packages, bundles Python + agent + browser server
 (cd agent && uv run python -m evals.desktop.run --k 3)   # desktop evals (needs Ollama)
 ```

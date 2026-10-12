@@ -141,7 +141,7 @@ async function doctor({ settings, bridge }) {
 
   // Agent selbst
   const py = bridge.pythonPath();
-  add('Agent v2', py ? 'ok' : 'bad', py ? `Python: ${py}` : 'nicht installiert', py ? '' : 'Aura-Paket neu installieren (make update)');
+  add('Agent v2', py ? 'ok' : 'bad', py ? `Python: ${py}` : 'nicht installiert', py ? '' : (IS_WIN ? 'Aura-Setup.exe neu ausführen' : 'Aura-Paket neu installieren (make update)'));
 
   // Browser
   if (IS_WIN) {
