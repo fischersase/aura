@@ -677,6 +677,47 @@ function browserLauncher() {
   return { browserCommand: [process.execPath, cli], browserEnv: { ELECTRON_RUN_AS_NODE: '1' } };
 }
 
+// ---------- Sprachmodus mit Agent v2 ----------
+// Im Live-Modus wird eine gesprochene Bitte ein ganz normaler Agent-Auftrag; die Antwort wird kurz und vorlesbar.
+// Freigaben sind im Sprachmodus nicht möglich (kein Fenster offen): folgenreiche Aktionen lehnt die App ab,
+// und der Agent sagt, dass sie im Aura-Fenster freizugeben sind.
+const VOICE_HINT = '\n\n[Sprachmodus: Antworte in höchstens zwei kurzen, gesprochenen Sätzen, ohne Markdown, Listen oder Links. '
+  + 'Folgenreiche Aktionen können im Sprachmodus nicht freigegeben werden; sag dann, dass der Nutzer sie im Aura-Fenster schreiben soll.]';
+const voiceChatId = () => 'voice-' + new Date().toISOString().slice(0, 10);
+const voiceAgentReady = () => store.load().agentEnabled && agentVersion() === 'v2' && agentV2.available();
+
+function speakable(text) {
+  return String(text || '').replace(/```[\s\S]*?```/g, ' ').replace(/[*_`#>|]/g, '').replace(/\[(.*?)\]\(.*?\)/g, '$1')
+    .replace(/https?:\/\/\S+/g, '').replace(/\s+/g, ' ').trim().slice(0, 500);
+}
+
+async function runVoiceTask(taskId, text, jpeg) {
+  agentRuns++;
+  registerStopHotkey();
+  try {
+    const done = await agentV2.runTask({ taskId, chatId: voiceChatId(), text: text + VOICE_HINT, images: jpeg ? [{ mime: 'image/jpeg', data: jpeg }] : [] });
+    if (done && done.usage && store.load().provider === 'gemini') {
+      usage.addTokens(store.load().chatModel, { promptTokenCount: done.usage.prompt, candidatesTokenCount: done.usage.output });
+      broadcastUsage();
+    }
+    return speakable(done && done.cancelled ? 'Abgebrochen.' : done && done.text) || 'Erledigt.';
+  } finally {
+    agentRuns--;
+    registerStopHotkey();
+  }
+}
+
+// Gemini Live ruft den Agenten als Werkzeug auf (aura_ausfuehren).
+let voiceSeq = 0;
+ipcMain.handle('agent:voiceTask', async (_e, { request }) => {
+  if (!voiceAgentReady()) return { error: 'Der Agent ist nicht verfügbar.' };
+  try {
+    return { result: await runVoiceTask('voice-gl-' + (++voiceSeq), String(request || ''), null) };
+  } catch (err) {
+    return { error: String(err.message || err) };
+  }
+});
+
 // Hintergrund-Aufträge: Ist das Panel zu, wenn ein Auftrag fertig wird, meldet sich Aura mit einer Benachrichtigung.
 function notifyIfHidden(text, verified) {
   if (panelOpen || !Notification.isSupported()) return;
@@ -802,8 +843,10 @@ ipcMain.handle('live:config', () => {
   const over = budgetError();
   if (over) return { error: over };
   const s = store.load();
-  if (store.isLocal()) return { provider: 'ollama', model: s.ollamaModel, language: s.language };
+  const agent = voiceAgentReady();
+  if (store.isLocal()) return { provider: 'ollama', model: s.ollamaModel, language: s.language, agent };
   return {
+    agent,
     provider: 'gemini',
     apiKey: store.getApiKey(),
     model: s.liveModel,
@@ -908,6 +951,11 @@ ipcMain.handle('live:turn', async (_e, { id, wavBase64, history, screen: withScr
     if (panel && !panel.isDestroyed()) panel.webContents.send('live:heard', { id, text: question });
     const jpeg = withScreen ? await screenshotJpeg(currentDisplay, 1280) : null;
     const s = store.load();
+    if (voiceAgentReady()) {
+      ctrl.signal.addEventListener('abort', () => agentV2.cancel('voice-' + id), { once: true });
+      const say = await runVoiceTask('voice-' + id, question, jpeg);
+      return { question, say, point: null };
+    }
     const out = await ollama.liveTurn({ url: s.ollamaUrl, model: s.ollamaModel, language: s.language, history, question, jpeg, signal: ctrl.signal });
     return { question, ...out };
   } catch (err) {

@@ -29,6 +29,16 @@ const LIVE_TOOLS = [{
   ]
 }];
 
+// Mit Agent v2 kann Live auch selbst handeln: Programme öffnen, Musik steuern, Dateien, Webseiten …
+const AGENT_TOOL = {
+  name: 'aura_ausfuehren',
+  description: 'Lässt den Aura-Agenten etwas am Computer erledigen (Programme, Fenster, Musik, Dateien, Webseiten, Einstellungen). ' +
+    'Gibt das Ergebnis zurück. Folgenreiches muss der Nutzer im Aura-Fenster freigeben.',
+  parameters: { type: 'OBJECT', properties: { request: { type: 'STRING', description: 'Klare, vollständige Aufgabe auf Deutsch' } }, required: ['request'] }
+};
+const AGENT_SYSTEM = ' Wenn der Nutzer möchte, dass etwas am Computer erledigt wird, rufe aura_ausfuehren mit einer klaren Aufgabe auf ' +
+  'und sag danach kurz, was herauskam. Behaupte nur Erfolg, wenn das Ergebnis ihn belegt.';
+
 class LiveSession {
   constructor(ui) {
     this.ui = ui; // { status(text), transcript(role, text, final), level(v), ended(err) }
@@ -79,8 +89,8 @@ class LiveSession {
         setup: {
           model: `models/${this.cfg.model}`,
           generationConfig,
-          systemInstruction: { parts: [{ text: LIVE_SYSTEM(this.cfg.language) }] },
-          tools: LIVE_TOOLS,
+          systemInstruction: { parts: [{ text: LIVE_SYSTEM(this.cfg.language) + (this.cfg.agent ? AGENT_SYSTEM : '') }] },
+          tools: this.cfg.agent ? [{ functionDeclarations: [...LIVE_TOOLS[0].functionDeclarations, AGENT_TOOL] }] : LIVE_TOOLS,
           inputAudioTranscription: {},
           outputAudioTranscription: {},
           // Ohne Kompression enden Audio+Video-Sitzungen nach 2 Minuten.
@@ -154,6 +164,11 @@ class LiveSession {
       } else if (fc.name === 'clear_pointer') {
         window.api.clearPointer();
         responses.push({ id: fc.id, name: fc.name, response: { result: 'ok' } });
+      } else if (fc.name === 'aura_ausfuehren') {
+        // Der Agent braucht etwas länger: Antwort nachreichen, sobald er fertig ist.
+        window.api.agentVoiceTask(a.request).then((r) => {
+          this.send({ toolResponse: { functionResponses: [{ id: fc.id, name: fc.name, response: r }] } });
+        });
       } else {
         responses.push({ id: fc.id, name: fc.name, response: { error: 'Unbekanntes Werkzeug' } });
       }

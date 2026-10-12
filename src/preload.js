@@ -64,6 +64,7 @@ contextBridge.exposeInMainWorld('api', {
   agentAnswer: (id, answer) => ipcRenderer.send('agent:answer', { id, answer }),
   onAgentPlan: on('agent:plan'),
   onAgentVerified: on('agent:verified'),
+  agentVoiceTask: (request) => ipcRenderer.invoke('agent:voiceTask', { request }),
   stopAgent: () => ipcRenderer.send('agent:stop'),
   openAgentLog: () => ipcRenderer.send('agent:openLog'),
   agentExtensions: (force) => ipcRenderer.invoke('agent:extensions', force),
