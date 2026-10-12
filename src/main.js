@@ -18,6 +18,7 @@ const agentSkills = require('./agent/skills');
 const agentMcp = require('./agent/mcp');
 const secrets = require('./secrets');
 const web = require('./web');
+const security = require('./security');
 const { AgentBridge, defaultAuraDir } = require('./agent2/bridge');
 const zentraleV2 = require('./agent2/zentrale-v2');
 agentMcp.setResolver(secrets.resolveServerConfig);
@@ -1118,11 +1119,11 @@ function createTray() {
 
 app.whenReady().then(() => {
   ollama.setContextSize(store.load().ollamaContext);
-  // Mikrofon für Live/Rambler erlauben.
-  session.defaultSession.setPermissionRequestHandler((_wc, perm, cb) => cb(perm === 'media' || perm === 'display-capture'));
-  session.defaultSession.setPermissionCheckHandler((_wc, perm) => perm === 'media' || perm === 'display-capture');
-  // Bildschirmfreigabe ohne Auswahldialog: der Bildschirm, auf dem das Panel offen ist.
-  session.defaultSession.setDisplayMediaRequestHandler(async (_req, cb) => {
+  // Mikrofon und Bildschirm nur für die Fenster, die sie brauchen; keine Navigation weg von Auras Seiten (AURA-14).
+  security.install({ app, session, shell });
+  // Bildschirmfreigabe ohne Auswahldialog: der Bildschirm, auf dem das Panel offen ist. Nur für das Panel.
+  session.defaultSession.setDisplayMediaRequestHandler(async (req, cb) => {
+    if (!security.permissionAllowed(req.frame && req.frame.url, 'display-capture')) return cb({});
     const sources = await desktopCapturer.getSources({ types: ['screen'] });
     const d = currentDisplay || displayUnderCursor();
     cb({ video: sources.find((x) => x.display_id === String(d.id)) || sources[0] });
