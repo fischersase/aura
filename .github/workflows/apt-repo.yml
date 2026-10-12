@@ -1,7 +1,10 @@
-name: apt-Paketquelle
-# Veröffentlicht die signierte apt-Paketquelle (GitHub Pages) neu aus dem neuesten Release, auf Knopfdruck.
-# Normalerweise erledigt das release.yml; dieser Workflow ist für Nachholen und Schlüsselwechsel.
+name: apt repository
+# Rebuilds and re-signs the apt repository (GitHub Pages) from the latest release: weekly, because Release carries
+# Valid-Until (30 days) against freeze attacks, and on demand (e.g. after a key rotation).
+# The package is verified against the release's SHA256SUMS and its build provenance attestation before signing.
 on:
+  schedule:
+    - cron: '23 3 * * 1'
   workflow_dispatch:
 
 permissions:
@@ -26,17 +29,20 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Neuestes Release laden
+      - name: Download and verify the latest release
         id: rel
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="$(gh release view -R "$GITHUB_REPOSITORY" --json tagName -q .tagName)"
-          gh release download "$tag" -R "$GITHUB_REPOSITORY" -p aura_amd64.deb -D dist
+          gh release download "$tag" -R "$GITHUB_REPOSITORY" -p aura_amd64.deb -p SHA256SUMS -D dist
+          (cd dist && grep ' aura_amd64.deb$' SHA256SUMS | sha256sum -c -)
+          gh attestation verify dist/aura_amd64.deb -R "$GITHUB_REPOSITORY"
           echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
-      - name: Paketquelle bauen und signieren
+      - name: Build and sign the repository
         env:
           APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
+          APT_SIGNING_KEY_NEXT: ${{ secrets.APT_SIGNING_KEY_NEXT }}
           VERSION: ${{ steps.rel.outputs.version }}
         run: bash scripts/build-apt-repo.sh dist/aura_amd64.deb "$VERSION" site
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0

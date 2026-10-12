@@ -26,7 +26,8 @@ if [ -f "$APPARMOR_PROFILE_DEST" ]; then
   fi
   rm -f "$APPARMOR_PROFILE_DEST"
 fi
-# Aura: Paketquelle und Schlüssel nur beim vollständigen Entfernen (apt purge) löschen.
-if [ "$1" = "purge" ]; then
-  rm -f /etc/apt/sources.list.d/aura.sources /usr/share/keyrings/aura-archive-keyring.asc
+# Aura: Paketquelle beim Entfernen löschen. Der Schlüssel ist eine Paketdatei und verschwindet mit dem Paket;
+# eine Quelle ohne Schlüssel ließe "apt update" scheitern. (Bei einem Update ist $1 "upgrade": nichts tun.)
+if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
+  rm -f /etc/apt/sources.list.d/aura.sources
 fi

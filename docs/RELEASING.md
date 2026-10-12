@@ -16,21 +16,25 @@ Feste Download-Links (immer die neueste Version):
 
 ## apt-Paketquelle und Signierschlüssel
 
-- **Geheimer Teil:** Er liegt nur als Actions-Secret `APT_SIGNING_KEY` im Repository, ohne Passphrase und ohne Kopie auf einem Rechner.
-- **Öffentlicher Teil:** `packaging/linux/aura-archive-keyring.asc`. Er wird mit jedem `.deb` installiert und auf Pages veröffentlicht.
-  - Fingerabdruck: `2D1C 8196 491F 9E92 A004  F4AE 102E AFB1 7FC8 5F90`.
-  - Ed25519, gültig bis Oktober 2031.
-- **Ersteinrichtung des Pakets:** Das `.deb` trägt bei der Installation `/etc/apt/sources.list.d/aura.sources` ein (`packaging/linux/after-install.sh`).
+- **Geheime Schlüssel:** nur als Secrets, ohne Passphrase und ohne Kopie auf einem Rechner.
+  - `APT_SIGNING_KEY` (Repository-Secret, alter Schlüssel `2D1C 8196 491F 9E92 A004  F4AE 102E AFB1 7FC8 5F90`).
+  - `APT_SIGNING_KEY_NEXT` (Secret der Umgebung `github-pages`, also nur für Deploy-Jobs von `main` lesbar; neuer Schlüssel `868F 8CD6 AA8A 4427 E924  3587 21C1 6696 774D 4865`).
+  - Beide Ed25519, gültig bis Oktober 2031.
+- **Öffentlicher Teil:** `packaging/linux/aura-archive-keyring.asc` ist die einzige Quelle. Das `.deb` installiert die Datei als `/usr/share/keyrings/aura-archive-keyring.asc`; dieselbe Datei liegt auf Pages.
+- **Ersteinrichtung des Pakets:** Das `.deb` trägt bei der Installation `/etc/apt/sources.list.d/aura.sources` ein (`packaging/linux/after-install.sh`), `apt remove` entfernt den Eintrag wieder.
   - Das geschieht nur, wenn die Quelle erreichbar ist; jedes spätere Update versucht es erneut.
   - Abschalten: `echo AURA_APT_REPO=no | sudo tee /etc/default/aura`.
-- **`build-apt-repo.sh`** bricht ab, wenn das Secret nicht zum öffentlichen Schlüssel im Repository passt.
-- **Schlüssel erneuern (vor Ablauf oder wenn er kompromittiert ist), in zwei Releases:**
-  1. Neues Schlüsselpaar erzeugen. Den neuen öffentlichen Schlüssel **zusätzlich** in `packaging/linux/aura-archive-keyring.asc` und in die eingebettete Kopie in `packaging/linux/after-install.sh` aufnehmen.
-  2. Release erstellen. Er ist noch mit dem alten Schlüssel signiert, bringt aber beide Schlüssel auf die Rechner.
-  3. `gh secret set APT_SIGNING_KEY` mit dem neuen geheimen Schlüssel setzen und den alten aus beiden Dateien entfernen.
-  4. Nächsten Release erstellen.
-
-  Ist der alte Schlüssel kompromittiert, entfällt Schritt 2. Die Nutzer müssen dann einmal das neue `.deb` von der Release-Seite installieren.
+- **Signieren (`scripts/build-apt-repo.sh`):**
+  - Vorher wird das `.deb` gegen `SHA256SUMS` des Releases und seine Build-Attestation geprüft.
+  - Signiert wird mit jedem vorhandenen Schlüssel; Clients, die nur einen davon kennen, akzeptieren die Quelle.
+  - Abbruch, wenn ein Schlüssel nicht im öffentlichen Keyring steht.
+  - `Release` trägt `Valid-Until` (30 Tage) gegen Freeze-Angriffe. `apt-repo.yml` signiert deshalb jeden Montag neu.
+- **Laufende Schlüsselrotation (AURA-22):** Seit 0.11.1 signieren beide Schlüssel, und jedes Paket bringt beide mit.
+  Ab dem übernächsten Release (sobald die meisten Installationen 0.11.1 oder neuer haben):
+  1. Repository-Secret `APT_SIGNING_KEY` löschen. In den Workflows `APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY_NEXT }}` übergeben und die Zeile `APT_SIGNING_KEY_NEXT` entfernen (Secrets sind nicht lesbar, deshalb kein Umkopieren).
+  2. Den alten Schlüssel aus `aura-archive-keyring.asc` entfernen, README anpassen, Release erstellen.
+- **Künftige Rotationen:** neuen Schlüssel erzeugen, öffentlich zusätzlich in den Keyring, geheim als Umgebungs-Secret; ein Release mit Doppelsignatur; danach den alten entfernen.
+  Ist ein Schlüssel kompromittiert: sofort aus Keyring und Secrets entfernen und einen Release erstellen. Nutzer, deren Keyring nur den kompromittierten Schlüssel kennt, installieren einmal das neue `.deb` von der Release-Seite.
 - **Platz und Datenverkehr:** GitHub Pages erlaubt 1 GB pro Seite und rund 100 GB Datenverkehr im Monat. Die Quelle enthält nur das neueste Paket (ca. 150 MB).
 
 ## Windows

@@ -44,7 +44,7 @@ The setup assistant opens on first start and lets you pick Gemini or local model
 
 The running version is shown next to the name in the Aura window, in the Zentrale and in the tray menu.
 
-**Verify a download:** every release has [SHA256SUMS](https://github.com/fischersase/aura/releases/latest/download/SHA256SUMS) and a build provenance attestation (`gh attestation verify aura_amd64.deb -R fischersase/aura`). The apt source is signed with key `2D1C 8196 491F 9E92 A004 F4AE 102E AFB1 7FC8 5F90`.
+**Verify a download:** every release has [SHA256SUMS](https://github.com/fischersase/aura/releases/latest/download/SHA256SUMS) and a build provenance attestation (`gh attestation verify aura_amd64.deb -R fischersase/aura`). The apt source is signed with key `868F 8CD6 AA8A 4427 E924 3587 21C1 6696 774D 4865` (and, during the key rotation, also `2D1C 8196 491F 9E92 A004 F4AE 102E AFB1 7FC8 5F90`).
 
 ## Option A: Gemini (API key, no Google Cloud project needed)
 
