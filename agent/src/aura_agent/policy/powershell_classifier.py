@@ -17,7 +17,7 @@ import re
 
 from ..harness.tiers import Tier
 from .shell_classifier import RISKY_ARGS as BASH_RISKY_ARGS
-from .shell_classifier import _git_reason
+from .shell_classifier import _git_reason, _protect_enforcement
 
 READONLY = {
     # Cmdlets
@@ -222,6 +222,11 @@ def _t1(words: list[str]) -> bool:
 
 
 def classify_powershell(command: str) -> tuple[Tier, str]:
+  tier, reason = _classify_powershell(command)
+  return _protect_enforcement(command, tier, reason)
+
+
+def _classify_powershell(command: str) -> tuple[Tier, str]:
   c = (command or "").strip()
   if not c:
     return Tier.T2, "leerer Befehl"

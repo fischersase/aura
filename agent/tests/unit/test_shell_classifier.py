@@ -116,3 +116,13 @@ def test_child_processes_get_no_secrets_but_keep_session_variables(monkeypatch):
   assert env["XAUTHORITY"] == "/run/x" and env["SSH_AUTH_SOCK"] == "/run/ssh" and env["TERM"] == "dumb"
   pairs = {env[f"GIT_CONFIG_KEY_{i}"]: env[f"GIT_CONFIG_VALUE_{i}"] for i in range(int(env["GIT_CONFIG_COUNT"]))}
   assert pairs == {"core.fsmonitor": "false", "core.pager": "cat"}
+
+
+@pytest.mark.parametrize("cmd", ["cp evil.json ~/.aura/hooks.json", "sed -i s/ask/allow/ ~/.aura/policy.toml",
+                                 "mv x ~/.aura/mcp.json", "rm ~/.aura/policy.toml"])
+def test_shell_cannot_change_enforcement_files(cmd):
+  assert classify(cmd)[0] == Tier.T3, classify(cmd)
+
+
+def test_shell_may_read_enforcement_files():
+  assert classify("cat ~/.aura/policy.toml")[0] == Tier.T0

@@ -14,7 +14,7 @@ from typing import Any
 from ..harness.tiers import Tier, TierFn, aura_tool
 from ..platform.base import IS_WINDOWS
 from ..platform.proc import spawn_kwargs
-from ..policy.paths import path_tier
+from ..policy.paths import control_tier, path_tier
 from ..runtime.context import current
 from .paths import expand, show
 
@@ -27,6 +27,23 @@ def guarded(base: Tier | TierFn, *keys: str) -> TierFn:
     if blocked:
       return blocked
     return base(a) if callable(base) else base
+
+  return tier
+
+
+def guarded_change(base: Tier | TierFn, *keys: str) -> TierFn:
+  """Wie guarded, für verändernde Werkzeuge: zusätzlich Steuer- und Autostart-Dateien (AURA-60)."""
+  inner = guarded(base, *keys)
+
+  def tier(a: dict[str, Any]) -> Tier | tuple[Tier, str]:
+    result = inner(a)
+    level = result[0] if isinstance(result, tuple) else result
+    if level == Tier.T3:
+      return result
+    control = control_tier(*(expand(a.get(k) or "~", _home()) for k in keys))
+    if control and control[0] >= level:
+      return control
+    return result
 
   return tier
 
@@ -214,7 +231,7 @@ def guard_clip(text: str, limit: int) -> str:
   return text if len(text) <= limit else text[:limit] + f"\n… ({len(text) - limit} Zeichen mehr)"
 
 
-@aura_tool(guarded(_write_tier, "path"), label=lambda a: ("+ " if a.get("append") else "") + str(a.get("path", "")), effect=_write_effect)
+@aura_tool(guarded_change(_write_tier, "path"), label=lambda a: ("+ " if a.get("append") else "") + str(a.get("path", "")), effect=_write_effect)
 def write_file(path: str, content: str, append: bool = False) -> dict[str, Any]:
   """Schreibt Text in eine Datei. Legt sie an; eine vorhandene Datei wird nur nach Freigabe ersetzt.
 
@@ -248,7 +265,7 @@ def _edit_effect(a: dict[str, Any]) -> str:
   return _diff(old, old.replace(str(a.get("old_text", "")), str(a.get("new_text", "")), 1), show(p, _home()))
 
 
-@aura_tool(guarded(Tier.T2, "path"), label=lambda a: str(a.get("path", "")), effect=_edit_effect)
+@aura_tool(guarded_change(Tier.T2, "path"), label=lambda a: str(a.get("path", "")), effect=_edit_effect)
 def edit_file(path: str, old_text: str, new_text: str) -> dict[str, Any]:
   """Ersetzt in einer Textdatei genau eine Stelle. old_text muss genau einmal vorkommen (mit etwas Umgebung eindeutig machen).
 
@@ -269,7 +286,7 @@ def edit_file(path: str, old_text: str, new_text: str) -> dict[str, Any]:
   return {"path": show(p, _home()), "verified": p.read_text(encoding="utf-8", errors="replace") == new}
 
 
-@aura_tool(guarded(Tier.T2, "path"), label=lambda a: str(a.get("path", "")), effect=lambda a: f"In den Papierkorb (wiederherstellbar): {a.get('path', '')}")
+@aura_tool(guarded_change(Tier.T2, "path"), label=lambda a: str(a.get("path", "")), effect=lambda a: f"In den Papierkorb (wiederherstellbar): {a.get('path', '')}")
 async def trash(path: str) -> dict[str, Any]:
   """Verschiebt eine Datei oder einen Ordner in den Papierkorb (wiederherstellbar). Endgültiges Löschen gibt es bewusst nicht.
 
@@ -314,7 +331,7 @@ def _move_tier(a: dict[str, Any]) -> tuple[Tier, str]:
   return Tier.T1, ""
 
 
-@aura_tool(guarded(_move_tier, "source", "destination"), label=lambda a: f"{'kopieren' if a.get('copy') else 'verschieben'}: {a.get('source', '')} → {a.get('destination', '')}")
+@aura_tool(guarded_change(_move_tier, "source", "destination"), label=lambda a: f"{'kopieren' if a.get('copy') else 'verschieben'}: {a.get('source', '')} → {a.get('destination', '')}")
 def move_path(source: str, destination: str, copy: bool = False) -> dict[str, Any]:
   """Verschiebt oder kopiert eine Datei oder einen Ordner. Ist das Ziel ein Ordner, landet die Quelle darin.
 
