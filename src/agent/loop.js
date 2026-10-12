@@ -10,6 +10,7 @@ const { TOOLS } = require('./tools');
 const skills = require('./skills');
 const mcp = require('./mcp');
 const store = require('../store');
+const { scrub } = require('../redact');
 
 // Regel pro Werkzeug aus der Zentrale: 'ask' (immer fragen), 'auto' (nie fragen), 'off' (abgeschaltet).
 // Ohne Regel entscheidet das Werkzeug selbst (ändernde Aktionen fragen).
@@ -48,7 +49,11 @@ const logFile = () => path.join(app.getPath('userData'), 'agent-log.jsonl');
 
 function log(entry) {
   try {
-    const short = (v) => (typeof v === 'string' && v.length > 2000 ? v.slice(0, 2000) + '…' : v);
+    const short = (v) => {
+      if (typeof v !== 'string') return v;
+      const t = scrub(v); // Zugangsdaten in Befehlen nie ins Protokoll (AURA-17)
+      return t.length > 2000 ? t.slice(0, 2000) + '…' : t;
+    };
     const args = Object.fromEntries(Object.entries(entry.args || {}).map(([k, v]) => [k, short(v)]));
     fs.appendFileSync(logFile(), JSON.stringify({ ts: new Date().toISOString(), ...entry, args }) + '\n');
   } catch {}
