@@ -279,3 +279,16 @@ async def test_memory_survives_into_a_new_chat(tmp_path):
   assert any("Brother" in f for f in r["facts"])
   assert any("Brother" in t for t in r["earlier_conversations"])  # früheres Gespräch gefunden
   assert (settings.aura_dir / "memory" / "MEMORY.md").exists()
+
+
+async def test_screenshot_reaches_model_as_image(tmp_path):
+  ctl, _, llm, _ = make(tmp_path, [[Call("screenshot", {})], "Ich sehe einen weißen Bildschirm."])
+  ctl.start("t1", "c1", "Was siehst du?")
+  await finish(ctl)
+  responses = tool_responses(llm.requests[-1])
+  assert responses[0].name == "screenshot"
+  images = [p for p in responses[0].parts or [] if p.inline_data is not None]
+  assert images and images[0].inline_data.mime_type == "image/jpeg"
+  # Der Ollama-Adapter gibt es als Bild weiter.
+  from aura_agent.models.ollama_llm import to_messages
+  assert any(m.get("images") for m in to_messages(llm.requests[-1]))

@@ -23,6 +23,7 @@ from ..tools.desktop import launch_app, list_windows, open_target, window_action
 from ..tools.files import edit_file, find_files, list_dir, move_path, read_file, trash, write_file
 from ..tools.interaction import ask_user, todo_write
 from ..tools.memory import make_memory_tools
+from ..tools.screen import screenshot
 from ..tools.shell import run_command
 from ..tools.system import dark_mode, media_control, media_status, now_text, settings, system_info, volume
 from .specialists import apps_agent, browser_agent
@@ -32,7 +33,7 @@ TOOLS = [
     launch_app, open_target, list_windows, window_action,
     media_status, media_control, volume, dark_mode, settings, system_info,
     list_dir, find_files, read_file, write_file, edit_file, move_path, trash,
-    run_command,
+    run_command, screenshot,
 ]
 
 
@@ -85,6 +86,7 @@ def instruction(settings: AgentSettings, has_browser: bool = False, skills_text:
             "browser mit einer klaren, vollständigen Aufgabe. Nur eine Seite anzeigen: open_target.\n" if has_browser else "")
          + ("- In Desktop-Programmen etwas bedienen oder ablesen (Knöpfe, Menüs, Felder, Dialoge, „Was steht im Programm X?“, "
             "im Texteditor speichern): apps mit einer klaren Aufgabe, auch wenn das Programm schon offen ist.\n" if has_apps else "")
+         + "- Was gerade auf dem Bildschirm zu sehen ist: screenshot.\n"
          + "- Alles andere: run_command (bash). Nur lesende Befehle laufen ohne Rückfrage. Pfade dürfen mit ~ beginnen."),
     ]
     parts.append(

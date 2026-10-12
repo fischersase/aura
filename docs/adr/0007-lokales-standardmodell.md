@@ -6,7 +6,7 @@ Auf der RTX 3090 (24 GB) passt immer nur ein großes Modell in den Grafikspeiche
 
 ## Entscheidung
 
-Standard ist **gemma4:26b** (MoE, etwa 4 Mrd. aktive Parameter, 256K Kontext, Werkzeuge, Bilder, Thinking). Die endgültige Wahl fällt in P3 per Benchmark auf den Desktop-Evals.
+Standard ist **gemma4:26b** (MoE, etwa 4 Mrd. aktive Parameter, 256K Kontext, Werkzeuge, Bilder, Thinking), bestätigt durch den Benchmark unten.
 
 ## Belege (P0)
 

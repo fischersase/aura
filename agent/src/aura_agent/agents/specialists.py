@@ -47,6 +47,7 @@ Regeln:
 
 def apps_agent(model: BaseLlm) -> AgentTool:
   from ..tools.desktop import launch_app, list_windows, window_action
+  from ..tools.screen import screenshot
   from ..tools.ui import ui_act, ui_set_text, ui_snapshot
 
   agent = LlmAgent(
@@ -57,6 +58,6 @@ def apps_agent(model: BaseLlm) -> AgentTool:
           "Dialoge wie „Speichern unter“). Nicht für Webseiten (dafür browser). Gib eine klare, vollständige Aufgabe als request mit."
       ),
       instruction=APPS_INSTRUCTION,
-      tools=[launch_app, list_windows, window_action, ui_snapshot, ui_act, ui_set_text],
+      tools=[launch_app, list_windows, window_action, ui_snapshot, ui_act, ui_set_text, screenshot],
   )
   return AgentTool(agent=agent)
