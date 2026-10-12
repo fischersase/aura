@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { shell } = require('electron');
+const { webAccess, describe } = require('./web-access');
 
 const PORTS = [47800, 47801, 47802, 47803, 47804, 47805];
 const MAX_BODY = 2 * 1024 * 1024;
@@ -30,6 +31,10 @@ const SECURITY_HEADERS = {
 };
 
 let server = null;
+// Asks the user in the desktop app before a browser tab changes MCP servers, rules, skills or secrets (AURA-63).
+// Replaceable for tests (setConfirm).
+let confirm = askInDesktop;
+let confirmQueue = Promise.resolve();
 let port = 0;
 let token = '';
 
@@ -82,8 +87,11 @@ async function handle(req, res) {
     const API = require('./zentrale').API;
     const fn = Object.prototype.hasOwnProperty.call(API, m[1]) ? API[m[1]] : null;
     if (!fn) return send(res, 404, { error: 'Unbekannte Funktion' });
+    const access = webAccess(m[1]);
+    if (access === 'deny') return send(res, 403, { error: 'Im Browser nicht verfügbar. Bitte in der Zentrale-App ausführen.' });
     let arg;
     try { const raw = await readBody(req); arg = raw ? JSON.parse(raw).arg : undefined; } catch { return send(res, 400, { error: 'Ungültige Anfrage' }); }
+    if (access === 'confirm' && !(await confirm(describe(m[1], arg)))) return send(res, 403, { error: 'In Aura abgelehnt.' });
     try {
       const out = await fn(arg);
       return send(res, 200, { result: out === undefined ? null : out });
@@ -111,6 +119,25 @@ async function start() {
   token = newToken();
 }
 
+async function askInDesktop(what) {
+  const { dialog } = require('electron');
+  // Nacheinander, damit mehrere Anfragen nicht übereinander erscheinen.
+  const run = confirmQueue.then(() => dialog.showMessageBox({
+    type: 'warning',
+    title: 'Aura Zentrale im Browser',
+    message: 'Die Zentrale im Browser möchte etwas ändern:',
+    detail: `${what}\n\nNur erlauben, wenn du das gerade selbst im Browser ausgelöst hast.`,
+    buttons: ['Ablehnen', 'Erlauben'],
+    defaultId: 0,
+    cancelId: 0,
+    noLink: true
+  }));
+  confirmQueue = run.catch(() => {});
+  try { return (await run).response === 1; } catch { return false; }
+}
+
+function setConfirm(fn) { confirm = fn || askInDesktop; }
+
 // Startet bei Bedarf und öffnet die Zentrale im Standardbrowser.
 async function open() {
   await start();
@@ -132,4 +159,4 @@ const info = () => ({ running: !!server, url: server ? `http://127.0.0.1:${port}
 // Nur für Tests: Link mit Token, ohne Browser zu öffnen.
 async function testUrl() { await start(); return `http://127.0.0.1:${port}/#t=${token}`; }
 
-module.exports = { open, start, stop, resetToken, info, testUrl };
+module.exports = { open, start, stop, resetToken, info, testUrl, setConfirm };

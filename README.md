@@ -148,6 +148,7 @@ Tray menu → *Aura Zentrale im Browser*, the button in the Zentrale, or `aura -
 - Access needs a random 256-bit token that is created on every Aura start. It travels in the URL fragment (never sent to a server or logged), is moved into the tab's session storage and removed from the address bar.
 - Requests are checked for the right `Host` and `Origin` (protects against DNS rebinding and other websites), must be JSON with a `Bearer` token, and pages get a strict Content-Security-Policy.
 - "Alle Browser abmelden" in the Zentrale invalidates all open tabs.
+- A browser tab can look at everything, but changing MCP servers, rules, skills, `AGENTS.md` or keys pops up a confirmation in Aura on the desktop. Opening local files and folders only works in the app.
 
 ## Extensions: instructions, skills, MCP servers
 

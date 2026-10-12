@@ -81,7 +81,7 @@ td.args { font-family: "Cascadia Code", Consolas, monospace; font-size: 12px; ov
 .seg button { background: none; padding: 6px 14px; }
 .seg button.on { background: var(--blue); color: #fff; }
 .empty { color: var(--muted); padding: 24px; text-align: center; background: var(--card); border-radius: 16px; box-shadow: 0 0 0 1px var(--line) inset; }
-.web .app-only { display: none !important; }
+.web .app-only, .web [data-open] { display: none !important; } /* openPath/openWeb only in the app (AURA-63) */
 .form label:not(.switch) { display: block; margin: 12px 0 4px; font-size: 13px; }
 .form label:first-child { margin-top: 0; }
 .banner-ok { color: var(--ok); } .banner-warn { color: var(--warn); } .banner-bad { color: var(--bad); }
