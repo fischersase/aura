@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 import uuid
 from collections.abc import AsyncGenerator
 from typing import Any
@@ -23,6 +24,9 @@ from google.genai import types
 from pydantic import Field
 
 from . import repair
+
+log = logging.getLogger(__name__)
+MAX_EMPTY_RETRIES = 2
 
 
 def schema_to_json(schema: Any) -> dict[str, Any]:
@@ -174,7 +178,36 @@ class OllamaLlm(BaseLlm):
   async def generate_content_async(
       self, llm_request: LlmRequest, stream: bool = False
   ) -> AsyncGenerator[LlmResponse, None]:
+    """Wie _generate_once, aber leere Antworten (kein Text, kein Werkzeugaufruf) werden neu angefragt.
+
+    Beobachtet bei gemma4 über Ollama: Bei manchen Anfragen erzeugt das Modell einige Tokens, die Ollama verwirft
+    (vermutlich ein nicht erkannter Werkzeugaufruf); übrig bleibt eine leere Antwort. Mit eingeschaltetem „Denken“
+    passiert das nicht (gemessen 0/10 statt 10/10), daher laufen Wiederholungen mit think=True.
+    """
+    for attempt in range(MAX_EMPTY_RETRIES + 1):
+      final: LlmResponse | None = None
+      # Gemessen (gemma4:26b, 10 Versuche): bestimmte Anfragen liefern ohne „Denken“ immer leer, mit „Denken“ nie.
+      # Wiederholungen laufen deshalb mit think=True.
+      async for r in self._generate_once(llm_request, stream, think=True if attempt else None):
+        if r.partial:
+          yield r
+        else:
+          final = r
+      if final is None:
+        return
+      empty = not final.error_code and not any(p.text or p.function_call for p in (final.content.parts if final.content else []))
+      if empty and attempt < MAX_EMPTY_RETRIES:
+        repair.STATS["empty_retry"] += 1
+        continue
+      yield final
+      return
+
+  async def _generate_once(
+      self, llm_request: LlmRequest, stream: bool = False, think: bool | None = None
+  ) -> AsyncGenerator[LlmResponse, None]:
     body = self._body(llm_request, stream=True)
+    if think is not None:
+      body["think"] = think
     known = list(llm_request.tools_dict.keys()) or [t["function"]["name"] for t in body.get("tools", [])]
     schemas = {t["function"]["name"]: t["function"]["parameters"] for t in body.get("tools", [])}
     text, thinking = "", ""
@@ -233,6 +266,8 @@ class OllamaLlm(BaseLlm):
       args = repair.coerce_types(c.args, schemas.get(c.name))
       parts.append(types.Part(function_call=types.FunctionCall(id=f"call_{uuid.uuid4().hex[:12]}", name=c.name, args=args)))
     if not parts:
+      log.warning("Leere Modellantwort: done_reason=%s eval_count=%s thinking=%d Zeichen, Nachrichten=%d",
+                  final.get("done_reason"), final.get("eval_count"), len(thinking), len(body["messages"]))
       parts.append(types.Part(text=""))
     repair.STATS["responses"] += 1
     if calls:

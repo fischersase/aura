@@ -383,3 +383,26 @@ async def test_pointer_fallback_tiers_and_screenshot_after(tmp_path):
     assert "zwischen 0 und 1000" in (await click_at(1500, 10, "x"))["error"]
   finally:
     CURRENT.reset(token)
+
+
+async def test_bulk_request_needs_confirmed_plan(tmp_path):
+  (tmp_path / "Downloads").mkdir()
+  (tmp_path / "Downloads" / "a.pdf").write_text("1")
+  move = [Call("move_path", {"source": "~/Downloads/a.pdf", "destination": "~/Downloads/PDFs"})]
+  ask = [Call("ask_user", {"question": "Plan: PDFs nach PDFs/. Ok?", "options": ["Ja, so machen", "Abbrechen"]})]
+  # ohne Plan: gesperrt; nach „Abbrechen“: weiter gesperrt
+  settings = AgentSettings(data_dir=tmp_path / "agent", aura_dir=tmp_path / "aura", home=str(tmp_path))
+  llm = ScriptedLlm([move, ask, move, "Nichts verändert."])
+  host = FakeHost(answers=["Abbrechen"])
+  ctl = TaskController(build_runner(settings, llm), host, AuditLog(settings.data_dir / "audit"), settings.home)
+  ctl.start("t1", "c1", "Räum meinen Downloads-Ordner auf")
+  await finish(ctl)
+  assert (tmp_path / "Downloads" / "a.pdf").exists()
+  responses = [str(r.response) for req in llm.requests for r in tool_responses(req)[-1:]]
+  assert "Plan-Modus" in responses[0] and "abgebrochen" in responses[-1]
+  # mit Zustimmung: erlaubt
+  llm2 = ScriptedLlm([ask, move, "Erledigt."])
+  ctl2 = TaskController(build_runner(settings, llm2), FakeHost(answers=["Ja, so machen"]), AuditLog(settings.data_dir / "audit"), settings.home)
+  ctl2.start("t2", "c2", "Räum meinen Downloads-Ordner auf")
+  await finish(ctl2)
+  assert (tmp_path / "Downloads" / "PDFs" / "a.pdf").exists()

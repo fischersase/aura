@@ -62,6 +62,9 @@ class TaskContext:
   refusals: list[str] = field(default_factory=list)
   # Hat der Auftrag fremde Inhalte gelesen (Webseiten, Dateien, Programme, MCP)? Dann sind Wege nach außen strenger.
   tainted_by: list[str] = field(default_factory=list)
+  request: str = ""  # Bitte des Nutzers in diesem Auftrag (für den Plan-Modus)
+  plan_confirmed: bool = False
+  plan_cancelled: bool = False
   # Hat der Auftrag lokale Daten gelesen (Dateien, Befehlsausgaben, Bildschirm, Gedächtnis)?
   local_data_from: list[str] = field(default_factory=list)
 

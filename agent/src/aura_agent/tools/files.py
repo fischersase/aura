@@ -281,10 +281,20 @@ async def trash(path: str) -> dict[str, Any]:
   return {"trashed": show(p, _home()), "verified": not p.exists(), "restore": "Im Papierkorb von Dateien (Nautilus) wiederherstellbar."}
 
 
+def _target(src: Path, dst: Path, raw: str) -> Path:
+  """Ziel einer Verschiebung. Ein noch nicht vorhandenes Ziel ohne Endung (oder mit / am Ende) ist ein Ordner,
+  wenn die Quelle eine Datei mit Endung ist: „a.pdf nach ~/Downloads/PDFs“ meint den Ordner PDFs."""
+  if dst.is_dir():
+    return dst / src.name
+  if not dst.exists() and (raw.endswith("/") or (not dst.suffix and src.suffix)):
+    return dst / src.name
+  return dst
+
+
 def _move_tier(a: dict[str, Any]) -> tuple[Tier, str]:
   dst = expand(a.get("destination"), _home())
   src = expand(a.get("source"), _home())
-  target = dst / src.name if dst.is_dir() else dst
+  target = _target(src, dst, str(a.get("destination", "")))
   if target.exists():
     return Tier.T2, "überschreibt ein vorhandenes Ziel"
   return Tier.T1, ""
@@ -303,7 +313,7 @@ def move_path(source: str, destination: str, copy: bool = False) -> dict[str, An
   dst = expand(destination, _home())
   if not src.exists():
     return {"error": f"Quelle gibt es nicht: {show(src, _home())}"}
-  target = dst / src.name if dst.is_dir() else dst
+  target = _target(src, dst, destination)
   target.parent.mkdir(parents=True, exist_ok=True)
   if copy:
     if src.is_dir():

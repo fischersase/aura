@@ -95,7 +95,8 @@ def instruction(settings: AgentSettings, has_browser: bool = False, skills_text:
             "- Etwas im Internet nachschlagen (Wetter, Nachrichten, Fakten, Öffnungszeiten): browser mit dem Auftrag, "
             "auf DuckDuckGo zu suchen und die Antwort mit Quelle zurückzugeben.\n" if has_browser else "")
          + ("- In Desktop-Programmen etwas bedienen oder ablesen (Knöpfe, Menüs, Felder, Dialoge, „Was steht im Programm X?“, "
-            "im Texteditor speichern): apps mit einer klaren Aufgabe, auch wenn das Programm schon offen ist.\n" if has_apps else "")
+            "ein Feld ausfüllen): apps mit einer klaren Aufgabe und dem genauen Programm- oder Fensternamen des Nutzers, "
+            "auch wenn das Programm schon offen ist.\n" if has_apps else "")
          + "- Was gerade auf dem Bildschirm zu sehen ist: screenshot.\n"
          + "- Alles andere: run_command (bash). Nur lesende Befehle laufen ohne Rückfrage. Pfade dürfen mit ~ beginnen."),
     ]

@@ -71,7 +71,7 @@ class TaskController:
   def start(self, task_id: str, chat_id: str, text: str, images: list[dict[str, str]] | None = None) -> None:
     if task_id in self.tasks:
       raise ValueError(f"Auftrag {task_id} läuft schon")
-    ctx = TaskContext(task_id=task_id, chat_id=chat_id, host=self.host, audit=self.audit, home=self.home)
+    ctx = TaskContext(task_id=task_id, chat_id=chat_id, host=self.host, audit=self.audit, home=self.home, request=text)
     parts = [types.Part(text=text)]
     for img in images or []:
       parts.append(types.Part(inline_data=types.Blob(mime_type=img.get("mime", "image/jpeg"), data=base64.b64decode(img["data"]))))

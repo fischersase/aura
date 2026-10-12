@@ -84,3 +84,11 @@ async def test_search_never_returns_credential_paths(fake_home):
   (fake_home / ".ssh/id_rsa").write_text("KEY")
   r = await files.find_files(name="id_rsa", folder=str(fake_home))
   assert r["count"] == 0
+
+
+def test_move_into_new_folder_without_extension(fake_home):
+  (fake_home / "a.pdf").write_text("1")
+  r = files.move_path("~/a.pdf", "~/PDFs")
+  assert r["verified"] and (fake_home / "PDFs" / "a.pdf").exists()
+  (fake_home / "b.txt").write_text("2")
+  assert files.move_path("~/b.txt", "~/c.txt")["verified"] and (fake_home / "c.txt").is_file()  # Umbenennen bleibt möglich

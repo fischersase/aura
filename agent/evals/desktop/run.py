@@ -93,6 +93,7 @@ async def main() -> int:
   ap.add_argument("--task", default="", help="nur diese Aufgaben-IDs (Komma)")
   args = ap.parse_args()
   logging.basicConfig(level=logging.ERROR)
+  logging.getLogger("aura_agent.models.ollama_llm").setLevel(logging.WARNING)
   warnings.filterwarnings("ignore")
   tasks = TASKS
   if args.only:

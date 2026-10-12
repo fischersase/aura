@@ -1,5 +1,9 @@
-import asyncio, json
+import asyncio
+import json
+
 from aura_agent.tools.desktop import list_windows, window_action
+
+
 async def main():
     r = await list_windows(); print("LIST", json.dumps(r, ensure_ascii=False))
     wid = r["windows"][0]["id"]

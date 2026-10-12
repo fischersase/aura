@@ -102,3 +102,34 @@ async def test_missing_model_gives_clear_error():
   llm = OllamaLlm(model="ollama/gemma4:26b", transport=httpx.MockTransport(handler))
   out = await collect(llm, request([types.Content(role="user", parts=[types.Part(text="hi")])]))
   assert out[0].error_code == "OLLAMA_404" and "nicht heruntergeladen" in out[0].error_message
+
+
+async def test_empty_answer_is_retried():
+  calls = []
+
+  def handler(req):
+    calls.append(1)
+    if len(calls) == 1:
+      lines = [{"message": {"content": ""}, "done": True, "eval_count": 8}]
+    else:
+      lines = [{"message": {"content": "", "tool_calls": [{"function": {"name": "volume", "arguments": {"level": 5}}}]}, "done": True}]
+    return httpx.Response(200, content="\n".join(json.dumps(x) for x in lines).encode())
+
+  llm = OllamaLlm(model="ollama/x", transport=httpx.MockTransport(handler))
+  req = request([types.Content(role="user", parts=[types.Part(text="leiser")])], tools=[decl("volume", {"level": types.Type.INTEGER})])
+  out = await collect(llm, req)
+  assert len(calls) == 2 and out[-1].content.parts[0].function_call.name == "volume"
+
+
+async def test_retry_after_empty_answer_turns_thinking_on():
+  bodies = []
+
+  def handler(req):
+    body = json.loads(req.content)
+    bodies.append(body)
+    msg = {"content": "Fertig."} if body.get("think") else {"content": ""}
+    return httpx.Response(200, content=json.dumps({"message": msg, "done": True}).encode())
+
+  llm = OllamaLlm(model="ollama/x", think=False, transport=httpx.MockTransport(handler))
+  out = await collect(llm, request([types.Content(role="user", parts=[types.Part(text="x")])]))
+  assert [b.get("think") for b in bodies] == [False, True] and out[-1].content.parts[-1].text == "Fertig."
