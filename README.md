@@ -58,25 +58,38 @@ What changes locally:
 
 ## Agent: Aura acts on your PC
 
-Ask in the chat, e.g. "open my downloads folder", "find the invoice from March", "how much disk space is left?", "start Spotify", "write these notes to ~/notes.txt".
+Ask in the chat or by voice, e.g. "pause the music", "open Antigravity", "tidy up my downloads folder by file type", "what's on my screen?", "search the web for tomorrow's weather in Berlin", "remember that my printer is a Brother HL-L2350DW".
 
-| Tool | What it does | Asks first? |
+Since v0.11 the agent is **Agent v2**, built on [Google ADK](https://adk.dev). It runs as its own process next to the app (`agent/`, Python, bundled in the Linux package) and works with your local Ollama model by default, or with Gemini if you chose Gemini in the settings. Architecture decisions and their evidence are in [docs/adr](docs/adr/README.md).
+
+**How it works**
+
+- **Plans, then acts.** Bigger or vague tasks ("tidy up", "sort") are explored first; Aura shows the plan and asks before changing anything. It keeps a task list visible in the window and asks you instead of guessing when something is unclear.
+- **Checks its own results.** Opening a program waits for its window, pausing music reads the player state back, file changes are re-read. A claimed success that the check contradicts gets corrected; the answer shows *Ergebnis überprüft* or a warning.
+- **Uses the most reliable way, not pixels.** Music via MPRIS, programs via the accessibility tree (AT-SPI), web pages via their structure (Playwright in its own Chrome profile), windows via EWMH on X11 or the *Aura Bridge* GNOME extension on Wayland. Screenshot clicks are only a fallback.
+- **Specialists** with their own context: `browser` (web pages, web search via DuckDuckGo), `apps` (desktop programs), `integrations` (your MCP servers).
+- **Memory.** Facts you tell it go to `~/.aura/memory/MEMORY.md` (readable, editable); earlier conversations are searchable. Passwords, PINs and account data are never stored.
+
+**Safety: every action has a tier**
+
+| Tier | Examples | What happens |
 | --- | --- | --- |
-| Open | folders, files, websites, installed programs by name (Start menu / app menu) | only for scripts and `.exe` files |
-| Find files | by name or pattern, optionally text files containing a word | no |
-| List folder, read file | text files and PDFs (PDF needs `pdftotext`) | no |
-| Run command | PowerShell on Windows, bash on Linux | yes, unless it only reads (`ls`, `df`, `Get-ChildItem` …) |
-| Write file | create, replace or append | yes |
-| Screenshot | lets the model look at your screen | no |
-| Click, type, press keys | operate programs with mouse and keyboard, checking a fresh screenshot after each step | yes (or *Alle erlauben* for the rest of the task) |
+| T0 read | list files, read a file, media status, screenshot | runs |
+| T1 local, reversible | open a program, pause music, new file, focus a window | runs |
+| T2 consequential | delete (always to the trash), overwrite (with a diff), send, buy, install, close a window, unknown commands | asks you: *Nur jetzt*, *Für diesen Auftrag*, *Immer erlauben* (creates a rule), *Ablehnen* |
+| T3 forbidden | SSH/GPG keys, browser passwords, keyrings, `rm -rf ~`, disk formatting, lock-screen settings | never, no rule can allow it |
 
-- Approve or decline right in the Aura window; declining is passed back to the model. *Alle erlauben* approves the remaining steps of the current task only.
-- Mouse and keyboard on Linux need `xdotool` (X11) or `ydotool`/`wtype` (Wayland).
-- **Emergency stop:** the stop button, or Ctrl+Alt+Esc while Aura is working, cancels the task and ends commands it started.
-- Every action is logged: tray menu → *Aktionsprotokoll öffnen* (`agent-log.jsonl` in the settings folder).
-- Turn it off under Settings → *Agent*.
-- Local models get a 16k context by default (Settings → *Lokale Modelle*; choose 32k on a 24 GB GPU).
-- Local models need tool support: `qwen3.6:27b` or `gemma4:31b` on a 24 GB GPU, smaller `gemma4`/`qwen3.5` models also work but make more mistakes. DeepSeek R1 cannot use tools.
+- Rules in `~/.aura/policy.toml` (*Zentrale → Regeln*), your own hooks in `~/.aura/hooks.json` (block or force a question before a tool, observe after).
+- Content from web pages, files and programs is treated as data, never as instructions. After reading such content together with local data, addresses that could carry data out always ask.
+- **Emergency stop:** the stop button or Ctrl+Alt+Esc cancels the task and kills the commands it started (hard after 2 s).
+- Every step goes to a hash-chained audit log (*Zentrale → Aktionsprotokoll*).
+- A task that finishes while the window is closed sends a desktop notification.
+
+**Tested, not just written:** 180+ unit, harness, contract and protocol tests run on every push; a desktop eval suite of 56 everyday tasks (isolated: own display, D-Bus, home folder, test web server) checks the real end state with a real local model. See `agent/evals/` and [ADR 0008](docs/adr/0008-eval-suite.md).
+
+**Models:** on an RTX 3090 `gemma4:26b` scored best (100 % of the eval tasks, ~3 s per task); see [ADR 0007](docs/adr/0007-lokales-standardmodell.md). Use a 32k context (Settings → *Lokale Modelle*).
+
+**Previous agent:** *Zentrale → Übersicht → Agent-Version → v1* switches back. Windows uses v1 for now.
 
 ## Aura Zentrale
 
@@ -87,6 +100,7 @@ One window to manage everything the agent uses: tray menu → *Aura Zentrale*, t
 - **MCP-Katalog:** search the official MCP registry and add a server in one click, including the keys it needs.
 - **Skills:** list, switch on/off, create and edit `SKILL.md` files.
 - **Anweisungen:** edit `AGENTS.md`. **Aktionsprotokoll** and **Chats:** what the agent did, and saved chats.
+- **Regeln** (`policy.toml`), **Gedächtnis** (`MEMORY.md`) and **Systemprüfung:** checks Ollama, model, context size, Chrome, accessibility, session type and tools, and installs the *Aura Bridge* GNOME extension on Wayland.
 - **Profil:** your name, location, role, background and how Aura should answer. Added to the system prompt of chats and agent tasks (can be switched off).
 - **Schlüssel:** API keys and tokens, encrypted with the OS keystore in `secrets.json`. Values go in but never come back out; you can replace or delete them. Use them in `mcp.json` as `${secret:NAME}` in `env`, `headers`, `args` or `url`. Keys typed into a server form (names containing KEY, TOKEN, SECRET, PASSWORD, Authorization) and secret fields from the catalog are moved there automatically.
 
@@ -164,9 +178,12 @@ Requires [Node.js](https://nodejs.org) 22+.
 
 ```
 npm ci --ignore-scripts && node scripts/vendor.js && node node_modules/electron/install.js
+(cd agent && uv sync)                            # Agent v2 (needs uv: https://docs.astral.sh/uv/)
 npm start                                        # run
-npx electron-builder --win portable             # Windows .exe
-npx electron-builder --linux AppImage deb        # Linux packages
+npm test && (cd agent && uv run pytest)          # tests
+npx electron-builder --win portable              # Windows .exe
+npm run dist:linux                               # Linux packages, bundles Python + agent + browser server
+(cd agent && uv run python -m evals.desktop.run --k 3)   # desktop evals (needs Ollama)
 ```
 
 ## Privacy and secrets
