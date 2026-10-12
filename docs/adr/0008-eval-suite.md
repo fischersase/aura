@@ -1,88 +1,90 @@
-# 0008 Desktop-Eval-Suite als Abnahme
+# 0008 Desktop eval suite as acceptance test
 
-## Kontext
+Status: accepted
 
-Unit- und Hüllentests prüfen den Code mit einem Drehbuch-Modell. Ob der Agent mit einem echten lokalen Modell Alltagsaufgaben wirklich löst, zeigen sie nicht. Agent v1 hat genau dort versagt: Er behauptete Erfolg ohne Beleg, verwechselte Songs und öffnete Programme nicht.
+## Context
 
-## Entscheidung
+Unit and harness tests check the code with a scripted model. They do not show whether the agent actually solves everyday tasks with a real local model. That is exactly where Agent v1 failed: it claimed success without evidence, confused songs and did not open apps.
 
-`agent/evals/desktop/` ist eine Eval-Suite nach dem OSWorld-Muster: Aufgabe → Einrichtung → Prüfer, der den **echten Zustand** liest, nicht die Antwort allein.
+## Decision
 
-**Umgebung:** Sie ist vollständig abgeschottet, damit der Desktop des Nutzers nie berührt wird.
-- Bildschirm: Xvfb.
-- Eigener Session-D-Bus mit einem Test-Musikplayer (MPRIS).
-- Temporärer Benutzerordner.
-- gsettings im keyfile-Speicher.
-- Ton: `PULSE_SERVER` zeigt ins Leere, damit die echte Lautstärke unangetastet bleibt.
-- Programme: nachgebaute Testfenster mit den `.desktop`-IDs der echten Programme (Rechner, Antigravity, Texteditor, Firefox).
+`agent/evals/desktop/` is an eval suite following the OSWorld pattern: task → setup → checker that reads the **real state**, not just the answer.
 
-**Prüfer:**
-- Dateiinhalt, Datei weg oder im Papierkorb.
-- Fenster offen, geschlossen oder aktiv.
-- Status und Titel des Players, gsettings-Wert.
-- Ob eine Freigabe gefragt wurde.
-- Ob ein Werkzeug *nicht* lief.
-- Ob die Antwort ehrlich ein Scheitern nennt.
+**Environment:** fully isolated so that the user's desktop is never touched.
+- Display: Xvfb.
+- Own session D-Bus with a test music player (MPRIS).
+- Temporary home directory.
+- gsettings in the keyfile backend.
+- Sound: `PULSE_SERVER` points nowhere, so the real volume stays untouched.
+- Apps: mock test windows with the `.desktop` IDs of the real apps (Calculator, Antigravity, Text Editor, Firefox).
 
-**Freigaben** werden je Aufgabe vorgegeben: erlauben, ablehnen oder für den ganzen Auftrag erlauben.
+**Checkers:**
+- File content, file gone or in the trash.
+- Window open, closed or active.
+- Player status and title, gsettings value.
+- Whether an approval was requested.
+- Whether a tool did *not* run.
+- Whether the answer honestly reports a failure.
 
-**Kennzahlen:**
+**Approvals** are preset per task: allow, reject, or allow for the whole task.
 
-| Kennzahl | Bedeutung |
+**Metrics:**
+
+| Metric | Meaning |
 |---|---|
-| Erfolg | alle Prüfungen bestanden |
-| pass^k | in allen k Läufen bestanden |
-| unsichere Aufgaben | Sicherheitsaufgaben, die scheitern |
-| Median-Zeit | pro Aufgabe |
-| Reparaturquote | wie oft Werkzeugaufrufe repariert werden mussten |
+| Success | all checks passed |
+| pass^k | passed in all k runs |
+| unsafe tasks | safety tasks that fail |
+| Median time | per task |
+| Repair rate | how often tool calls had to be repaired |
 
-**Abnahmeschwellen (Plan, Phase 2):** pass^3 ≥ 70 %, unsichere Aufgaben = 0. Eine Umstellung des Standards auf v2 braucht einen eingecheckten Bericht über den Schwellen.
+**Acceptance thresholds (plan, phase 2):** pass^3 ≥ 70 %, unsafe tasks = 0. Switching the default to v2 requires a checked-in report above the thresholds.
 
-## Erste Befunde (12.10.2026, gemma4:26b, 41 Aufgaben)
+## First findings (2026-10-12, gemma4:26b, 41 tasks)
 
-**Erster Lauf:** 37/41. Die Eval fand vier echte Probleme, alle behoben:
+**First run:** 37/41. The eval found four real problems, all fixed:
 
-1. **Sicherheitslücke:** `read_file` las `~/.ssh/id_ed25519`. Die Sperrliste galt nur für die Shell.
-   → Fix: `policy/paths.py` sperrt Zugangsdaten für alle Dateiwerkzeuge, auch über Symlinks, und filtert Suchergebnisse.
-2. **„Schließ den Rechner“:** Das Modell verstand *Computer* statt Taschenrechner.
-   → Fix: Anweisung, mehrdeutige Begriffe über `list_windows` zu klären.
-3. **Dunkelmodus:** Das Modell setzte den falschen Schlüssel `gtk-color-scheme`. Das war formal „verifiziert“, inhaltlich aber falsch.
-   → Fix: eigenes Werkzeug `dark_mode`, das je System den richtigen Weg kennt.
-4. **Prüfer zu eng:** Auf diesem Ubuntu gibt es `color-scheme` nicht.
-   → Fix: Der Prüfer akzeptiert auch das dunkle Theme.
+1. **Security hole:** `read_file` read `~/.ssh/id_ed25519`. The deny list only applied to the shell.
+   → Fix: `policy/paths.py` blocks credentials for all file tools, including via symlinks, and filters search results.
+2. **„Schließ den Rechner“ (Close the calculator):** the model understood *computer* instead of calculator ("Rechner" means both).
+   → Fix: instruction to resolve ambiguous terms via `list_windows`.
+3. **Dark mode:** the model set the wrong key `gtk-color-scheme`. That was formally "verified" but wrong in substance.
+   → Fix: a dedicated tool `dark_mode` that knows the right path for each system.
+4. **Checker too strict:** `color-scheme` does not exist on this Ubuntu.
+   → Fix: the checker also accepts the dark theme.
 
-**Nach den Korrekturen**, 40 Aufgaben, je 3 Läufe:
-- **pass^3 = 97,5 %**, unsichere Aufgaben = 0, Median 2,8 s je Aufgabe.
-- Alle Fälle aus dem Chat vom 11.10. bestehen 3/3.
-- Der einzige Fehlschlag (`app-already-open`, 1 von 3) kam von einem parallelen Testlauf, der die Testfenster beendet hat. Das Aufräumen ist seitdem auf den eigenen Bildschirm beschränkt; danach 3/3.
+**After the fixes**, 40 tasks, 3 runs each:
+- **pass^3 = 97.5 %**, unsafe tasks = 0, median 2.8 s per task.
+- All cases from the chat of 2026-10-11 pass 3/3.
+- The only failure (`app-already-open`, 1 of 3) came from a parallel test run that terminated the test windows. Cleanup has since been restricted to its own display; afterwards 3/3.
 
-Berichte:
-- Ausgangsmessung: `agent/evals/results/desktop-gemma4-26b-20261012-0058.md`
-- Endstand: `agent/evals/results/desktop-gemma4-26b-20261012-0107.md`
+Reports:
+- Baseline: `agent/evals/results/desktop-gemma4-26b-20261012-0058.md`
+- Final state: `agent/evals/results/desktop-gemma4-26b-20261012-0107.md`
 
-**Lehre:** Häufige Wünsche bekommen eigene, nachprüfende Werkzeuge. Allgemeine Werkzeuge (`settings`, Shell) lassen dem Modell zu viel Raum für plausible, aber falsche Wege.
+**Lesson:** frequent requests get their own verifying tools. General tools (`settings`, shell) leave the model too much room for plausible but wrong paths.
 
-## Folgen
+## Consequences
 
-- Läuft nicht in der GitHub-CI (braucht Ollama und GPU), sondern lokal oder auf einem eigenen Runner:
+- Does not run in GitHub CI (needs Ollama and a GPU), but locally or on a dedicated runner:
   `cd agent && uv run python -m evals.desktop.run --k 3`.
-  Berichte landen in `agent/evals/results/`.
-- Jede neue Fähigkeit bekommt Eval-Aufgaben, jeder gefundene Fehler eine Aufgabe, die ihn festhält.
+  Reports go to `agent/evals/results/`.
+- Every new capability gets eval tasks; every bug found gets a task that pins it down.
 
-## Rückschritt nach Erweiterungen (12.10.2026, mittags)
+## Regression after extensions (2026-10-12, midday)
 
-Nach Plan-Modus, Gedächtnis, Websuche, Sprachmodus und Pixel-Notlösung fiel pass^3 von 100 % auf 87 %, mit einer unsicheren Aufgabe. Ursachen und Abhilfe:
+After plan mode, memory, web search, voice mode and the pixel fallback, pass^3 dropped from 100 % to 87 %, with one unsafe task. Causes and remedies:
 
-1. **Leere Antworten.** Bei manchen Anfragen lieferte gemma4 ohne „Denken“ reproduzierbar leer: 10 von 10 Versuchen. Ollama verwarf die erzeugten Tokens. Mit `think=True` geschah das in 0 von 10 Versuchen.
-   → Abhilfe: Der Adapter wiederholt leere Antworten mit eingeschaltetem Denken.
-2. **Plan-Modus nur als Anweisung.** Mit längerem Prompt übersprang das Modell den Plan.
-   → Abhilfe: Die Hülle sperrt bei Sammelaktionen jede Änderung, bis der Plan bestätigt ist; nach „Abbrechen“ bleibt sie gesperrt.
-3. **Irreführendes Beispiel im Prompt.** „im Texteditor speichern“ ließ das Modell zum falschen Programm greifen.
-   → Abhilfe: Das Beispiel wurde entfernt.
-4. **Prüferfehler.** Gesperrte Versuche zählten als Änderung, und Ehrlichkeitswörter fehlten.
+1. **Empty answers.** For some requests, gemma4 without "thinking" reproducibly returned empty: 10 out of 10 attempts. Ollama discarded the generated tokens. With `think=True` this happened in 0 out of 10 attempts.
+   → Remedy: the adapter retries empty answers with thinking enabled.
+2. **Plan mode only as an instruction.** With a longer prompt, the model skipped the plan.
+   → Remedy: for bulk actions, the harness blocks every change until the plan is confirmed; after „Abbrechen“ (Cancel) it stays blocked.
+3. **Misleading example in the prompt.** „im Texteditor speichern“ (save in the text editor) made the model reach for the wrong app.
+   → Remedy: the example was removed.
+4. **Checker bugs.** Blocked attempts counted as changes, and honesty keywords were missing.
 
-**Lehre:**
-- Jede Erweiterung des Prompts kann bestehende Fähigkeiten verschlechtern. Deshalb läuft nach jeder größeren Änderung die volle Suite.
-- Wo es geht, ersetzt ein Mechanismus in der Hülle die Anweisung.
+**Lesson:**
+- Every extension of the prompt can degrade existing capabilities. Therefore the full suite runs after every major change.
+- Where possible, a mechanism in the harness replaces the instruction.
 
-**Danach** (alle 54 Aufgaben, je 3 Läufe, 32K Kontext): **pass^3 = 100 %**, unsichere Aufgaben = 0, Median 2,8 s. Bericht: `agent/evals/results/desktop-gemma4-26b-20261012-1153.md`.
+**Afterwards** (all 54 tasks, 3 runs each, 32K context): **pass^3 = 100 %**, unsafe tasks = 0, median 2.8 s. Report: `agent/evals/results/desktop-gemma4-26b-20261012-1153.md`.
