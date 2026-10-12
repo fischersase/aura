@@ -16,6 +16,8 @@ from __future__ import annotations
 import re
 
 from ..harness.tiers import Tier
+from .shell_classifier import RISKY_ARGS as BASH_RISKY_ARGS
+from .shell_classifier import _git_reason
 
 READONLY = {
     # Cmdlets
@@ -59,15 +61,46 @@ SUBCOMMANDS = {
     "query": {"user", "session", "process"},
     "ollama": {"list", "ps", "show", "--version", "-v"},
     "git": {"status", "log", "diff", "show", "branch", "remote", "rev-parse", "describe", "tag", "ls-files", "blame"},
-    "python": {"--version", "-v"},
-    "py": {"--version", "-v", "--list", "-0"},
-    "node": {"--version", "-v"},
-    "pwsh": {"--version", "-v", "-version"},
     "winget": {"list", "search", "show", "--version", "-v"},
     "choco": {"list", "search", "info", "--version", "-v"},
-    "wsl": {"-l", "--list", "--status", "-v", "--version"},
     "certutil": {"-hashfile"},
 }
+
+# Programme, bei denen *jedes* Argument aus dieser Liste stammen muss; weitere Argumente könnten Code ausführen
+# ("wsl -l -e …", "node -v -e …", "python --version -c …"). Vergleich in Kleinbuchstaben.
+ALL_ARGS_IN = {
+    "python": {"--version", "-v"},
+    "py": {"--version", "-v", "--list", "-0", "-0p", "--list-paths"},
+    "node": {"--version", "-v"},
+    "pwsh": {"--version", "-v", "-version"},
+    "wsl": {"-l", "--list", "-v", "--verbose", "--status", "--version", "-q", "--quiet", "--running", "--all", "-o",
+            "--online"},
+}
+# Weitere Schalter, die sonst lesende Programme verändernd machen.
+NATIVE_RISKY = {
+    "arp": re.compile(r"(^|\s)[-/](d|s)(\s|$)", re.IGNORECASE),
+    "git": BASH_RISKY_ARGS["git"],
+}
+
+# Umgebungsvariablen ohne Geheimnisse; $env:GEMINI_API_KEY und Co. fragen (AURA-13).
+SAFE_ENV_VARS = {
+    "userprofile", "home", "homedrive", "homepath", "appdata", "localappdata", "programdata", "temp", "tmp", "username",
+    "userdomain", "computername", "programfiles", "programw6432", "systemroot", "windir", "systemdrive", "public", "onedrive",
+    "os", "processor_architecture", "number_of_processors", "path", "pathext",
+}
+ENV_DRIVE = re.compile(r"(^|[\s('\"\[,])env:", re.IGNORECASE)
+ENV_REGISTRY = re.compile(r"win32_environment|hkcu:\\environment|hkey_current_user\\environment|"
+                          r"session manager\\environment", re.IGNORECASE)
+
+
+def _env_reason(c: str) -> str:
+  for m in re.finditer(r"\$env:([A-Za-z_][A-Za-z0-9_]*)", c, re.IGNORECASE):
+    if m.group(1).lower() not in SAFE_ENV_VARS:
+      return f"liest die Umgebungsvariable $env:{m.group(1)} (kann Schlüssel enthalten)"
+  rest = re.sub(r"\$env:[A-Za-z_][A-Za-z0-9_]*", " ", c, flags=re.IGNORECASE)
+  if ENV_DRIVE.search(rest) or ENV_REGISTRY.search(rest):
+    return "liest Umgebungsvariablen (können Schlüssel enthalten)"
+  return ""
 
 # Schalter, mit denen sonst lesende Cmdlets andere Rechner erreichen.
 REMOTE = re.compile(r"(^|\s)-(computername|cn|session|cimsession)\b", re.IGNORECASE)
@@ -201,6 +234,9 @@ def classify_powershell(command: str) -> tuple[Tier, str]:
     return Tier.T1, "öffnet eine Webseite"
   if TYPOGRAPHIC_QUOTES.search(c) or "@'" in c or '@"' in c:
     return Tier.T2, "nicht eindeutig zerlegbar"
+  env = _env_reason(c)
+  if env:
+    return Tier.T2, env
   s, why = _strip_strings(c)
   if why:
     return Tier.T2, why
@@ -231,6 +267,18 @@ def classify_powershell(command: str) -> tuple[Tier, str]:
       first = words[1].lower() if len(words) > 1 else ""
       if first not in subs:
         return Tier.T2, f"„{name} {first}“ kann etwas verändern"
+    allowed = ALL_ARGS_IN.get(name)
+    if allowed is not None and (len(words) < 2 or any(w.lower() not in allowed for w in words[1:])):
+      return Tier.T2, f"„{name}“ mit weiteren Argumenten kann Code ausführen"
+    risky = NATIVE_RISKY.get(name)
+    if risky and risky.search(" ".join(words[1:])):
+      return Tier.T2, f"„{name}“ mit verändernden Schaltern"
+    if name == "git":
+      reason = _git_reason(words)
+      if reason:
+        return Tier.T2, reason
+    if name == "certutil" and len(words) > 4:
+      return Tier.T2, "„certutil“ mit weiteren Argumenten"
     if REMOTE.search(segment):
       return Tier.T2, "greift auf einen anderen Rechner zu"
   return Tier.T0, "nur lesend"
