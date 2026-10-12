@@ -1,8 +1,8 @@
+"""Datei-Werkzeuge in einem temporären Benutzerordner."""
+
 import sys
 
 import pytest
-
-"""Datei-Werkzeuge in einem temporären Benutzerordner."""
 
 from aura_agent.harness.tiers import Tier
 from aura_agent.tools import files

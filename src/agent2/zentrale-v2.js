@@ -107,10 +107,20 @@ async function installExtension() {
 
 // ---------- Systemprüfung ----------
 
+const IS_WIN = process.platform === 'win32';
 const run = (cmd, args, timeout = 8000) => new Promise((resolve) => {
-  execFile(cmd, args, { timeout }, (err, stdout, stderr) => resolve({ ok: !err, out: String(stdout || '').trim(), err: String(stderr || (err && err.message) || '').trim() }));
+  execFile(cmd, args, { timeout, windowsHide: true }, (err, stdout, stderr) => resolve({ ok: !err, out: String(stdout || '').trim(), err: String(stderr || (err && err.message) || '').trim() }));
 });
-const which = async (name) => (await run('which', [name])).ok;
+const which = async (name) => (await run(IS_WIN ? 'where' : 'which', [name])).ok;
+
+// Windows: Chrome steht nicht im PATH; der Agent nimmt Chrome, sonst Edge (wie tools/browser.py).
+function windowsBrowser() {
+  const bases = [process.env.PROGRAMFILES, process.env['PROGRAMFILES(X86)'], process.env.LOCALAPPDATA].filter(Boolean);
+  const has = (...p) => bases.some((b) => fs.existsSync(path.join(b, ...p)));
+  if (has('Google', 'Chrome', 'Application', 'chrome.exe')) return 'Chrome';
+  if (has('Microsoft', 'Edge', 'Application', 'msedge.exe')) return 'Edge';
+  return '';
+}
 
 async function doctor({ settings, bridge }) {
   const s = settings();
@@ -134,10 +144,24 @@ async function doctor({ settings, bridge }) {
   add('Agent v2', py ? 'ok' : 'bad', py ? `Python: ${py}` : 'nicht installiert', py ? '' : 'Aura-Paket neu installieren (make update)');
 
   // Browser
-  const chrome = (await which('google-chrome')) || (await which('google-chrome-stable'));
-  add('Chrome', chrome ? 'ok' : 'warn', chrome ? 'installiert' : 'nicht gefunden', chrome ? '' : 'Für den Browser-Spezialisten Google Chrome installieren.');
+  if (IS_WIN) {
+    const b = windowsBrowser();
+    add('Browser', b ? 'ok' : 'warn', b ? `${b} wird benutzt` : 'weder Chrome noch Edge gefunden', b ? '' : 'Google Chrome installieren.');
+  } else {
+    const chrome = (await which('google-chrome')) || (await which('google-chrome-stable'));
+    add('Chrome', chrome ? 'ok' : 'warn', chrome ? 'installiert' : 'nicht gefunden', chrome ? '' : 'Für den Browser-Spezialisten Google Chrome installieren.');
+  }
   const bundled = s.browserCommand && s.browserCommand.length;
   add('Browser-Server', bundled || (await which('npx')) ? 'ok' : 'warn', bundled ? 'mitgeliefert' : 'über npx (Entwicklung)');
+
+  if (IS_WIN) {
+    add('Programme bedienen (UI Automation)', 'ok', 'in Windows eingebaut');
+    add('Medien (Windows-Mediensteuerung)', 'ok', 'in Windows eingebaut');
+    add('Sitzung', 'ok', 'Windows');
+    const pdf = await which('pdftotext');
+    add('pdftotext', pdf ? 'ok' : 'warn', pdf ? 'PDFs lesen' : 'fehlt (PDFs lesen)', pdf ? '' : 'winget install oschwartz10612.Poppler');
+    return checks;
+  }
 
   // Barrierefreiheit
   const gi = await run('/usr/bin/python3', ['-c', "import gi; gi.require_version('Atspi','2.0'); from gi.repository import Atspi"]);

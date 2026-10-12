@@ -601,7 +601,7 @@ ipcMain.on('agent:approval', (_e, { stepId, ok }) => {
 
 // ---------- Agent v2 (agent/, Python + Google ADK) ----------
 
-// v2 ist Standard; ohne mitgeliefertes Python (z. B. portable Windows-Version) arbeitet v1.
+// v2 ist Standard; ohne mitgeliefertes Python (z. B. Entwicklung ohne agent/.venv) arbeitet v1.
 const agentVersion = () => process.env.AURA_AGENT_VERSION || store.load().agentVersion || 'v2';
 const v2Senders = new Map(); // Auftrags-ID → Fenster, das den Auftrag geschickt hat
 const v2Questions = new Map(); // Frage-ID → resolve({answer})
@@ -619,7 +619,7 @@ const agentV2 = new AgentBridge({
       numCtx: s.ollamaContext, // dieselbe Kontextlänge wie Chat und Rambler, sonst lädt Ollama das Modell neu
       language: s.language,
       profile: store.profilePrompt(),
-      sessionType: process.env.XDG_SESSION_TYPE || '',
+      sessionType: process.platform === 'win32' ? 'windows' : process.env.XDG_SESSION_TYPE || '',
       toolPolicy: s.toolPolicy || {},
       ...browserLauncher(),
       mcpServers: mcpServersForAgent(),
@@ -1055,7 +1055,7 @@ function applyAutostart() {
     try { applyAutostartLinux(!!store.load().autostart); } catch (err) { console.warn('Autostart:', err.message); }
     return;
   }
-  // Die portable .exe entpackt sich in einen Temp-Ordner; eingetragen wird die Original-Datei.
+  // Ältere portable .exe entpackten sich in einen Temp-Ordner; eingetragen wird die Original-Datei.
   const exe = process.env.PORTABLE_EXECUTABLE_FILE || process.execPath;
   // Autostart-Einträge der alten „Gemini Overlay“ entfernen, sonst startet die alte Version mit.
   for (const name of ['electron.app.Gemini Overlay', 'Gemini Overlay']) {

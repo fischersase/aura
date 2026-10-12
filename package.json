@@ -14,8 +14,8 @@
     "start": "electron .",
     "postinstall": "node scripts/vendor.js",
     "check": "for f in src/*.js src/agent/*.js src/agent2/*.js src/renderer/*.js scripts/*.js test/*.js; do node --check \"$f\" || exit 1; done",
-    "dist": "electron-builder --win portable",
-    "dist:win": "electron-builder --win portable",
+    "dist": "bash scripts/build-agent.sh && electron-builder --win nsis",
+    "dist:win": "bash scripts/build-agent.sh && electron-builder --win nsis",
     "dist:linux": "bash scripts/build-agent.sh && electron-builder --linux AppImage deb",
     "test": "node --test test/*.test.js"
   },
@@ -37,10 +37,27 @@
     ],
     "win": {
       "icon": "assets/icon.ico",
-      "signAndEditExecutable": false
-    },
-    "portable": {
-      "artifactName": "Aura-${version}-portable.exe"
+      "signAndEditExecutable": false,
+      "target": [
+        "nsis"
+      ],
+      "artifactName": "Aura-Setup-${version}.${ext}",
+      "extraResources": [
+        {
+          "from": "build/agent-python",
+          "to": "python",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "build/browser-mcp/node_modules",
+          "to": "browser-mcp/node_modules",
+          "filter": [
+            "**/*"
+          ]
+        }
+      ]
     },
     "linux": {
       "target": [
@@ -91,6 +108,14 @@
         "gir1.2-atspi-2.0",
         "google-chrome-stable"
       ]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Aura",
+      "deleteAppDataOnUninstall": false
     }
   },
   "homepage": "https://github.com/fischersase/aura"

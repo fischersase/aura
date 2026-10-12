@@ -9,6 +9,10 @@ import pytest
 
 WINDOWS = sys.platform == "win32"
 
+# Linux-Backends (D-Bus, X11, GNOME): unter Windows gar nicht erst sammeln, ihre Pakete fehlen dort.
+# Das Windows-Gegenstück steht in tests/windows/.
+collect_ignore = ["contract/test_media.py", "contract/test_desktop.py", "wayland"] if WINDOWS else []
+
 
 @pytest.fixture
 def private_dbus(monkeypatch):

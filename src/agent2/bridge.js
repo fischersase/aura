@@ -1,6 +1,6 @@
 // Brücke zum neuen Agenten (agent/, Python + Google ADK): Prozess starten, Aufträge schicken,
 // Rückfragen (Freigabe, Bildschirmfoto) beantworten, Not-Aus. Siehe docs/adr/0001.
-const { spawn } = require('child_process');
+const { execFile, spawn } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -134,6 +134,10 @@ class AgentBridge {
 
   kill(reason) {
     if (this.proc && this.proc.exitCode === null) {
+      // Windows: ganzen Prozessbaum beenden (laufende PowerShell-Befehle des Agenten eingeschlossen).
+      if (process.platform === 'win32') {
+        try { execFile('taskkill', ['/F', '/T', '/PID', String(this.proc.pid)], { windowsHide: true }, () => {}); } catch {}
+      }
       try { this.proc.kill('SIGKILL'); } catch {}
     }
     this.onExit(this.proc, null, reason);

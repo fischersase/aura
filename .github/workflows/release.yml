@@ -1,6 +1,6 @@
 name: Release
-# Baut bei jedem Push auf main die Windows-.exe sowie AppImage und .deb für Linux
-# und legt sie im Release v<version> ab.
+# Baut bei jedem Push auf main den Windows-Installer (Aura-Setup.exe) sowie AppImage und .deb für Linux
+# und legt sie im Release v<version> ab. Beide enthalten Agent v2 mit eigenem Python (docs/adr/0006, 0012).
 on:
   push:
     branches: [main]
@@ -22,15 +22,19 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - uses: astral-sh/setup-uv@v6
       # Ohne Install-Skripte: onnxruntime-node/sharp braucht die App nicht (Whisper läuft im Browser-Teil).
       - run: npm ci --ignore-scripts
       - run: node scripts/vendor.js
-      - run: npx electron-builder --win portable --x64 --publish never
+      # Agent v2: Python-Laufzeit bündeln, Größe prüfen, Selbsttest im fertigen Bündel.
+      - run: bash scripts/build-agent.sh
+        shell: bash
+      - run: npx electron-builder --win nsis --x64 --publish never
       - name: Version und Dateiname
         id: v
         shell: pwsh
         run: |
-          Get-ChildItem dist/*-portable.exe | Select-Object -First 1 | Copy-Item -Destination dist/Aura.exe
+          Get-ChildItem dist/Aura-Setup-*.exe | Select-Object -First 1 | Copy-Item -Destination dist/Aura-Setup.exe
           $v = (Get-Content package.json | ConvertFrom-Json).version
           "version=$v" >> $env:GITHUB_OUTPUT
       - uses: softprops/action-gh-release@v2
@@ -39,7 +43,7 @@ jobs:
           name: Aura ${{ steps.v.outputs.version }}
           target_commitish: ${{ github.sha }}
           make_latest: true
-          files: dist/Aura.exe
+          files: dist/Aura-Setup.exe
 
   linux:
     needs: windows # erst wenn das Release existiert, sonst legen beide Jobs es gleichzeitig an

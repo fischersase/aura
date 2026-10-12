@@ -1,0 +1,29 @@
+name: Windows-Installer
+# Baut auf dem Branch agent-v2 (und auf Knopfdruck) den Windows-Installer mit Agent v2 und legt ihn als
+# Artefakt „Aura-Setup“ ab, zum Testen vor einem Release. Prüft dabei Bündelgröße und Selbsttest.
+on:
+  push:
+    branches: [agent-v2]
+    paths: ['src/**', 'assets/**', 'scripts/**', 'agent/src/**', 'agent/pyproject.toml', 'agent/uv.lock', 'package.json', '.github/workflows/windows-build.yml']
+  workflow_dispatch:
+
+jobs:
+  installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: astral-sh/setup-uv@v6
+      - run: npm ci --ignore-scripts
+      - run: node scripts/vendor.js
+      - run: bash scripts/build-agent.sh
+        shell: bash
+      - run: npx electron-builder --win nsis --x64 --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Aura-Setup
+          path: dist/Aura-Setup-*.exe
+          retention-days: 14

@@ -3,6 +3,7 @@
 # python-build-standalone 3.12 (über uv) + gesperrte Abhängigkeiten aus agent/uv.lock (mit Hashes)
 # + das Paket aura_agent. Danach Ausdünnen, Größenprüfung und Selbsttest im fertigen Bündel.
 # Aufruf: bash scripts/build-agent.sh   (braucht uv: https://docs.astral.sh/uv/)
+# Läuft unter Linux und unter Windows (Git Bash, z. B. auf dem windows-latest-Runner).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -10,14 +11,26 @@ BUILD="$ROOT/build"
 OUT="$BUILD/agent-python"
 PY_VERSION="3.12"
 MAX_MB=230
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*) WINDOWS=1 ;;
+  *) WINDOWS=0 ;;
+esac
 
 rm -rf "$OUT" "$BUILD/agent-dl" "$BUILD/agent-wheel"
 mkdir -p "$BUILD"
 
 uv python install "$PY_VERSION" --install-dir "$BUILD/agent-dl" --no-bin
-SRC="$(ls -d "$BUILD"/agent-dl/cpython-"$PY_VERSION".*-linux-x86_64-gnu | head -1)"
-cp -a "$SRC" "$OUT"
-PY="$OUT/bin/python3"
+if [ "$WINDOWS" = 1 ]; then
+  SRC="$(ls -d "$BUILD"/agent-dl/cpython-"$PY_VERSION".*-windows-x86_64-none | head -1)"
+  cp -a "$SRC" "$OUT"
+  PY="$OUT/python.exe"
+  LIB="$OUT/Lib"
+else
+  SRC="$(ls -d "$BUILD"/agent-dl/cpython-"$PY_VERSION".*-linux-x86_64-gnu | head -1)"
+  cp -a "$SRC" "$OUT"
+  PY="$OUT/bin/python3"
+  LIB="$OUT/lib/python$PY_VERSION"
+fi
 
 cd "$ROOT/agent"
 uv export --frozen --no-dev --no-emit-project --format requirements-txt > "$BUILD/agent-requirements.txt"
@@ -25,17 +38,25 @@ uv pip install --python "$PY" --break-system-packages --require-hashes --no-deps
 uv build --wheel --out-dir "$BUILD/agent-wheel"
 uv pip install --python "$PY" --break-system-packages --no-deps "$BUILD"/agent-wheel/*.whl
 
+if [ "$WINDOWS" = 1 ]; then
+  # UI-Automation-Schnittstellen einmal erzeugen (comtypes schreibt sie nach comtypes/gen); sonst beim ersten Start.
+  "$PY" -I -c "import comtypes.client; comtypes.client.GetModule('UIAutomationCore.dll')"
+fi
+
 # Ausdünnen: Testsuite, IDLE, Tk, Header und Doku braucht der Agent nicht.
-rm -rf "$OUT"/lib/python"$PY_VERSION"/{test,idlelib,tkinter,turtledemo,ensurepip,lib2to3} \
-  "$OUT"/lib/libtcl* "$OUT"/lib/libtk* "$OUT"/lib/tcl* "$OUT"/lib/tk* "$OUT"/lib/itcl* "$OUT"/lib/thread* \
-  "$OUT"/include "$OUT"/share
-rm -rf "$OUT"/lib/python"$PY_VERSION"/site-packages/pip "$OUT"/lib/python"$PY_VERSION"/site-packages/pip-*.dist-info "$OUT"/bin/pip*
+rm -rf "$LIB"/{test,idlelib,tkinter,turtledemo,ensurepip,lib2to3} "$OUT"/include "$OUT"/share
+rm -rf "$LIB"/site-packages/pip "$LIB"/site-packages/pip-*.dist-info "$OUT"/bin/pip* "$OUT"/Scripts/pip*
+if [ "$WINDOWS" = 1 ]; then
+  rm -rf "$OUT"/tcl "$OUT"/libs "$OUT"/DLLs/_tkinter.pyd "$OUT"/DLLs/tcl*.dll "$OUT"/DLLs/tk*.dll
+else
+  rm -rf "$OUT"/lib/libtcl* "$OUT"/lib/libtk* "$OUT"/lib/tcl* "$OUT"/lib/tk* "$OUT"/lib/itcl* "$OUT"/lib/thread*
+fi
 find "$OUT" -name __pycache__ -type d -prune -exec rm -rf {} +
 # Debug-Symbole entfernen (libpython allein hat sonst ~30 MB).
-if command -v strip >/dev/null; then
+if [ "$WINDOWS" = 0 ] && command -v strip >/dev/null; then
   find "$OUT" -name '*.so*' -type f -exec strip --strip-unneeded {} + 2>/dev/null || true
 fi
-"$PY" -m compileall -q -j 0 "$OUT/lib/python$PY_VERSION" >/dev/null || true
+"$PY" -m compileall -q -j 0 "$LIB" >/dev/null || true
 
 SIZE="$(du -sm "$OUT" | cut -f1)"
 echo "Agent-Python: ${SIZE} MB"
