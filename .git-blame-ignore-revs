@@ -4,3 +4,6 @@
 
 # style(agent): ruff format (4 spaces, PEP 8) (AURA-73)
 1c3997d9c17624f9a79a92537f5b471dbb37c92d
+
+# style(app): prettier (AURA-75)
+be77a5ba335c57613e9ea7a493a6cf49ad19b1a4
