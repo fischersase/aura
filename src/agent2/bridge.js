@@ -28,12 +28,14 @@ class AgentBridge {
    * @param {() => Record<string, unknown>} options.settings settings for initialize
    * @param {Host} options.host
    * @param {(status: any) => void} [options.onModelStatus]
+   * @param {() => string[]} [options.chatIds] IDs of the chats the app still has; others are forgotten at start
    */
-  constructor({ app, settings, host, onModelStatus }) {
+  constructor({ app, settings, host, onModelStatus, chatIds }) {
     this.app = app;
     this.settings = settings;
     this.host = host;
     this.onModelStatus = onModelStatus || (() => {});
+    this.chatIds = chatIds || null;
     /** @type {import('child_process').ChildProcessWithoutNullStreams | null} */
     this.proc = null;
     /** @type {InstanceType<typeof Peer> | null} */
@@ -124,7 +126,70 @@ class AgentBridge {
         this.stop();
         throw err;
       });
+    // After every start: forget chats deleted while the agent was not running, and orphans (AURA-106).
+    this.ready.then(() => this.afterStart()).catch(() => {});
     return this.ready;
+  }
+
+  forgetQueueFile() {
+    return path.join(this.app.getPath('userData'), 'agent', 'forget-queue.json');
+  }
+
+  /** @returns {string[]} */
+  readForgetQueue() {
+    try {
+      const ids = JSON.parse(fs.readFileSync(this.forgetQueueFile(), 'utf8'));
+      return Array.isArray(ids) ? ids.filter((x) => typeof x === 'string') : [];
+    } catch {
+      return [];
+    }
+  }
+
+  /** @param {string[]} ids */
+  writeForgetQueue(ids) {
+    const file = this.forgetQueueFile();
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    if (ids.length) fs.writeFileSync(file, JSON.stringify([...new Set(ids)]));
+    else fs.rmSync(file, { force: true });
+  }
+
+  /**
+   * Deletes the agent's copy of a chat (session and episodes). Without a running agent the ID is queued and sent
+   * at the next start, so deleting never has to start the agent.
+   * @param {string} chatId
+   */
+  async forgetChat(chatId) {
+    if (!this.peer || !this.ready) {
+      this.writeForgetQueue([...this.readForgetQueue(), chatId]);
+      return { queued: true };
+    }
+    try {
+      await this.ready;
+      return await this.peer.request('chat.forget', { chatId }, 10000);
+    } catch {
+      this.writeForgetQueue([...this.readForgetQueue(), chatId]);
+      return { queued: true };
+    }
+  }
+
+  async afterStart() {
+    const peer = this.peer;
+    if (!peer) return;
+    const queued = this.readForgetQueue();
+    const failed = [];
+    for (const chatId of queued) {
+      try {
+        await peer.request('chat.forget', { chatId }, 10000);
+      } catch {
+        failed.push(chatId);
+      }
+    }
+    if (queued.length) this.writeForgetQueue(failed);
+    if (this.chatIds) {
+      try {
+        await peer.request('chat.retain', { chatIds: this.chatIds() }, 30000);
+      } catch {}
+    }
   }
 
   /**

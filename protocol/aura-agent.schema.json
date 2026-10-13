@@ -299,6 +299,77 @@
             }
           }
         }
+      },
+      "chat.forget": {
+        "description": "Deletes everything the agent stored about a chat (session and episodes); running tasks of the chat are cancelled first (NFR-PRIV-007).",
+        "params": {
+          "type": "object",
+          "required": [
+            "chatId"
+          ],
+          "properties": {
+            "chatId": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "result": {
+          "type": "object",
+          "required": [
+            "sessions",
+            "episodes"
+          ],
+          "properties": {
+            "sessions": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "episodes": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      },
+      "chat.retain": {
+        "description": "Forgets sessions of chats that are not in chatIds (orphans). Sessions of voice tasks (id 'voice-…') are kept.",
+        "params": {
+          "type": "object",
+          "required": [
+            "chatIds"
+          ],
+          "properties": {
+            "chatIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "result": {
+          "type": "object",
+          "required": [
+            "chats",
+            "sessions",
+            "episodes"
+          ],
+          "properties": {
+            "chats": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "sessions": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "episodes": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
       }
     },
     "hostRequests": {

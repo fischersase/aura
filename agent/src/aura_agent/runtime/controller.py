@@ -12,8 +12,11 @@ import base64
 import contextlib
 import logging
 import re
+import sqlite3
 import time
 from collections.abc import Callable
+from contextlib import closing
+from pathlib import Path
 
 from google.adk.agents.run_config import (
     RunConfig,
@@ -62,8 +65,10 @@ class TaskController:
         home: str,
         max_llm_calls: int = 60,
         on_finished: Callable[[str], None] | None = None,
+        episodes_db: Path | None = None,
     ) -> None:
         self.runner = runner
+        self.episodes_db = episodes_db  # memory.db of the runner's memory service (for forget_chat)
         self.host = host
         self.audit = audit
         self.home = home
@@ -123,6 +128,57 @@ class TaskController:
         ids = list(self.tasks)
         await asyncio.gather(*(self.cancel(t) for t in ids))
         return len(ids)
+
+    async def forget_chat(self, chat_id: str) -> dict[str, int]:
+        """Deletes everything the agent stored about a chat: its session and its episodes (NFR-PRIV-007, AURA-106).
+
+        Running tasks of the chat are cancelled first, so they cannot write the session again.
+        """
+        running = [tid for tid, (_t, ctx) in self.tasks.items() if ctx.chat_id == chat_id]
+        await asyncio.gather(*(self.cancel(t) for t in running))
+        sessions = 0
+        service = self.runner.session_service
+        if await service.get_session(app_name=APP_NAME, user_id=USER_ID, session_id=chat_id) is not None:
+            await service.delete_session(app_name=APP_NAME, user_id=USER_ID, session_id=chat_id)
+            sessions = 1
+        episodes = await asyncio.to_thread(self._delete_episodes, chat_id)
+        self.audit.write("chat_forgotten", chat=chat_id, sessions=sessions, episodes=episodes)
+        return {"sessions": sessions, "episodes": episodes}
+
+    async def retain_chats(
+        self, chat_ids: set[str], keep_prefixes: tuple[str, ...] = ("voice-",)
+    ) -> dict[str, int]:
+        """Forgets sessions of chats the app no longer has (deleted before AURA-106, or while the agent was off).
+
+        Sessions whose id starts with one of keep_prefixes have no chat in the app's list (voice tasks) and stay.
+        """
+        listed = await self.runner.session_service.list_sessions(app_name=APP_NAME, user_id=USER_ID)
+        orphans = [
+            s.id for s in listed.sessions if s.id not in chat_ids and not s.id.startswith(keep_prefixes)
+        ]
+        totals = {"chats": 0, "sessions": 0, "episodes": 0}
+        for chat_id in orphans:
+            r = await self.forget_chat(chat_id)
+            totals["chats"] += 1
+            totals["sessions"] += r["sessions"]
+            totals["episodes"] += r["episodes"]
+        return totals
+
+    def _delete_episodes(self, chat_id: str) -> int:
+        """Removes the chat's rows from the episode store (memory.db); its FTS index follows by trigger."""
+        path = self.episodes_db
+        if path is None or not path.exists():
+            return 0
+        with closing(sqlite3.connect(path)) as db:
+            try:
+                cur = db.execute(
+                    "DELETE FROM memory_events WHERE app_name = ? AND user_id = ? AND session_id = ?",
+                    (APP_NAME, USER_ID, chat_id),
+                )
+            except sqlite3.OperationalError:  # no table yet: nothing was stored
+                return 0
+            db.commit()
+            return cur.rowcount
 
     async def _run(self, ctx: TaskContext, message: types.Content) -> None:
         CURRENT.set(ctx)
