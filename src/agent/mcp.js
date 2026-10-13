@@ -14,6 +14,9 @@ const PROTOCOL = '2025-06-18';
 const CLIENT = { name: 'aura', version: '1' };
 const configFile = () => path.join(os.homedir(), '.aura', 'mcp.json');
 
+const minimalEnv = () =>
+  Object.fromEntries(['PATH', 'LANG', 'LC_ALL', 'TERM', 'TZ'].filter((k) => process.env[k]).map((k) => [k, process.env[k]]));
+
 class StdioConn {
   constructor(name, cfg) {
     this.name = name;
@@ -22,7 +25,8 @@ class StdioConn {
     this.stderr = '';
     this.child = spawn(cfg.command, cfg.args || [], {
       cwd: cfg.cwd || os.homedir(),
-      env: { ...process.env, ...(cfg.env || {}) },
+      // Sandboxed servers (AURA-97) get only a minimal environment plus their own values, not the user's tokens.
+      env: cfg.sandboxed === 'on' ? { ...minimalEnv(), ...(cfg.env || {}) } : { ...process.env, ...(cfg.env || {}) },
       shell: IS_WIN, // npx.cmd & Co. unter Windows
       windowsHide: true,
       stdio: ['pipe', 'pipe', 'pipe']
@@ -154,7 +158,8 @@ function readConfig() {
   }
 }
 
-// Ersetzt ${secret:NAME} (wird von main.js gesetzt; ohne Electron bleibt die Konfiguration unverändert).
+// Ersetzt ${secret:NAME} und setzt die Sandbox (wird von main.js gesetzt; ohne Electron bleibt die Konfiguration
+// unverändert). Signatur: (config, serverName) → config.
 let resolveConfig = (cfg) => cfg;
 const setResolver = (fn) => { resolveConfig = fn; };
 // Authorization header for OAuth servers (set by main.js); without sign-in it throws "Nicht verbunden …".
@@ -162,7 +167,7 @@ let authHeader = async (_name) => { throw new Error('Nicht angemeldet.'); };
 const setAuthProvider = (fn) => { authHeader = fn; };
 
 async function connect(name, raw) {
-  const cfg = resolveConfig(raw);
+  const cfg = resolveConfig(raw, name);
   const conn = cfg.url ? new HttpConn(name, cfg) : new StdioConn(name, cfg);
   await conn.request('initialize', { protocolVersion: PROTOCOL, capabilities: {}, clientInfo: CLIENT }, 30000);
   conn.notify('notifications/initialized');
@@ -191,7 +196,7 @@ async function sync(force = false) {
     // Change detection: compare the resolved config itself (it lives in this process anyway) instead of hashing
     // values that contain secrets (CodeQL js/insufficient-password-hash).
     let key = JSON.stringify(c);
-    try { key = JSON.stringify(resolveConfig(c)); } catch {}
+    try { key = JSON.stringify(resolveConfig(c, name)); } catch {}
     const old = servers.get(name);
     if (old && old.cfgKey === key && !old.error) { next.set(name, old); servers.delete(name); return; }
     try {

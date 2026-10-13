@@ -66,7 +66,7 @@ data never leaves the machine through Aura.
 | Dictation, Rambler, local Live | Mic → hidden `stt` window → Whisper (ONNX/WASM) → text → Ollama | No (model download once from Hugging Face) |
 | Screenshots in chat / agent / local Live | `desktopCapturer` → JPEG → Ollama | No |
 | Browser specialist | Agent → Playwright MCP → Chrome → websites | Yes, to the websites visited (normal browsing) |
-| User MCP servers | Agent → server (stdio or HTTP) | Depends on the server |
+| User MCP servers | Agent → server (stdio or HTTP) | Depends on the server. Local connectors from the Aura catalog or the MCP registry run in a sandbox on Linux (only their own folder `~/.aura/connectors/<name>`, not your files); on Windows and macOS they can read your files (no sandbox yet) |
 
 ### 4.2 Gemini (provider = Gemini, user's own key)
 

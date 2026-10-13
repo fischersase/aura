@@ -140,6 +140,7 @@
         "xdg-utils"
       ],
       "recommends": [
+        "bubblewrap",
         "xdotool",
         "wtype",
         "speech-dispatcher",

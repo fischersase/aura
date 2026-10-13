@@ -30,6 +30,7 @@ const agentSkills = require('./agent/skills');
 const agentMcp = require('./agent/mcp');
 const secrets = require('./secrets');
 const connectors = require('./connectors');
+const sandbox = require('./sandbox');
 const web = require('./web');
 const { createOAuthClient } = require('./oauth');
 const { enableWeakIfAllowed } = require('./keystore');
@@ -38,7 +39,8 @@ const { LiveRelay } = require('./live-relay');
 security.guardIpc(ipcMain); // vor der ersten IPC-Registrierung (AURA-18)
 const { AgentBridge, defaultAuraDir } = require('./agent2/bridge');
 const zentraleV2 = require('./agent2/zentrale-v2');
-agentMcp.setResolver(secrets.resolveServerConfig);
+// Secrets filled in, then catalog/registry servers wrapped in the sandbox (AURA-97).
+agentMcp.setResolver((c, name) => sandbox.wrap(name, secrets.resolveServerConfig(c)));
 
 const R = (f) => path.join(__dirname, 'renderer', f);
 const ICON = path.join(__dirname, '..', 'assets', 'icon.png');
@@ -921,7 +923,9 @@ function mcpServersForAgent() {
       try {
         // A server added by hand with a catalog URL gets the catalog's tiers too (AURA-96).
         const catalogId = c.catalogId || (connectors.forUrl(c.url) || {}).id;
-        return { name, ...secrets.resolveServerConfig(c), ...(catalogId ? { catalogId } : {}) };
+        const resolved = { ...secrets.resolveServerConfig(c), ...(catalogId ? { catalogId } : {}) };
+        const { sandboxed: _s, ...run } = sandbox.wrap(name, resolved);
+        return { name, ...run };
       } catch (err) {
         return { name, error: String(err.message || err) };
       }

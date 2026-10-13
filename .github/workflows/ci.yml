@@ -77,4 +77,12 @@ jobs:
       # Für den Ende-zu-Ende-Test der Brücke (startet den echten Python-Agenten mit Drehbuch-Modell).
       - run: uv sync --locked
         working-directory: agent
+      # Connector sandbox (AURA-97): the real isolation test must run here, not be skipped.
+      # Ubuntu 24.04 lets only processes with an AppArmor profile (like the installed Aura) create user namespaces;
+      # the test runner has none, so the restriction is lifted for this job.
+      - run: |
+          sudo apt-get install -y -qq bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - run: npm test
+        env:
+          AURA_REQUIRE_BWRAP: '1'

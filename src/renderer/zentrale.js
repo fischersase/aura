@@ -164,6 +164,16 @@ function renderTools() {
 
 // ---------- MCP-Server ----------
 
+// Sandbox of local catalog/registry servers (AURA-97).
+const SANDBOX_BADGE = {
+  on: '<span class="badge ok" title="Läuft abgeschottet: sieht nur seinen eigenen Ordner, nicht deine Dateien">Sandbox</span>',
+  missing:
+    '<span class="badge bad" title="bubblewrap fehlt: sudo apt install bubblewrap, dann Aura neu starten">Sandbox fehlt</span>',
+  unsupported:
+    '<span class="badge" title="Auf diesem System gibt es noch keine Sandbox; der Server sieht deine Dateien">ohne Sandbox</span>',
+  disabled: '<span class="badge bad" title="In mcp.json ausgeschaltet (sandbox: false)">ohne Sandbox</span>'
+};
+
 function renderServers() {
   if (!S.servers.length) {
     $('serverList').innerHTML =
@@ -197,6 +207,7 @@ function renderServers() {
       <div class="top"><label class="switch"><input type="checkbox" data-toggle="${esc(s.name)}"${s.disabled ? '' : ' checked'}><span></span></label>
         <span class="title">${esc(s.name)}</span>${state}<span class="badge">${s.type === 'http' ? 'Remote' : 'lokal'}</span>
         ${s.auth === 'oauth' ? (s.signedIn ? '<span class="badge ok">angemeldet</span>' : '<span class="badge bad">Anmeldung nötig</span>') : ''}
+        ${SANDBOX_BADGE[s.sandbox] || ''}
         ${s.disabled ? '' : `<span class="badge">${s.tools.length} Werkzeuge</span>`}
         <span class="grow"></span>${s.auth === 'oauth' ? (s.signedIn ? `<button class="small" data-signout="${esc(s.name)}">Abmelden</button>` : `<button class="small primary" data-signin="${esc(s.name)}">Anmelden</button>`) : ''}<button class="small" data-edit="${esc(s.name)}">Bearbeiten</button><button class="small danger" data-remove="${esc(s.name)}">Entfernen</button></div>
       <div class="cmd">${esc(s.command)}${s.env.length ? ' · Variablen: ' + esc(s.env.join(', ')) : ''}${s.secretRefs.length ? ' · Schlüssel: ' + esc(s.secretRefs.join(', ')) : ''}</div>
