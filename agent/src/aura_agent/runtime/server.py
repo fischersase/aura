@@ -120,7 +120,11 @@ def build_runner(
     return Runner(
         app_name=APP_NAME,
         agent=build_root(
-            llm, settings, toolset, integrations_agent(llm, build_toolsets(settings.mcp_servers, settings.connectors)), episodes
+            llm,
+            settings,
+            toolset,
+            integrations_agent(llm, build_toolsets(settings.mcp_servers, settings.connectors)),
+            episodes,
         ),
         memory_service=episodes,
         session_service=SqliteSessionService(str(settings.data_dir / "sessions.db")),

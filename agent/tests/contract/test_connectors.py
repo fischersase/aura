@@ -21,7 +21,11 @@ CATALOG = json.loads((ROOT / "src" / "catalog" / "connectors.json").read_text(en
 
 async def run(tmp_path, llm, host, **settings):
     s = AgentSettings(
-        data_dir=tmp_path / "agent", aura_dir=tmp_path / "aura", home=str(tmp_path), connectors=CATALOG, **settings
+        data_dir=tmp_path / "agent",
+        aura_dir=tmp_path / "aura",
+        home=str(tmp_path),
+        connectors=CATALOG,
+        **settings,
     )
     ctl = TaskController(build_runner(s, llm), host, AuditLog(s.data_dir / "audit"), s.home)
     ctl.start("t1", "c1", "Zeig mir meine offenen Jira-Tickets")
@@ -63,7 +67,7 @@ async def test_registry_search_goes_through_the_app(tmp_path):
 
 
 def test_settings_carry_catalog_and_declined_ids():
-    s = AgentSettings.from_params({"connectors": CATALOG + ["junk"], "declinedConnectors": ["github"]})
+    s = AgentSettings.from_params({"connectors": [*CATALOG, "junk"], "declinedConnectors": ["github"]})
     assert [c["id"] for c in s.connectors] == [c["id"] for c in CATALOG]
     assert s.declined_connectors == ["github"]
     jsonschema.validate(

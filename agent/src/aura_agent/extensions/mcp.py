@@ -106,7 +106,9 @@ def collisions(configs: list[dict[str, Any]]) -> dict[str, str]:
     for name, p in prefixes.items():
         for other, q in prefixes.items():
             if other != name and (p == q or p.startswith(q + "_") or q.startswith(p + "_")):
-                out[name] = f"Werkzeugnamen kollidieren mit dem Server „{other}“; einen der beiden umbenennen."
+                out[name] = (
+                    f"Werkzeugnamen kollidieren mit dem Server „{other}“; einen der beiden umbenennen."
+                )
     return out
 
 
@@ -128,9 +130,10 @@ def _mcp_meta(tool: Any) -> ToolMeta | None:
     reviewed = _catalog_tier(server, raw)
     if reviewed == Tier.T0:
         return ToolMeta(Tier.T0, label=label)
-    if reviewed is None and not server.url and server.source != "registry":
-        if annotations is not None and hint("readOnlyHint") and not hint("destructiveHint"):
-            return ToolMeta(Tier.T0, label=label)
+    # Hints count only for local, self-installed servers without a catalog entry.
+    trusts_hints = reviewed is None and not server.url and server.source != "registry"
+    if trusts_hints and annotations is not None and hint("readOnlyHint") and not hint("destructiveHint"):
+        return ToolMeta(Tier.T0, label=label)
     if reviewed == Tier.T1 or "*" in server.auto_approve or raw in server.auto_approve:
         return ToolMeta(Tier.T1, label=label)
     return ToolMeta(

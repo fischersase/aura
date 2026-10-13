@@ -51,7 +51,9 @@ def test_credentials_link_to_where_the_token_is_made():
 @pytest.fixture
 def task(tmp_path):
     host = FakeHost()
-    ctx = TaskContext(task_id="t1", chat_id="c1", host=host, audit=AuditLog(tmp_path / "a"), home=str(tmp_path))
+    ctx = TaskContext(
+        task_id="t1", chat_id="c1", host=host, audit=AuditLog(tmp_path / "a"), home=str(tmp_path)
+    )
     token = CURRENT.set(ctx)
     yield ctx
     CURRENT.reset(token)

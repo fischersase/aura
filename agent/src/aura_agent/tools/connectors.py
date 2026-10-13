@@ -39,9 +39,7 @@ def _score(entry: dict[str, Any], words: list[str]) -> int:
     for w in words:
         if w in keywords or w == entry.get("id"):
             score += 3
-        elif any(k.startswith(w) or w.startswith(k) for k in keywords if len(k) >= 3):
-            score += 2
-        elif w in title:
+        elif any(k.startswith(w) or w.startswith(k) for k in keywords if len(k) >= 3) or w in title:
             score += 2
         elif len(w) >= 4 and w in description:
             score += 1
@@ -72,9 +70,7 @@ def _summary(entry: dict[str, Any], connected: set[str]) -> dict[str, Any]:
     return out
 
 
-def make_connector_tools(
-    catalog: list[dict[str, Any]], connected: set[str], declined: set[str]
-) -> list[Any]:
+def make_connector_tools(catalog: list[dict[str, Any]], connected: set[str], declined: set[str]) -> list[Any]:
     """catalog: entries from the app; connected: catalog IDs already in mcp.json; declined: "never suggest" IDs."""
     entries = {str(e["id"]): e for e in catalog if isinstance(e, dict) and e.get("id") and e.get("title")}
     # Registry hits of this agent run, so propose_connector can show them without a second search.
@@ -104,7 +100,10 @@ def make_connector_tools(
         try:
             res = await task.host.search_registry(need)
         except Exception as e:  # noqa: BLE001 - the registry is optional; say so
-            return {"candidates": [], "note": f"Kein Eintrag im Aura-Katalog; das MCP-Verzeichnis ist nicht erreichbar ({e})."}
+            return {
+                "candidates": [],
+                "note": f"Kein Eintrag im Aura-Katalog; das MCP-Verzeichnis ist nicht erreichbar ({e}).",
+            }
         out = []
         for r in res.get("results") or []:
             rid = str(r.get("id") or r.get("name") or "")
@@ -123,7 +122,10 @@ def make_connector_tools(
             if len(out) >= MAX_RESULTS:
                 break
         if not out:
-            return {"candidates": [], "note": "Weder im Aura-Katalog noch im MCP-Verzeichnis gibt es dafür eine Verbindung."}
+            return {
+                "candidates": [],
+                "note": "Weder im Aura-Katalog noch im MCP-Verzeichnis gibt es dafür eine Verbindung.",
+            }
         return {
             "candidates": out,
             "source": "registry",
@@ -143,13 +145,17 @@ def make_connector_tools(
           reason: Ein kurzer Satz, wofür die Verbindung gebraucht wird, z. B. "Damit ich deine Jira-Tickets lesen kann."
         """
         if id in declined:
-            return {"error": "Der Nutzer möchte diese Verbindung nicht mehr vorgeschlagen bekommen. Frag nicht erneut."}
+            return {
+                "error": "Der Nutzer möchte diese Verbindung nicht mehr vorgeschlagen bekommen. Frag nicht erneut."
+            }
         if id in connected:
             return {"error": "Diese Verbindung ist schon eingerichtet; nutze integrations."}
         entry = entries.get(id)
         if entry is not None:
             if entry.get("status") == "coming":
-                return {"error": f"„{entry['title']}“ ist noch nicht verfügbar. Sag dem Nutzer, dass das bald kommt."}
+                return {
+                    "error": f"„{entry['title']}“ ist noch nicht verfügbar. Sag dem Nutzer, dass das bald kommt."
+                }
             card = {
                 **_summary(entry, connected),
                 "description": entry.get("description", ""),
@@ -175,7 +181,13 @@ def make_connector_tools(
             }
         if decision == "never":
             declined.add(id)
-            return {"decision": "never", "note": "Nicht mehr vorschlagen. Sag ehrlich, dass Aura ohne Verbindung keinen Zugriff hat."}
-        return {"decision": "later", "note": "Nicht jetzt. Sag ehrlich, dass Aura ohne Verbindung keinen Zugriff hat."}
+            return {
+                "decision": "never",
+                "note": "Nicht mehr vorschlagen. Sag ehrlich, dass Aura ohne Verbindung keinen Zugriff hat.",
+            }
+        return {
+            "decision": "later",
+            "note": "Nicht jetzt. Sag ehrlich, dass Aura ohne Verbindung keinen Zugriff hat.",
+        }
 
     return [find_connector, propose_connector]
