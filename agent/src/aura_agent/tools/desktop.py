@@ -20,7 +20,8 @@ from ..platform.base import IS_WINDOWS, WindowInfo
 from ..platform.proc import spawn_kwargs
 from ..policy.exfil import url_tier
 from ..policy.paths import path_tier
-from .apps import App, best_matches, installed_apps
+from ..runtime.context import current
+from .apps import WEB_APP_NOTE, App, best_matches, installed_apps
 from .paths import expand
 
 if IS_WINDOWS:
@@ -304,6 +305,16 @@ def _process_running(app: App) -> bool:
     return subprocess.run(["pgrep", "-f", app.binary], capture_output=True, check=False).returncode == 0
 
 
+def _web_app(app: App) -> dict[str, Any]:
+    """Marks results for installed web apps (AURA-92) and makes blind clicks in this task ask first."""
+    if not app.is_web_app:
+        return {}
+    task = current()
+    if task is not None:
+        task.web_content_unavailable = True
+    return {"web_app": True, "note": WEB_APP_NOTE}
+
+
 @aura_tool(Tier.T1, label=lambda a: a.get("name", ""))
 async def launch_app(name: str) -> dict[str, Any]:
     """Startet ein installiertes Programm per Name (z. B. "Firefox", "Antigravity", "Rechner", "Dateien") und prüft, ob sein Fenster erscheint.
@@ -342,7 +353,13 @@ async def launch_app(name: str) -> dict[str, Any]:
     if all_windows is None:
         await asyncio.to_thread(_start, app)
         running = await _wait_for(lambda: _process_running(app), 8)
-        return {"app": app.name, "verified": False, "process_running": bool(running), "note": _no_windows()}
+        return {
+            "app": app.name,
+            "verified": False,
+            "process_running": bool(running),
+            "note": _no_windows(),
+            **_web_app(app),
+        }
 
     before = all_windows
     existing = [w for w in before if _matches(app, w)]
@@ -356,6 +373,7 @@ async def launch_app(name: str) -> dict[str, Any]:
             "window": _brief(target),
             "verified": bool(active),
             **({} if active else {"error": "Fenster existiert, ließ sich aber nicht nach vorne holen."}),
+            **_web_app(app),
         }
 
     before_ids = {w.id for w in before}
@@ -373,6 +391,7 @@ async def launch_app(name: str) -> dict[str, Any]:
             "window": _brief(win),
             "verified": True,
             **({"alternatives": alternatives} if alternatives else {}),
+            **_web_app(app),
         }
     running = await asyncio.to_thread(_process_running, app)
     return {
@@ -380,6 +399,7 @@ async def launch_app(name: str) -> dict[str, Any]:
         "verified": False,
         "process_running": running,
         "error": f"„{app.name}“ wurde gestartet, aber nach {int(LAUNCH_WAIT_S)} s ist kein Fenster erschienen.",
+        **_web_app(app),
     }
 
 

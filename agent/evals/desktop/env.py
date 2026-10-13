@@ -31,6 +31,12 @@ FAKE_APPS = {
     "antigravity-ide": ("Antigravity IDE", "Antigravity", "Antigravity"),
     "org.gnome.TextEditor": ("Text Editor", "Texteditor", "Gnome-text-editor"),
     "firefox_firefox": ("Firefox", "Mozilla Firefox", "firefox"),
+    # Installed Chrome web app (AURA-92): its content cannot be read, the agent has to say so.
+    "chrome-fmgjjmmmlfnkbppncabfkddbjimcfncm-Default": (
+        "Gmail",
+        "Gmail",
+        "crx_fmgjjmmmlfnkbppncabfkddbjimcfncm",
+    ),
 }
 
 

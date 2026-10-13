@@ -219,6 +219,7 @@ def snapshot(p: dict) -> dict:
             except Exception:  # noqa: BLE001
                 continue
 
+    walked: list[str] = []  # apps whose windows were read (lets the caller recognise browsers, AURA-92)
     for a in matched_apps or _apps():
         for i in range(a.get_child_count()):
             w = a.get_child_at_index(i)
@@ -230,7 +231,13 @@ def snapshot(p: dict) -> dict:
             if want_app and want_app not in (a.get_name() or "").lower() and want_app not in title.lower():
                 continue
             walk(w, 0, f"{a.get_name()}: {title}")
-    return {"count": len(items), "truncated": len(items) >= limit, "elements": items}
+            walked.append(a.get_name() or "")
+    return {
+        "count": len(items),
+        "truncated": len(items) >= limit,
+        "elements": items,
+        "apps": sorted(set(walked)),
+    }
 
 
 def _node(p: dict) -> Atspi.Accessible:

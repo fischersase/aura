@@ -9,11 +9,19 @@ Rechner, Einstellungen, Office …); Browser und Electron-Programme melden ihre 
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from ..harness.tiers import Tier, aura_tool
 from ..platform import a11y
+from ..runtime.context import current
+from .apps import WEB_APP_NOTE
 from .browser import CONSEQUENTIAL
+
+# Browsers whose web content is hidden from accessibility APIs by default (AT-SPI process names, Windows exe names).
+BROWSER_APP = re.compile(r"chrom|msedge|microsoft.edge|brave|vivaldi|opera")
+# Below this many readable elements a browser window shows only its frame and toolbar, not the page.
+MIN_WEB_ELEMENTS = 15
 
 _last: dict[int, dict[str, Any]] = {}  # Index → Element aus dem letzten ui_snapshot
 
@@ -51,7 +59,24 @@ async def ui_snapshot(app: str = "", window: str = "") -> dict[str, Any]:
     _last.clear()
     for e in r.get("elements") or []:
         _last[e["index"]] = e
+    if web_content_unavailable(r):
+        task = current()
+        if task is not None:
+            task.web_content_unavailable = True
+        return {**r, "web_content_unavailable": True, "error": WEB_APP_NOTE}
     return r
+
+
+def web_content_unavailable(snapshot: dict[str, Any]) -> bool:
+    """A Chrome/Edge window whose page content is not in the accessibility tree (AURA-92).
+
+    Chrome exposes web content only with --force-renderer-accessibility or a running screen reader; otherwise the
+    tree holds just the window frame and a few toolbar buttons.
+    """
+    if snapshot.get("error"):
+        return False
+    apps = " ".join(str(a) for a in snapshot.get("apps") or []).lower()
+    return bool(BROWSER_APP.search(apps)) and len(snapshot.get("elements") or []) < MIN_WEB_ELEMENTS
 
 
 @aura_tool(
