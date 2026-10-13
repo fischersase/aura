@@ -70,6 +70,7 @@ const IPC_ACCESS = {
   'agent:answer': PANEL,
   'agent:connectorAnswer': PANEL,
   'agent:takeoverAnswer': PANEL,
+  'inbox:get': PANEL,
   'agent:voiceTask': PANEL,
   'agent:stop': PANEL,
   'agent:openLog': ['settings.html'],

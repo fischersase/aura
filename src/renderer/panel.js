@@ -636,6 +636,36 @@ window.api.onAgentAsk(({ chatId: cid, id, question, options }) => {
   (box.querySelector('.opts button') || form.querySelector('input')).focus({ preventScroll: true });
 });
 
+// Approvals of background runs (AURA-122): "Wartet auf dich" above the chat; the decision uses the normal path.
+function renderInbox(items) {
+  const box = document.getElementById('inbox');
+  box.classList.toggle('hidden', !items.length);
+  if (!items.length) {
+    box.innerHTML = '';
+    return;
+  }
+  box.innerHTML = `<div class="inbox-head">Wartet auf dich (${items.length})</div>`;
+  for (const it of items) {
+    const card = document.createElement('div');
+    card.className = 'approve inbox-item';
+    card.innerHTML =
+      '<div class="q"></div><pre></pre><div class="btns"><button class="deny">Ablehnen</button><button class="allow">Ausführen</button></div>';
+    card.querySelector('.q').textContent = `Hintergrund: ${it.title}`;
+    card.querySelector('pre').textContent = it.label + (it.detail ? '\n\n' + it.detail : '');
+    if (it.reason) {
+      const why = document.createElement('div');
+      why.className = 'why';
+      why.textContent = 'Warum Aura fragt: ' + it.reason;
+      card.insertBefore(why, card.querySelector('.btns'));
+    }
+    card.querySelector('.allow').onclick = () => window.api.agentApproval(it.stepId, true);
+    card.querySelector('.deny').onclick = () => window.api.agentApproval(it.stepId, false);
+    box.appendChild(card);
+  }
+}
+window.api.onInbox(renderInbox);
+window.api.inbox().then(renderInbox);
+
 // Browser takeover (AURA-118): the user signs in or solves a CAPTCHA in Aura's browser window, then "Weiter".
 window.api.onAgentTakeover((t) => {
   if (!streaming || streaming.id !== t.chatId) {

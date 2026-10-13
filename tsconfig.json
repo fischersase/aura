@@ -25,6 +25,7 @@
     "src/sandbox.js",
     "src/drift.js",
     "src/scheduler.js",
+    "src/inbox.js",
     "src/win-autostart.js",
     "src/store.js",
     "src/agent2/rpc.js",

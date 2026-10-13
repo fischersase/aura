@@ -74,6 +74,7 @@
     'driftInfo',
     'tasks',
     'removeTask',
+    'stopTask',
     'approveTools',
     'installConnector',
     'getSkill',

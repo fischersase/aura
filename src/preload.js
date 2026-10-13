@@ -55,6 +55,9 @@ contextBridge.exposeInMainWorld('api', {
   agentAnswer: (id, answer) => ipcRenderer.send('agent:answer', { id, answer }),
   onAgentConnector: on('agent:connector'),
   onAgentTakeover: on('agent:takeover'),
+  // Approvals of background runs (AURA-122)
+  inbox: () => ipcRenderer.invoke('inbox:get'),
+  onInbox: on('inbox:update'),
   agentTakeoverAnswer: (id, decision) => ipcRenderer.send('agent:takeoverAnswer', { id, decision }),
   agentConnectorAnswer: (id, decision) => ipcRenderer.send('agent:connectorAnswer', { id, decision }),
   onAgentPlan: on('agent:plan'),

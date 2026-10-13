@@ -31,6 +31,7 @@ const agentMcp = require('./agent/mcp');
 const secrets = require('./secrets');
 const connectors = require('./connectors');
 const { createScheduler } = require('./scheduler');
+const { createInbox } = require('./inbox');
 const sandbox = require('./sandbox');
 const web = require('./web');
 const { createOAuthClient } = require('./oauth');
@@ -786,8 +787,6 @@ const agentV2 = new AgentBridge({
     // Freigabe über dieselbe Karte im Panel wie beim alten Agenten.
     approve: (req) =>
       new Promise((resolve) => {
-        const sender = v2Senders.get(req.taskId);
-        if (!sender || sender.isDestroyed()) return resolve({ decision: 'deny' });
         // Scoped approvals (AURA-119): the agent binds them to this tool and its website, connector tool or action.
         const SCOPES = ['always', 'session', 'hours:1', 'hours:8'];
         const answer = (ok) =>
@@ -795,6 +794,10 @@ const agentV2 = new AgentBridge({
             decision: ok === 'all' ? 'task' : SCOPES.includes(ok) ? ok : ok ? 'once' : 'deny'
           });
         answer.taskId = req.taskId;
+        // Background runs (AURA-122): nobody watches the chat, so the approval waits in the inbox.
+        if (String(req.taskId).startsWith('bg-')) return inboxAdd(req, answer);
+        const sender = v2Senders.get(req.taskId);
+        if (!sender || sender.isDestroyed()) return resolve({ decision: 'deny' });
         approvals.set(req.stepId, answer);
         const detail = req.effect && req.effect !== req.label ? req.effect : '';
         sender.send('agent:approve', {
@@ -1052,12 +1055,42 @@ ipcMain.handle('agent:voiceTask', async (_e, { request }) => {
 // A due task runs as a headless agent task in its own chat "Hintergrund: <Titel>". Nobody watches: approvals in
 // background runs are denied for now (the approval inbox follows with AURA-122), and the agent is told so.
 const BG_HINT =
-  '\n\n[Hintergrundauftrag: Niemand schaut gerade zu. Folgenreiche Aktionen werden abgelehnt; sag am Ende kurz, ' +
-  'was der Nutzer selbst freigeben oder erledigen muss. Antworte knapp, das Ergebnis erscheint als Benachrichtigung.]';
+  '\n\n[Hintergrundauftrag: Niemand schaut gerade zu. Folgenreiche Aktionen legt die App dem Nutzer zur Freigabe vor ' +
+  'und wartet darauf (bis zu einem Tag). Antworte knapp, das Ergebnis erscheint als Benachrichtigung.]';
+
+// Approvals of background runs (AURA-122): "Wartet auf dich" in the panel plus a notification; after a day the run
+// goes on without the action. The decision itself uses the normal approval path (agent:approval).
+const inbox = createInbox({
+  timeoutMs: 24 * 3600 * 1000 - 60_000, // just before the agent gives up
+  changed: (list) => panel && !panel.isDestroyed() && panel.webContents.send('inbox:update', list),
+  notify: (entry) => {
+    if (!Notification.isSupported()) return;
+    const n = new Notification({
+      title: `Aura wartet auf dich: ${entry.title}`,
+      body: entry.label.slice(0, 180),
+      icon: ICON
+    });
+    n.on('click', () => openPanel());
+    n.show();
+  }
+});
+const inboxList = () => inbox.list();
+function inboxAdd(req, answer) {
+  const task = scheduler.list().find((t) => String(req.taskId).startsWith(t.chatId + '-'));
+  const decide = inbox.add(req, task ? task.title : 'Hintergrundauftrag', (ok) => {
+    approvals.delete(req.stepId);
+    answer(ok);
+  });
+  decide.taskId = req.taskId;
+  approvals.set(req.stepId, decide);
+}
+ipcMain.handle('inbox:get', () => inboxList());
 let bgSeq = 0;
+const bgRunning = new Map(); // scheduled task id → agent task id (for "Stoppen" in the Zentrale)
 async function runBackgroundTask(task) {
   if (!voiceAgentReady()) throw new Error('Der Agent ist nicht verfügbar (Agent v2 einschalten).');
   const taskId = `${task.chatId}-${++bgSeq}`;
+  bgRunning.set(task.id, taskId);
   agentRuns++;
   registerStopHotkey();
   try {
@@ -1086,6 +1119,7 @@ async function runBackgroundTask(task) {
     }
     return { text, status: done && done.verified === false ? 'unverified' : 'ok' };
   } finally {
+    bgRunning.delete(task.id);
     agentRuns--;
     registerStopHotkey();
   }
@@ -1278,9 +1312,21 @@ Object.assign(zentrale.API, {
     }
   },
   // Scheduled tasks (AURA-121): list, pause/resume, delete.
-  tasks: () => scheduler.list(),
+  tasks: () =>
+    scheduler.list().map((t) => ({
+      ...t,
+      waiting: inboxList().filter((e) => String(e.taskId).startsWith(t.chatId + '-')).length
+    })),
   toggleTask: ({ id, enabled } = {}) => scheduler.setEnabled(String(id || ''), !!enabled),
   removeTask: (id) => scheduler.remove(String(id || '')),
+  // Stop a running background run (AURA-122): its waiting approvals count as denied, then the agent stops.
+  stopTask: (id) => {
+    const taskId = bgRunning.get(String(id || ''));
+    if (!taskId) return false;
+    for (const e of inboxList()) if (e.taskId === taskId) approvals.get(e.stepId)?.(false);
+    agentV2.cancel(taskId);
+    return true;
+  },
   disconnectServer: async (name) => {
     const r = await oauth.disconnect(String(name || ''));
     await agentMcp.sync(true).catch(() => {});
