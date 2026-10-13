@@ -1,5 +1,7 @@
+// @ts-check
 // Zugangsdaten in Texten schwärzen, bevor sie in ein Protokoll geschrieben werden (AURA-17).
 // Gleiche Regeln wie agent/src/aura_agent/harness/audit.py (scrub).
+/** @type {Array<[RegExp, string]>} */
 const PATTERNS = [
   // eslint-disable-next-line security/detect-unsafe-regex -- linear: one optional prefix, then a negated class
   [/\b((?:proxy-)?authorization\s*[:=]\s*)(?:(?:bearer|basic|token|digest)\s+)?[^\s'"]+/gi, '$1***'],
@@ -17,12 +19,18 @@ const PATTERNS = [
   [/\b([A-Za-z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD)[A-Za-z0-9_]*)=(?!\*\*\*)\S+/g, '$1=***']
 ];
 
+/** @param {string} s */
 function entropy(s) {
+  /** @type {Record<string, number>} */
   const counts = {};
   for (const c of s) counts[c] = (counts[c] || 0) + 1;
   return -Object.values(counts).reduce((sum, n) => sum + (n / s.length) * Math.log2(n / s.length), 0);
 }
 
+/**
+ * @param {unknown} text
+ * @returns {string}
+ */
 function scrub(text) {
   let t = String(text);
   for (const [re, repl] of PATTERNS) t = t.replace(re, repl);

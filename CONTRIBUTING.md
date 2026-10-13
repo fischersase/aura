@@ -27,7 +27,7 @@ gir1.2-atspi-2.0` (see `.github/workflows/ci.yml`).
 ## Checks (the same as CI)
 
 ```bash
-npm run check && npm run lint && npm test       # app (JavaScript) and the bridge to the agent
+npm run check && npm run lint && npm run typecheck && npm test   # app (JavaScript) and the bridge to the agent
 cd agent && uv run ruff format --check src tests spikes evals && uv run ruff check src tests spikes evals \
   && uv run pyright && uv run pytest -q                           # agent: format, lint, unit, harness, contract tests
 ```

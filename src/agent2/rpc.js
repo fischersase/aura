@@ -1,9 +1,18 @@
+// @ts-check
 // JSON-RPC 2.0 über eine Zeilen-Verbindung, in beide Richtungen (Gegenstück zu agent/src/aura_agent/rpc/peer.py).
 // Electron fragt den Agenten (task.start …), der Agent fragt Electron (host.approve, host.screenshot …).
 const METHOD_NOT_FOUND = -32601;
 const INTERNAL_ERROR = -32603;
 
+/** @typedef {(params: Record<string, any>) => unknown} Handler */
+/** @typedef {{ resolve: (value: any) => void, reject: (err: Error) => void, timer: NodeJS.Timeout | null }} Pending */
+
 class RpcError extends Error {
+  /**
+   * @param {number} code
+   * @param {string} message
+   * @param {unknown} [data]
+   */
   constructor(code, message, data) {
     super(message);
     this.code = code;
@@ -13,32 +22,55 @@ class RpcError extends Error {
 
 class Peer {
   // write(string): schickt eine fertige Zeile; feed(chunk) mit eingehenden Daten aufrufen, close() beim Ende.
+  /** @param {(line: string) => void} write */
   constructor(write) {
     this.write = write;
     this.nextId = 1;
+    /** @type {Map<number, Pending>} */
     this.pending = new Map();
+    /** @type {Map<string, Handler>} */
     this.handlers = new Map();
+    /** @type {Map<string, Handler>} */
     this.notifyHandlers = new Map();
     this.buf = '';
     this.closed = false;
   }
 
+  /**
+   * @param {string} method
+   * @param {Handler} handler
+   */
   on(method, handler) {
     this.handlers.set(method, handler);
   }
+  /**
+   * @param {string} method
+   * @param {Handler} handler
+   */
   onNotify(method, handler) {
     this.notifyHandlers.set(method, handler);
   }
 
+  /** @param {Record<string, unknown>} msg */
   send(msg) {
     if (this.closed) return;
     this.write(JSON.stringify({ jsonrpc: '2.0', ...msg }) + '\n');
   }
 
+  /**
+   * @param {string} method
+   * @param {Record<string, unknown>} [params]
+   */
   notify(method, params = {}) {
     this.send({ method, params });
   }
 
+  /**
+   * @param {string} method
+   * @param {Record<string, unknown>} [params]
+   * @param {number} [timeoutMs] 0 = no timeout
+   * @returns {Promise<any>}
+   */
   request(method, params = {}, timeoutMs = 0) {
     if (this.closed) return Promise.reject(new RpcError(INTERNAL_ERROR, 'Verbindung geschlossen'));
     const id = this.nextId++;
@@ -54,6 +86,7 @@ class Peer {
     });
   }
 
+  /** @param {Buffer | string} chunk */
   feed(chunk) {
     this.buf += chunk.toString('utf8');
     let nl;
@@ -74,13 +107,17 @@ class Peer {
     this.pending.clear();
   }
 
+  /** @param {string} line */
   dispatch(line) {
+    /** @type {any} */
     let msg;
     try {
       msg = JSON.parse(line);
     } catch {
       return;
     }
+    // Anything that is not an object (e.g. `null`) is ignored instead of throwing in the main process.
+    if (!msg || typeof msg !== 'object') return;
     if (msg.method) {
       if (msg.id === undefined || msg.id === null) {
         const h = this.notifyHandlers.get(msg.method);
@@ -100,10 +137,11 @@ class Peer {
     if (!p) return;
     this.pending.delete(msg.id);
     if (p.timer) clearTimeout(p.timer);
-    if (msg.error) p.reject(new RpcError(msg.error.code, msg.error.message, msg.error.data));
+    if (msg.error) p.reject(toRpcError(msg.error));
     else p.resolve(msg.result);
   }
 
+  /** @param {{ id: unknown, method: string, params?: Record<string, any> }} msg */
   async handle(msg) {
     const h = this.handlers.get(msg.method);
     if (!h)
@@ -112,9 +150,23 @@ class Peer {
       const result = await h(msg.params || {});
       this.send({ id: msg.id, result: result === undefined ? {} : result });
     } catch (err) {
-      this.send({ id: msg.id, error: { code: err.code || INTERNAL_ERROR, message: String(err.message || err) } });
+      const e = /** @type {{ code?: unknown, message?: unknown }} */ (err);
+      const code = typeof e?.code === 'number' ? e.code : INTERNAL_ERROR;
+      this.send({ id: msg.id, error: { code, message: String(e?.message || err) } });
     }
   }
+}
+
+/**
+ * RpcError from the error member of a response; tolerates non-object values.
+ * @param {unknown} error
+ */
+function toRpcError(error) {
+  if (error && typeof error === 'object') {
+    const e = /** @type {{ code?: unknown, message?: unknown, data?: unknown }} */ (error);
+    return new RpcError(typeof e.code === 'number' ? e.code : INTERNAL_ERROR, String(e.message ?? 'Fehler'), e.data);
+  }
+  return new RpcError(INTERNAL_ERROR, String(error));
 }
 
 module.exports = { Peer, RpcError, PROTOCOL_VERSION: 1 };

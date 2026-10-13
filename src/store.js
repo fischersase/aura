@@ -1,3 +1,4 @@
+// @ts-check
 // Einstellungen in %APPDATA%/Aura/settings.json (Linux: ~/.config/Aura).
 // Der API-Key wird mit Electron safeStorage verschlüsselt (Windows DPAPI, unter Linux der Schlüsselbund).
 const fs = require('fs');
@@ -37,19 +38,24 @@ const DEFAULTS = {
 // Nutzerprofil: was Aura über dich wissen darf (fließt in die Systemanweisung ein, wenn share an ist).
 const DEFAULT_PROFILE = { name: '', location: '', occupation: '', about: '', preferences: '', share: true };
 
+/** @type {Record<string, any> | null} */
 let cache = null;
 const file = () => path.join(app.getPath('userData'), 'settings.json');
 
+/** @returns {Record<string, any>} */
 function load() {
   if (cache) return cache;
+  let loaded;
   try {
-    cache = { ...DEFAULTS, ...JSON.parse(fs.readFileSync(file(), 'utf8')) };
+    loaded = { ...DEFAULTS, ...JSON.parse(fs.readFileSync(file(), 'utf8')) };
   } catch {
-    cache = { ...DEFAULTS };
+    loaded = { ...DEFAULTS };
   }
-  return cache;
+  cache = loaded;
+  return loaded;
 }
 
+/** @param {Record<string, any>} patch */
 function save(patch) {
   const next = { ...load(), ...patch };
   fs.mkdirSync(path.dirname(file()), { recursive: true });
@@ -70,6 +76,7 @@ function getApiKey() {
   }
 }
 
+/** @param {string | null | undefined} key */
 function setApiKey(key) {
   const k = (key || '').trim();
   const enc = !k
