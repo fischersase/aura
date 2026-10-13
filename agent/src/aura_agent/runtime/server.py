@@ -74,6 +74,14 @@ class RpcHost:
             raise RuntimeError((res or {}).get("error") or "Nicht verbunden – in der Aura Zentrale anmelden.")
         return {"Authorization": header}
 
+    async def search_registry(self, query: str) -> dict[str, Any]:
+        return await self.peer.request("host.searchRegistry", {"query": query}, timeout=30) or {}
+
+    async def propose_connector(self, card: dict[str, Any]) -> dict[str, Any]:
+        res = await self.peer.request("host.proposeConnector", card, timeout=APPROVAL_TIMEOUT_S)
+        decision = (res or {}).get("decision")
+        return {"decision": decision if decision in ("connect", "later", "never") else "later"}
+
     def emit(self, method: str, params: dict[str, Any]) -> None:
         self.peer.notify(method, params)
 
@@ -112,7 +120,11 @@ def build_runner(
     return Runner(
         app_name=APP_NAME,
         agent=build_root(
-            llm, settings, toolset, integrations_agent(llm, build_toolsets(settings.mcp_servers)), episodes
+            llm,
+            settings,
+            toolset,
+            integrations_agent(llm, build_toolsets(settings.mcp_servers, settings.connectors)),
+            episodes,
         ),
         memory_service=episodes,
         session_service=SqliteSessionService(str(settings.data_dir / "sessions.db")),

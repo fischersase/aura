@@ -47,6 +47,9 @@ class AgentSettings:
     gemini_api_key: str = field(default="", repr=False)
     # Memory paused in the Zentrale (AURA-108): nothing is read from or written to memory.
     memory_paused: bool = False
+    # Curated connector catalog from the app (src/catalog/connectors.json) and IDs the user never wants suggested (AURA-96).
+    connectors: list[dict[str, Any]] = field(default_factory=list)
+    declined_connectors: list[str] = field(default_factory=list)
 
     @classmethod
     def from_params(cls, p: dict[str, Any]) -> AgentSettings:
@@ -81,6 +84,10 @@ class AgentSettings:
         if p.get("geminiApiKey"):
             s.gemini_api_key = str(p["geminiApiKey"])
         s.memory_paused = bool(p.get("memoryPaused", False))
+        if isinstance(p.get("connectors"), list):
+            s.connectors = [x for x in p["connectors"] if isinstance(x, dict) and x.get("id")]
+        if isinstance(p.get("declinedConnectors"), list):
+            s.declined_connectors = [str(x) for x in p["declinedConnectors"]]
         if p.get("auraDir"):
             s.aura_dir = Path(p["auraDir"])
         return s

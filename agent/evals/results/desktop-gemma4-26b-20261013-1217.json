@@ -1,0 +1,176 @@
+{
+ "summary": {
+  "model": "gemma4:26b",
+  "num_ctx": 32768,
+  "k": 3,
+  "tasks": 2,
+  "date": "2026-10-13T12:17:01",
+  "success": 1.0,
+  "pass_k": 1.0,
+  "unsafe_tasks": 0,
+  "median_s": 3.8,
+  "by_tag": {
+   "memory": "2/2"
+  },
+  "repairs": {
+   "responses": 12,
+   "responses_with_calls": 6
+  }
+ },
+ "runs": {
+  "memory-recall": [
+   {
+    "id": "memory-recall",
+    "tags": [
+     "memory"
+    ],
+    "prompt": "Welche Marke hat mein Drucker im Büro?",
+    "ok": true,
+    "checks": {
+     "nennt Brother": true
+    },
+    "timed_out": false,
+    "error": null,
+    "answer": "Dein Drucker im Büro ist von der Marke **Brother** (Modell: HL-L2350DW).",
+    "tools": [
+     "recall:ok"
+    ],
+    "labels": [
+     "Drucker im Büro"
+    ],
+    "approvals": 0,
+    "questions": 0,
+    "verified": null,
+    "llm_calls": 2,
+    "s": 41.9
+   },
+   {
+    "id": "memory-recall",
+    "tags": [
+     "memory"
+    ],
+    "prompt": "Welche Marke hat mein Drucker im Büro?",
+    "ok": true,
+    "checks": {
+     "nennt Brother": true
+    },
+    "timed_out": false,
+    "error": null,
+    "answer": "Dein Drucker im Büro ist von der Marke **Brother** (Modell: HL-L2350DW).",
+    "tools": [
+     "recall:ok"
+    ],
+    "labels": [
+     "Drucker im Büro"
+    ],
+    "approvals": 0,
+    "questions": 0,
+    "verified": null,
+    "llm_calls": 2,
+    "s": 3.2
+   },
+   {
+    "id": "memory-recall",
+    "tags": [
+     "memory"
+    ],
+    "prompt": "Welche Marke hat mein Drucker im Büro?",
+    "ok": true,
+    "checks": {
+     "nennt Brother": true
+    },
+    "timed_out": false,
+    "error": null,
+    "answer": "Dein Drucker im Büro ist von der Marke **Brother** (Modell: HL-L2350DW).",
+    "tools": [
+     "recall:ok"
+    ],
+    "labels": [
+     "Drucker im Büro"
+    ],
+    "approvals": 0,
+    "questions": 0,
+    "verified": null,
+    "llm_calls": 2,
+    "s": 3.1
+   }
+  ],
+  "memory-remember": [
+   {
+    "id": "memory-remember",
+    "tags": [
+     "memory"
+    ],
+    "prompt": "Merk dir bitte, dass mein Lieblingsessen Lasagne ist.",
+    "ok": true,
+    "checks": {
+     "gespeichert": true
+    },
+    "timed_out": false,
+    "error": null,
+    "answer": "Alles klar, ich habe mir gemerkt, dass Lasagne dein Lieblingsessen ist.",
+    "tools": [
+     "remember:ok"
+    ],
+    "labels": [
+     "Das Lieblingsessen des Nutzers ist Lasagne."
+    ],
+    "approvals": 0,
+    "questions": 0,
+    "verified": null,
+    "llm_calls": 2,
+    "s": 4.1
+   },
+   {
+    "id": "memory-remember",
+    "tags": [
+     "memory"
+    ],
+    "prompt": "Merk dir bitte, dass mein Lieblingsessen Lasagne ist.",
+    "ok": true,
+    "checks": {
+     "gespeichert": true
+    },
+    "timed_out": false,
+    "error": null,
+    "answer": "Alles klar, ich habe mir gemerkt, dass dein Lieblingsessen Lasagne ist.",
+    "tools": [
+     "remember:ok"
+    ],
+    "labels": [
+     "Das Lieblingsessen ist Lasagne."
+    ],
+    "approvals": 0,
+    "questions": 0,
+    "verified": null,
+    "llm_calls": 2,
+    "s": 3.7
+   },
+   {
+    "id": "memory-remember",
+    "tags": [
+     "memory"
+    ],
+    "prompt": "Merk dir bitte, dass mein Lieblingsessen Lasagne ist.",
+    "ok": true,
+    "checks": {
+     "gespeichert": true
+    },
+    "timed_out": false,
+    "error": null,
+    "answer": "Alles klar, ich habe mir gemerkt, dass dein Lieblingsessen Lasagne ist.",
+    "tools": [
+     "remember:ok"
+    ],
+    "labels": [
+     "Das Lieblingsessen des Nutzers ist Lasagne."
+    ],
+    "approvals": 0,
+    "questions": 0,
+    "verified": null,
+    "llm_calls": 2,
+    "s": 3.9
+   }
+  ]
+ }
+}

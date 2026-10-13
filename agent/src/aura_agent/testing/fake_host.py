@@ -20,6 +20,10 @@ class FakeHost:
         self.events: list[tuple[str, dict[str, Any]]] = []
         self.auth_headers: dict[str, str] = {}  # server → "Bearer …" (AURA-95)
         self.auth_requests: list[str] = []
+        self.registry: list[dict[str, Any]] = []  # host.searchRegistry results (AURA-96)
+        self.registry_queries: list[str] = []
+        self.proposals: list[dict[str, Any]] = []
+        self.proposal_decisions: list[str] = []
 
     async def approve(self, request: dict[str, Any]) -> str:
         self.approvals.append(request)
@@ -36,6 +40,14 @@ class FakeHost:
         if server not in self.auth_headers:
             raise RuntimeError("Nicht verbunden – in der Aura Zentrale anmelden.")
         return {"Authorization": self.auth_headers[server]}
+
+    async def search_registry(self, query: str) -> dict[str, Any]:
+        self.registry_queries.append(query)
+        return {"results": list(self.registry)}
+
+    async def propose_connector(self, card: dict[str, Any]) -> dict[str, Any]:
+        self.proposals.append(card)
+        return {"decision": self.proposal_decisions.pop(0) if self.proposal_decisions else "later"}
 
     async def input(self, request: dict[str, Any]) -> dict[str, Any]:
         self.inputs.append(request)

@@ -1,0 +1,101 @@
+{
+  "$schema": "./connectors.schema.json",
+  "version": 1,
+  "connectors": [
+    {
+      "id": "atlassian",
+      "title": "Jira und Confluence (Atlassian)",
+      "description": "Jira-Tickets suchen, lesen, anlegen und bearbeiten; Confluence-Seiten lesen und schreiben.",
+      "keywords": ["jira", "ticket", "tickets", "issue", "issues", "vorgang", "vorgänge", "sprint", "board", "confluence", "wiki", "atlassian", "rovo"],
+      "publisher": "Atlassian",
+      "verified": "aura",
+      "status": "available",
+      "homepage": "https://support.atlassian.com/atlassian-rovo-mcp-server/docs/getting-started-with-the-atlassian-remote-mcp-server/",
+      "review": {
+        "date": "2026-10-13",
+        "source": "Official Atlassian Rovo MCP Server (remote, OAuth 2.1, run by Atlassian)",
+        "tools": "get*/search*/lookup*/fetch/atlassianUserInfo read; create*/edit*/update*/transition*/add* write"
+      },
+      "config": { "url": "https://mcp.atlassian.com/v1/mcp", "auth": "oauth" },
+      "credentials": [],
+      "setup": [
+        "Auf „Anmelden“ klicken: der Browser öffnet die Anmeldeseite von Atlassian.",
+        "Mit dem Atlassian-Konto anmelden und den Zugriff für Aura erlauben.",
+        "Zurück in Aura steht der Server auf „Verbunden“. Abmelden geht jederzeit in der Zentrale."
+      ],
+      "tiers": {
+        "get*": "T0",
+        "search*": "T0",
+        "lookup*": "T0",
+        "fetch": "T0",
+        "atlassianUserInfo": "T0",
+        "*": "T2"
+      }
+    },
+    {
+      "id": "github",
+      "title": "GitHub",
+      "description": "Repositories, Issues und Pull Requests auf GitHub lesen, kommentieren und bearbeiten.",
+      "keywords": ["github", "git", "repository", "repo", "pull request", "pr", "issue", "issues", "code"],
+      "publisher": "GitHub",
+      "verified": "aura",
+      "status": "available",
+      "homepage": "https://github.com/github/github-mcp-server",
+      "review": {
+        "date": "2026-10-13",
+        "source": "Official GitHub MCP Server, remote endpoint run by GitHub, personal access token as bearer",
+        "tools": "get_*/list_*/search_*/issue_read/pull_request_read read; create_*/update_*/merge_*/delete_*/push_files/*_write write"
+      },
+      "config": {
+        "url": "https://api.githubcopilot.com/mcp/",
+        "headers": { "Authorization": "Bearer ${credential:GITHUB_TOKEN}" }
+      },
+      "credentials": [
+        {
+          "name": "GITHUB_TOKEN",
+          "label": "Persönlicher Zugriffstoken (fine-grained)",
+          "kind": "api-token",
+          "secret": true,
+          "tokenUrl": "https://github.com/settings/personal-access-tokens/new",
+          "help": [
+            "Den Link öffnen und bei GitHub anmelden.",
+            "Namen vergeben, z. B. „Aura“, und eine Ablaufzeit wählen.",
+            "Unter „Repository access“ die Repositories wählen, die Aura sehen darf.",
+            "Unter „Permissions“ nur das freigeben, was Aura tun soll (z. B. Issues und Pull requests: Read and write).",
+            "„Generate token“ klicken, den Token kopieren und hier einfügen. GitHub zeigt ihn nur einmal."
+          ]
+        }
+      ],
+      "tiers": {
+        "get_*": "T0",
+        "list_*": "T0",
+        "search_*": "T0",
+        "issue_read": "T0",
+        "pull_request_read": "T0",
+        "*": "T2"
+      }
+    },
+    {
+      "id": "mail",
+      "title": "E-Mail (IMAP/SMTP)",
+      "description": "Mails lesen, suchen und mit Rückfrage senden, über IMAP und SMTP mit einem App-Passwort (Gmail, GMX, Web.de, Outlook …).",
+      "keywords": ["mail", "mails", "e-mail", "email", "gmail", "postfach", "posteingang", "inbox", "imap", "smtp", "nachricht", "nachrichten"],
+      "publisher": "Aura",
+      "verified": "aura",
+      "status": "coming",
+      "homepage": "https://github.com/fischersase/aura/blob/main/docs/specs/personal-agent.md",
+      "credentials": []
+    },
+    {
+      "id": "google-workspace",
+      "title": "Google Workspace (Gmail, Kalender, Drive)",
+      "description": "Gmail, Google Kalender und Drive über ein eigenes Google-Cloud-Projekt. Für Fortgeschrittene; für Mails reicht meist der Eintrag „E-Mail (IMAP/SMTP)“.",
+      "keywords": ["google", "gmail", "kalender", "calendar", "termin", "termine", "drive", "docs", "workspace"],
+      "publisher": "Google",
+      "verified": "aura",
+      "status": "advanced",
+      "homepage": "https://github.com/fischersase/aura/blob/main/docs/specs/personal-agent.md",
+      "credentials": []
+    }
+  ]
+}

@@ -21,6 +21,7 @@ from ..platform import a11y
 from ..platform.base import IS_WINDOWS
 from ..runtime.context import current
 from ..runtime.settings import AgentSettings
+from ..tools.connectors import make_connector_tools
 from ..tools.desktop import launch_app, list_windows, open_target, window_action
 from ..tools.files import edit_file, find_files, list_dir, move_path, read_file, trash, write_file
 from ..tools.interaction import ask_user, todo_write
@@ -84,6 +85,7 @@ def instruction(
     integrations: str = "",
     has_apps: bool = False,
     memory: FactStore | None = None,
+    connectors: bool = False,
 ):
     def build(_ctx: ReadonlyContext) -> str:
         parts = [
@@ -174,6 +176,12 @@ def instruction(
             )
         if integrations:
             parts.append("## Erweiterungen\nintegrations: " + integrations)
+        if connectors:
+            parts.append(
+                "## Verbindungen zu Diensten\n"
+                "Fehlt dir eine Verbindung zu einem Dienst (Jira, GitHub, Mail …), nutze find_connector und schlage sie "
+                "mit propose_connector vor, statt im Browser oder per Bildschirm zu improvisieren."
+            )
         if skills_text:
             parts.append(skills_text)
         if settings.profile:
@@ -205,6 +213,9 @@ def build_root(
     skills = list_skills(settings.aura_dir, set(settings.disabled_skills))
     if skills:
         tools.append(make_activate_skill(skills))
+    if settings.connectors:
+        connected = {str(d.get("catalogId")) for d in settings.mcp_servers if d.get("catalogId")}
+        tools += make_connector_tools(settings.connectors, connected, set(settings.declined_connectors))
     return LlmAgent(
         name="aura",
         model=model,
@@ -216,6 +227,7 @@ def build_root(
             integrations.agent.description if integrations is not None else "",
             has_apps,
             memory,
+            bool(settings.connectors),
         ),
         tools=tools,
     )
