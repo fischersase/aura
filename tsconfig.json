@@ -20,6 +20,7 @@
     "src/secrets.js",
     "src/keystore.js",
     "src/credential-audit.js",
+    "src/oauth.js",
     "src/store.js",
     "src/agent2/rpc.js",
     "src/agent2/bridge.js"

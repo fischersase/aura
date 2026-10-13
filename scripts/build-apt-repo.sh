@@ -19,6 +19,8 @@ valid_days="${VALID_DAYS:-30}"
 rm -rf "$out"
 mkdir -p "$out/apt/pool/main" "$out/apt/dists/stable/main/binary-amd64"
 cp "$root/packaging/site/index.html" "$out/index.html"
+# OAuth Client ID Metadata Document: Aura's client_id for MCP sign-ins (src/oauth.js, AURA-95).
+mkdir -p "$out/oauth" && cp "$root/packaging/site/oauth/client.json" "$out/oauth/client.json"
 cp "$keyring" "$out/aura-archive-keyring.asc"
 touch "$out/.nojekyll"
 cp "$deb" "$out/apt/pool/main/aura-desktop_${version}_amd64.deb"
