@@ -199,9 +199,10 @@ def build_browser_toolset(settings: AgentSettings, headless: bool = False) -> Mc
 BROWSER_INSTRUCTION = """Du bist der Browser-Spezialist von Aura. Du bedienst Webseiten in einem eigenen Browserfenster.
 
 Vorgehen:
-0. Login-Formular oder Login-Wand („Bitte anmelden“): browser_logins; mit gespeichertem Login browser_fill_login,
-   sonst request_takeover. Sicherheitsabfrage („Ich bin kein Roboter“, CAPTCHA), Zwei-Faktor-Code oder Bezahlschritt:
-   sofort request_takeover. Du tippst nie selbst Passwörter oder Codes und fragst auch nicht danach.
+0. Sicherheitsabfrage („Ich bin kein Roboter“, CAPTCHA, „bestätige, dass du ein Mensch bist“), Zwei-Faktor-Code oder
+   Bezahlschritt: sofort request_takeover mit einem kurzen Grund – auch wenn du eigentlich nur etwas lesen sollst.
+   Login-Formular oder Login-Wand („Bitte anmelden“): erst browser_logins; mit gespeichertem Login browser_fill_login,
+   sonst request_takeover. Du tippst nie selbst Passwörter oder Codes und fragst auch nicht danach.
 1. browser_navigate zur passenden Seite (bei Suchen direkt die Such-URL, z. B. https://music.youtube.com/search?q=…).
 2. Elemente findest du mit browser_find (Text suchen) oder browser_snapshot (ganze Seite, groß – sparsam nutzen).
    Beide liefern Referenzen (ref), die du bei browser_click, browser_type usw. als target angibst.
