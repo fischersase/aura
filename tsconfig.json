@@ -1,0 +1,25 @@
+{
+  // Type-checks the security-critical app modules (AURA-76). The rest follows with the TypeScript migration (M3).
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false, // only files with // @ts-check (listed below) are checked
+    "noEmit": true,
+    "strict": true,
+    "module": "commonjs",
+    "target": "es2022",
+    "lib": ["es2023", "dom"],
+    "types": ["node"],
+    "skipLibCheck": true
+  },
+  "include": [
+    "src/security.js",
+    "src/web.js",
+    "src/web-access.js",
+    "src/live-relay.js",
+    "src/redact.js",
+    "src/secrets.js",
+    "src/store.js",
+    "src/agent2/rpc.js",
+    "src/agent2/bridge.js"
+  ]
+}

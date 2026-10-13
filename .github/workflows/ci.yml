@@ -73,6 +73,7 @@ jobs:
       - run: npm run check
       - run: npm run lint
       - run: npm run format:check
+      - run: npm run typecheck
       # Für den Ende-zu-Ende-Test der Brücke (startet den echten Python-Agenten mit Drehbuch-Modell).
       - run: uv sync --locked
         working-directory: agent

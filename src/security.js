@@ -1,3 +1,4 @@
+// @ts-check
 // Electron-Härtung (AURA-14, AURA-18): welche Fenster Mikrofon und Bildschirm nutzen und welche IPC-Kanäle sie aufrufen
 // dürfen, und keine Navigation weg von den eigenen Seiten. Die Entscheidungen sind reine Funktionen (test/security.test.js); install() hängt sie in Electron ein.
 const path = require('path');
@@ -6,12 +7,18 @@ const { pathToFileURL } = require('url');
 const RENDERER_DIR = path.join(__dirname, 'renderer');
 
 // Seite → erlaubte Berechtigungen. Alles andere wird abgelehnt.
+/** @type {Record<string, Set<string>>} */
 const PERMISSIONS = {
   'panel.html': new Set(['media', 'display-capture']), // Chat, Spracheingabe, Live mit Bildschirm
   'rambler.html': new Set(['media']) // Diktat
 };
 
 // Name der eigenen Renderer-Seite (z. B. "panel.html") oder null, wenn die URL nicht zu Aura gehört.
+/**
+ * @param {unknown} url
+ * @param {string} [rendererDir]
+ * @returns {string | null}
+ */
 function rendererPage(url, rendererDir = RENDERER_DIR) {
   let u;
   try {
@@ -27,6 +34,11 @@ function rendererPage(url, rendererDir = RENDERER_DIR) {
   return rest.includes('/') ? null : rest;
 }
 
+/**
+ * @param {unknown} url
+ * @param {string} permission
+ * @param {string} [rendererDir]
+ */
 function permissionAllowed(url, permission, rendererDir = RENDERER_DIR) {
   const page = rendererPage(url, rendererDir);
   return !!page && !!PERMISSIONS[page] && PERMISSIONS[page].has(permission);
@@ -37,6 +49,7 @@ function permissionAllowed(url, permission, rendererDir = RENDERER_DIR) {
 // Spracherkennungs-Fenster erreicht so weder Schlüssel noch MCP-Konfiguration noch den Agenten.
 const PANEL = ['panel.html'];
 const CONFIG = ['setup.html', 'settings.html'];
+/** @type {Record<string, string[]>} */
 const IPC_ACCESS = {
   'setup:done': ['setup.html'],
   'settings:get': [...PANEL, ...CONFIG],
@@ -88,6 +101,10 @@ const IPC_ACCESS = {
   'ollama:abortPull': CONFIG
 };
 
+/**
+ * @param {string} channel
+ * @returns {string[] | null}
+ */
 function ipcPages(channel) {
   if (Object.prototype.hasOwnProperty.call(IPC_ACCESS, channel)) return IPC_ACCESS[channel];
   if (/^z:[A-Za-z]+$/.test(channel)) return ['zentrale.html']; // Aura Zentrale (src/zentrale.js)
@@ -95,6 +112,11 @@ function ipcPages(channel) {
 }
 
 // Darf die Seite unter url (event.senderFrame.url) den Kanal benutzen?
+/**
+ * @param {unknown} url
+ * @param {string} channel
+ * @param {string} [rendererDir]
+ */
 function ipcAllowed(url, channel, rendererDir = RENDERER_DIR) {
   const pages = ipcPages(channel);
   const page = rendererPage(url, rendererDir);
@@ -102,6 +124,11 @@ function ipcAllowed(url, channel, rendererDir = RENDERER_DIR) {
 }
 
 // Nur der Hauptframe der eigenen Seite zählt; ein zerstörter oder fremder Frame wird abgelehnt.
+/**
+ * @param {IpcEvent | null | undefined} event
+ * @param {string} channel
+ * @param {string} [rendererDir]
+ */
 function senderAllowed(event, channel, rendererDir = RENDERER_DIR) {
   const frame = event && event.senderFrame;
   if (!frame || frame.parent) return false;
@@ -110,18 +137,38 @@ function senderAllowed(event, channel, rendererDir = RENDERER_DIR) {
 
 // Ersetzt handle/on/once von ipcMain durch Varianten, die den Absender prüfen. Läuft vor der ersten Registrierung
 // und gilt damit für alle Module. Unbekannte Kanäle werfen schon beim Registrieren.
+/**
+ * The parts of an IPC event the guard reads (Electron IpcMainEvent / IpcMainInvokeEvent, or a test double).
+ * @typedef {{ senderFrame?: { url: string, parent: unknown } | null }} IpcEvent
+ */
+/** @typedef {(event: IpcEvent, ...args: unknown[]) => unknown} IpcHandler */
+/**
+ * Electron's ipcMain, or an EventEmitter-based test double.
+ * @typedef {object} GuardableIpc
+ * @property {(channel: string, fn: IpcHandler) => void} handle
+ * @property {(channel: string, fn: IpcHandler) => unknown} on
+ * @property {(channel: string, fn: IpcHandler) => unknown} once
+ * @property {(channel: string, fn: IpcHandler) => unknown} removeListener
+ * @property {boolean} [__auraGuarded]
+ */
+/**
+ * @template {GuardableIpc} T
+ * @param {T} ipcMain
+ * @param {{ rendererDir?: string, log?: (message: string) => void }} [options]
+ * @returns {T}
+ */
 function guardIpc(ipcMain, { rendererDir = RENDERER_DIR, log = console.warn } = {}) {
   if (ipcMain.__auraGuarded) return ipcMain;
-  const known = (channel) => {
+  const known = (/** @type {string} */ channel) => {
     if (!ipcPages(channel)) throw new Error(`IPC channel ${channel} has no entry in IPC_ACCESS (src/security.js)`);
   };
-  const reject = (channel, e) =>
+  const reject = (/** @type {string} */ channel, /** @type {IpcEvent} */ e) =>
     log(`IPC ${channel} from ${e && e.senderFrame ? e.senderFrame.url : 'unknown frame'} rejected`);
   const handle = ipcMain.handle.bind(ipcMain);
   const on = ipcMain.on.bind(ipcMain);
   ipcMain.handle = (channel, fn) => {
     known(channel);
-    return handle(channel, (e, ...args) => {
+    return handle(channel, (/** @type {IpcEvent} */ e, /** @type {unknown[]} */ ...args) => {
       if (!senderAllowed(e, channel, rendererDir)) {
         reject(channel, e);
         throw new Error('Not allowed');
@@ -130,8 +177,8 @@ function guardIpc(ipcMain, { rendererDir = RENDERER_DIR, log = console.warn } = 
     });
   };
   const listener =
-    (channel, fn) =>
-    (e, ...args) => {
+    (/** @type {string} */ channel, /** @type {IpcHandler} */ fn) =>
+    (/** @type {IpcEvent} */ e, /** @type {unknown[]} */ ...args) => {
       if (!senderAllowed(e, channel, rendererDir)) return reject(channel, e);
       return fn(e, ...args);
     };
@@ -142,6 +189,7 @@ function guardIpc(ipcMain, { rendererDir = RENDERER_DIR, log = console.warn } = 
   // once: erst ein erlaubter Aufruf verbraucht den Listener.
   ipcMain.once = (channel, fn) => {
     known(channel);
+    /** @type {IpcHandler} */
     const h = (e, ...args) => {
       if (!senderAllowed(e, channel, rendererDir)) return reject(channel, e);
       ipcMain.removeListener(channel, h);
@@ -154,17 +202,25 @@ function guardIpc(ipcMain, { rendererDir = RENDERER_DIR, log = console.warn } = 
 }
 
 // Navigation nur zwischen eigenen Renderer-Seiten.
+/**
+ * @param {unknown} url
+ * @param {string} [rendererDir]
+ */
 function navigationAllowed(url, rendererDir = RENDERER_DIR) {
   return rendererPage(url, rendererDir) !== null;
 }
 
 // Links, die Aura im Standardbrowser öffnen darf.
+/** @param {unknown} url */
 function isExternalLink(url) {
   return /^https:\/\//i.test(String(url || ''));
 }
 
+/**
+ * @param {{ app: import('electron').App, session: typeof import('electron').session, shell: import('electron').Shell }} electron
+ */
 function install({ app, session, shell }) {
-  const deny = (e) => e.preventDefault();
+  const deny = (/** @type {{ preventDefault: () => void }} */ e) => e.preventDefault();
   app.on('web-contents-created', (_e, contents) => {
     // Neue Fenster nie in Electron öffnen; https-Links gehen an den Standardbrowser.
     contents.setWindowOpenHandler(({ url }) => {

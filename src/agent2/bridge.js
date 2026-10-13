@@ -1,3 +1,4 @@
+// @ts-check
 // Brücke zum neuen Agenten (agent/, Python + Google ADK): Prozess starten, Aufträge schicken,
 // Rückfragen (Freigabe, Bildschirmfoto) beantworten, Not-Aus. Siehe docs/adr/0001.
 const { execFile, spawn } = require('child_process');
@@ -9,18 +10,39 @@ const { Peer, PROTOCOL_VERSION } = require('./rpc');
 const CANCEL_TIMEOUT_MS = 2000;
 const LOG_MAX_BYTES = 5 * 1024 * 1024;
 
+/**
+ * What the agent may ask the app (host.* requests). Requests come from the agent process and are untrusted input.
+ * @typedef {object} Host
+ * @property {(req: any) => unknown} approve
+ * @property {(req: any) => unknown} ask
+ * @property {(maxWidth: number) => unknown} screenshot
+ * @property {(req: any) => unknown} [input]
+ */
+/** @typedef {{ onText?: (delta: string) => void, onStep?: (step: any) => void, onPlan?: (items: any) => void }} TaskHandlers */
+/** @typedef {{ handlers: Record<string, ((arg: any) => void) | undefined>, resolve: (result: any) => void, reject: (err: Error) => void }} RunningTask */
+
 class AgentBridge {
-  // app: Electron-app; settings(): Einstellungen für initialize; host: { approve(req), ask(req), screenshot(maxWidth) }
+  /**
+   * @param {object} options
+   * @param {Pick<import('electron').App, 'isPackaged' | 'getAppPath' | 'getPath'>} options.app
+   * @param {() => Record<string, unknown>} options.settings settings for initialize
+   * @param {Host} options.host
+   * @param {(status: any) => void} [options.onModelStatus]
+   */
   constructor({ app, settings, host, onModelStatus }) {
     this.app = app;
     this.settings = settings;
     this.host = host;
     this.onModelStatus = onModelStatus || (() => {});
+    /** @type {import('child_process').ChildProcessWithoutNullStreams | null} */
     this.proc = null;
+    /** @type {InstanceType<typeof Peer> | null} */
     this.peer = null;
+    /** @type {Promise<any> | null} */
     this.ready = null;
     this.initKey = '';
-    this.tasks = new Map(); // taskId → { handlers, resolve, reject }
+    /** @type {Map<string, RunningTask>} */
+    this.tasks = new Map();
   }
 
   // Welches Python? 1. AURA_AGENT_PYTHON (nur in der Entwicklung und in Tests; installierte Builds ignorieren die
@@ -105,11 +127,21 @@ class AgentBridge {
     return this.ready;
   }
 
+  /**
+   * @param {string} taskId
+   * @param {string} name
+   * @param {unknown} arg
+   */
   handler(taskId, name, arg) {
-    const t = this.tasks.get(taskId);
-    if (t && t.handlers[name]) t.handlers[name](arg);
+    const fn = this.tasks.get(taskId)?.handlers[name];
+    if (fn) fn(arg);
   }
 
+  /**
+   * @param {string} taskId
+   * @param {Error | null} err
+   * @param {unknown} result
+   */
   finish(taskId, err, result) {
     const t = this.tasks.get(taskId);
     if (!t) return;
@@ -118,12 +150,20 @@ class AgentBridge {
     else t.resolve(result);
   }
 
-  // Ein Auftrag; löst mit {text, cancelled, steps, usage} auf, wenn der Agent fertig ist.
+  /**
+   * Ein Auftrag; löst mit {text, cancelled, steps, usage} auf, wenn der Agent fertig ist.
+   * @param {{ taskId: string, chatId?: string, text: string, images?: unknown[] }} task
+   * @param {TaskHandlers} [handlers]
+   */
   async runTask({ taskId, chatId, text, images }, handlers = {}) {
     await this.ensure();
-    const done = new Promise((resolve, reject) => this.tasks.set(taskId, { handlers, resolve, reject }));
+    const peer = this.peer;
+    if (!peer) throw new Error('Agent-Prozess ist nicht verbunden.');
+    const done = new Promise((resolve, reject) =>
+      this.tasks.set(taskId, { handlers: /** @type {RunningTask['handlers']} */ (handlers), resolve, reject })
+    );
     try {
-      await this.peer.request('task.start', { taskId, chatId, text, images: images || [] }, 10000);
+      await peer.request('task.start', { taskId, chatId, text, images: images || [] }, 10000);
     } catch (err) {
       this.tasks.delete(taskId);
       throw err;
@@ -132,6 +172,7 @@ class AgentBridge {
   }
 
   // Not-Aus für einen Auftrag. Antwortet der Agent nicht rechtzeitig, wird der Prozess hart beendet.
+  /** @param {string} taskId */
   async cancel(taskId) {
     if (!this.peer || !this.tasks.has(taskId)) return;
     try {
@@ -150,6 +191,7 @@ class AgentBridge {
     }
   }
 
+  /** @param {string} reason */
   kill(reason) {
     if (this.proc && this.proc.exitCode === null) {
       // Windows: ganzen Prozessbaum beenden (laufende PowerShell-Befehle des Agenten eingeschlossen).
@@ -165,6 +207,11 @@ class AgentBridge {
     this.onExit(this.proc, null, reason);
   }
 
+  /**
+   * @param {import('child_process').ChildProcess | null} proc
+   * @param {number | null} code
+   * @param {string | null} signal
+   */
   onExit(proc, code, signal) {
     if (proc !== this.proc) return;
     const reason = `Agent-Prozess beendet (${signal || 'Code ' + code})`;
@@ -179,7 +226,7 @@ class AgentBridge {
     const proc = this.proc;
     if (!proc) return;
     try {
-      this.peer.notify('shutdown');
+      this.peer?.notify('shutdown');
     } catch {}
     try {
       proc.stdin.end();

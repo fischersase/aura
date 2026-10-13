@@ -1,3 +1,4 @@
+// @ts-check
 // Aura Zentrale im Browser: kleiner HTTP-Server nur auf 127.0.0.1.
 // Schutz: zufälliges Zugriffstoken pro App-Start (kommt per URL-Fragment in den Browser, nie in Logs
 // oder Referer), Prüfung von Host/Origin gegen DNS-Rebinding und fremde Webseiten, strenge CSP.
@@ -11,6 +12,7 @@ const { webAccess, describe } = require('./web-access');
 const PORTS = [47800, 47801, 47802, 47803, 47804, 47805];
 const MAX_BODY = 2 * 1024 * 1024;
 const RENDERER = path.join(__dirname, 'renderer');
+/** @type {Record<string, [string, string]>} path → [file, content type] */
 const FILES = {
   '/': [path.join(RENDERER, 'zentrale.html'), 'text/html; charset=utf-8'],
   '/zentrale.html': [path.join(RENDERER, 'zentrale.html'), 'text/html; charset=utf-8'],
@@ -31,10 +33,12 @@ const SECURITY_HEADERS = {
   'Cache-Control': 'no-store'
 };
 
+/** @type {import('http').Server | null} */
 let server = null;
 // Asks the user in the desktop app before a browser tab changes MCP servers, rules, skills or secrets (AURA-63).
 // Replaceable for tests (setConfirm).
 let confirm = askInDesktop;
+/** @type {Promise<unknown>} */
 let confirmQueue = Promise.resolve();
 let port = 0;
 let token = '';
@@ -42,11 +46,18 @@ let token = '';
 const newToken = () => crypto.randomBytes(32).toString('base64url');
 const allowedHosts = () => [`127.0.0.1:${port}`, `localhost:${port}`];
 
+/**
+ * @param {import('http').ServerResponse} res
+ * @param {number} status
+ * @param {unknown} body
+ * @param {string} [type]
+ */
 function send(res, status, body, type = 'application/json; charset=utf-8') {
   res.writeHead(status, { ...SECURITY_HEADERS, 'Content-Type': type });
   res.end(typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body));
 }
 
+/** @param {import('http').IncomingMessage} req */
 function authorized(req) {
   const m = /^Bearer ([A-Za-z0-9_-]{20,})$/.exec(req.headers.authorization || '');
   if (!m || !token) return false;
@@ -55,11 +66,16 @@ function authorized(req) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
+/**
+ * @param {import('http').IncomingMessage} req
+ * @returns {Promise<string>}
+ */
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let size = 0;
+    /** @type {Buffer[]} */
     const chunks = [];
-    req.on('data', (c) => {
+    req.on('data', (/** @type {Buffer} */ c) => {
       size += c.length;
       if (size > MAX_BODY) {
         reject(new Error('zu groß'));
@@ -73,6 +89,10 @@ function readBody(req) {
   });
 }
 
+/**
+ * @param {import('http').IncomingMessage} req
+ * @param {import('http').ServerResponse} res
+ */
 async function handle(req, res) {
   // Nur Anfragen an unsere eigene Adresse (verhindert DNS-Rebinding).
   if (!allowedHosts().includes(String(req.headers.host || '').toLowerCase()))
@@ -85,7 +105,7 @@ async function handle(req, res) {
       .includes(origin)
   )
     return send(res, 403, { error: 'Fremde Herkunft' });
-  const url = new URL(req.url, 'http://x');
+  const url = new URL(req.url || '/', 'http://x');
 
   if (req.method === 'GET' && FILES[url.pathname]) {
     const [file, type] = FILES[url.pathname];
@@ -104,7 +124,7 @@ async function handle(req, res) {
       });
     if (!/^application\/json\b/.test(req.headers['content-type'] || ''))
       return send(res, 415, { error: 'JSON erwartet' });
-    const API = require('./zentrale').API;
+    const API = /** @type {Record<string, (arg: unknown) => unknown>} */ (require('./zentrale').API);
     const fn = Object.prototype.hasOwnProperty.call(API, m[1]) ? API[m[1]] : null;
     if (!fn) return send(res, 404, { error: 'Unbekannte Funktion' });
     const access = webAccess(m[1]);
@@ -123,12 +143,16 @@ async function handle(req, res) {
       const out = await fn(arg);
       return send(res, 200, { result: out === undefined ? null : out });
     } catch (err) {
-      return send(res, 500, { error: String((err && err.message) || err) });
+      return send(res, 500, { error: err instanceof Error ? err.message : String(err) });
     }
   }
   send(res, 404, 'Nicht gefunden', 'text/plain; charset=utf-8');
 }
 
+/**
+ * @param {number} p port, 0 = any free port
+ * @returns {Promise<import('http').Server>}
+ */
 function listen(p) {
   return new Promise((resolve, reject) => {
     const s = http.createServer((req, res) => {
@@ -154,11 +178,15 @@ async function start() {
   }
   if (!server) {
     server = await listen(0);
-    port = server.address().port;
+    port = /** @type {import('net').AddressInfo} */ (server.address()).port;
   }
   token = newToken();
 }
 
+/**
+ * @param {string} what
+ * @returns {Promise<boolean>}
+ */
 async function askInDesktop(what) {
   const { dialog } = require('electron');
   // Nacheinander, damit mehrere Anfragen nicht übereinander erscheinen.
@@ -176,12 +204,13 @@ async function askInDesktop(what) {
   );
   confirmQueue = run.catch(() => {});
   try {
-    return (await run).response === 1;
+    return /** @type {{ response: number }} */ (await run).response === 1;
   } catch {
     return false;
   }
 }
 
+/** @param {((what: string) => Promise<boolean>) | null | undefined} fn */
 function setConfirm(fn) {
   confirm = fn || askInDesktop;
 }

@@ -1,3 +1,4 @@
+// @ts-check
 // What the Zentrale in the browser (src/web.js) may call (AURA-63). The desktop window keeps the full API over IPC;
 // a browser tab is easier to compromise (extensions, other local pages that got the token), so anything that can
 // run commands, weaken the safety rules or change secrets needs a confirmation in the desktop app.
@@ -27,6 +28,7 @@ const ALLOW = new Set([
 ]);
 
 // Allowed after the user confirms in the desktop app. Value: German text for the dialog (UI language today).
+/** @type {Record<string, (a: any) => string>} */
 const CONFIRM = {
   saveServer: (a) => `MCP-Server „${a.name}“ speichern: ${serverCommand(a.config)}`,
   installRegistry: (a) =>
@@ -49,6 +51,7 @@ const CONFIRM = {
 // Not over the web at all: opening local files and folders, starting another web session.
 const DENY = new Set(['openPath', 'openWeb']);
 
+/** @param {{ url?: string, command?: string, args?: unknown } | null | undefined} config */
 function serverCommand(config) {
   const c = config || {};
   const text = c.url ? String(c.url) : [c.command, ...(Array.isArray(c.args) ? c.args : [])].map(String).join(' ');
@@ -57,12 +60,21 @@ function serverCommand(config) {
 
 // 'allow' | 'confirm' | 'deny'. Unknown names are denied, so new API functions are not reachable from the browser
 // until someone decides.
+/**
+ * @param {string} name
+ * @returns {'allow' | 'confirm' | 'deny'}
+ */
 function webAccess(name) {
   if (ALLOW.has(name)) return 'allow';
   if (Object.prototype.hasOwnProperty.call(CONFIRM, name)) return 'confirm';
   return 'deny';
 }
 
+/**
+ * @param {string} name
+ * @param {unknown} arg
+ * @returns {string}
+ */
 function describe(name, arg) {
   const fn = CONFIRM[name];
   if (!fn) return name;
