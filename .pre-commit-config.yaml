@@ -1,0 +1,48 @@
+# Local checks before each commit (AURA-77): `pipx install pre-commit && pre-commit install`.
+# The same checks run in CI (ci.yml, lint.yml, secret-scan.yml); versions match the ones used there.
+# Raw eval and spike results and the old shop*.md notes leave the repo with AURA-85.
+exclude: ^(src/vendor/|dist/|build/|agent/evals/results/|agent/spikes/results/|agent/shop[^/]*\.md$)
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-yaml
+      - id: check-json
+        exclude: ^tsconfig\.json$ # JSON with comments
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+        exclude: \.md$
+      - id: check-merge-conflict
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.0 # same as agent/uv.lock
+    hooks:
+      - id: ruff-format
+        files: ^agent/
+      - id: ruff-check
+        files: ^agent/
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      - id: shellcheck
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint
+  - repo: local
+    hooks:
+      # Use the versions from package-lock.json (npm ci first).
+      - id: eslint
+        name: eslint
+        entry: npx eslint
+        language: system
+        types: [javascript]
+      - id: prettier
+        name: prettier
+        entry: npx prettier --check
+        language: system
+        types: [javascript]
+        files: ^(src|scripts|test)/|^eslint\.config\.js$

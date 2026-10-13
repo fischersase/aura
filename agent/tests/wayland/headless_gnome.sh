@@ -10,6 +10,7 @@ chmod 700 "$T/runtime"
 cp -r "$REPO/gnome-extension/aura-bridge@aura" "$T/data/gnome-shell/extensions/"
 export XDG_DATA_DIRS=/usr/local/share:/usr/share XDG_CONFIG_HOME="$T/config" XDG_DATA_HOME="$T/data" XDG_RUNTIME_DIR="$T/runtime" GSETTINGS_BACKEND=keyfile
 export AURA_TEST_CMD="$*" REPO
+# shellcheck disable=SC2016  # the inner script expands its variables itself, inside the D-Bus session
 dbus-run-session -- bash -c '
 gsettings set org.gnome.shell disable-user-extensions false
 gsettings set org.gnome.shell enabled-extensions "[\"aura-bridge@aura\"]"

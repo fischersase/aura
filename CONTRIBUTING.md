@@ -32,6 +32,10 @@ cd agent && uv run ruff format --check src tests spikes evals && uv run ruff che
   && uv run pyright && uv run pytest -q                           # agent: format, lint, unit, harness, contract tests
 ```
 
+Shell scripts and workflows are checked by `.github/workflows/lint.yml` (shellcheck, actionlint, zizmor). All checks
+also run before each commit with [pre-commit](https://pre-commit.com): `pipx install pre-commit && pre-commit install`
+(needs `npm ci` and `uv sync` first; `pre-commit run --all-files` checks everything).
+
 Python follows PEP 8 with 4 spaces (ADR 0017); `cd agent && uv run ruff format src tests spikes evals` formats it.
 Mechanical reformatting commits are listed in `.git-blame-ignore-revs`; GitHub skips them in blame views, and locally
 `git config blame.ignoreRevsFile .git-blame-ignore-revs` does the same.

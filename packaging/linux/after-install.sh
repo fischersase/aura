@@ -1,9 +1,10 @@
 #!/bin/bash
 # Aura: Vorlage von electron-builder (app-builder-lib/templates/linux) plus Paketquelle; ${…} setzt electron-builder ein.
+# shellcheck disable=SC2016  # '${executable}' etc. are build-time placeholders, filled in by electron-builder
 
 if type update-alternatives >/dev/null 2>&1; then
     # Remove previous link if it doesn't use update-alternatives
-    if [ -L '/usr/bin/${executable}' -a -e '/usr/bin/${executable}' -a "`readlink '/usr/bin/${executable}'`" != '/etc/alternatives/${executable}' ]; then
+    if [ -L '/usr/bin/${executable}' ] && [ -e '/usr/bin/${executable}' ] && [ "$(readlink '/usr/bin/${executable}')" != '/etc/alternatives/${executable}' ]; then
         rm -f '/usr/bin/${executable}'
     fi
     update-alternatives --install '/usr/bin/${executable}' '${executable}' '/opt/${sanitizedProductName}/${executable}' 100 || ln -sf '/opt/${sanitizedProductName}/${executable}' '/usr/bin/${executable}'
