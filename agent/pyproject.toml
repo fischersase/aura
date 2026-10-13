@@ -22,6 +22,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+  "pyright==1.1.414",
   "pytest>=8",
   "pytest-asyncio>=0.24",
   "ruff>=0.6",
@@ -66,3 +67,9 @@ ignore = [
 "src/aura_agent/testing/fake_mpris.py" = ["UP037", "F821", "F722", "RUF100"]
 # AT-SPI-Helfer: einzelne kaputte Elemente fremder Programme werden bewusst übersprungen; läuft als Skript mit dem System-Python.
 "src/aura_agent/platform/atspi_helper.py" = ["S110", "S112", "EXE001", "BLE001", "RUF100", "E402"]
+
+[tool.pyright]
+include = ["src"]
+pythonVersion = "3.12"
+typeCheckingMode = "basic"
+strict = ["src/aura_agent/policy", "src/aura_agent/harness", "src/aura_agent/rpc"]

@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import re
 import time
-from typing import Any
+from typing import Any, cast
 
 from google.adk.plugins.base_plugin import BasePlugin
 from google.adk.tools.agent_tool import AgentTool
@@ -91,20 +91,26 @@ def clip(text: str, limit: int = MAX_RESULT_CHARS) -> str:
     return f"{text[:half]}\n… ({len(text) - limit} Zeichen ausgelassen) …\n{text[-half:]}"
 
 
+def _as_dict(value: Any) -> dict[str, Any] | None:
+    """value as a dict, or None. Tool results are dicts, except plain text from specialists (AgentTool)."""
+    return cast("dict[str, Any]", value) if isinstance(value, dict) else None
+
+
 def _clip_result(result: Any) -> Any:
-    if isinstance(result, dict):
-        return {k: _clip_result(v) for k, v in result.items()}
+    if (d := _as_dict(result)) is not None:
+        return {k: _clip_result(v) for k, v in d.items()}
     if isinstance(result, str):
         return clip(result)
     return result
 
 
 def _failed(result: Any) -> bool:
-    if not isinstance(result, dict):
+    d = _as_dict(result)
+    if d is None:
         return False
-    if result.get("error"):
+    if d.get("error"):
         return True
-    code = result.get("exit_code")
+    code = d.get("exit_code")
     return code not in (None, 0)
 
 
@@ -253,8 +259,9 @@ class GuardPlugin(BasePlugin):
         return None
 
     async def after_tool_callback(
-        self, *, tool: BaseTool, tool_args: dict[str, Any], tool_context: ToolContext, result: dict[str, Any]
+        self, *, tool: BaseTool, tool_args: dict[str, Any], tool_context: ToolContext, result: Any
     ) -> dict[str, Any] | None:
+        # ADK annotates result as dict, but specialists (AgentTool) return plain text.
         task = current()
         if task is None:
             return None
@@ -271,7 +278,8 @@ class GuardPlugin(BasePlugin):
             else meta_of(tool).describe(tool.name, tool_args)
         )
         tier = self._tiers.pop(step_id, Tier.T0)
-        verified = result.get("verified") if isinstance(result, dict) else None
+        result_dict = _as_dict(result)
+        verified = result_dict.get("verified") if result_dict is not None else None
         if tier >= Tier.T1 and not isinstance(tool, AgentTool):
             task.changes.append(
                 {
@@ -295,7 +303,7 @@ class GuardPlugin(BasePlugin):
             ok=not failed,
             ms=ms,
             verified=verified,
-            error=result.get("error") if isinstance(result, dict) else None,
+            error=result_dict.get("error") if result_dict is not None else None,
         )
         if self.hooks.after:
             await self.hooks.after_tool(
@@ -304,17 +312,17 @@ class GuardPlugin(BasePlugin):
                     "args": tool_args,
                     "label": label,
                     "task": task.task_id,
-                    "result": _clip_result(result) if isinstance(result, dict) else str(result)[:4000],
+                    "result": _clip_result(result) if result_dict is not None else str(result)[:4000],
                 }
             )
-        if tool.name == "ask_user" and isinstance(result, dict) and BULK_REQUEST.search(task.request or ""):
-            answer = str(result.get("answer", ""))
+        if tool.name == "ask_user" and result_dict is not None and BULK_REQUEST.search(task.request or ""):
+            answer = str(result_dict.get("answer", ""))
             if answer and not CANCEL_ANSWER.search(answer):
                 task.plan_confirmed = True
             elif answer:
                 task.plan_cancelled = True
         out = _clip_result(result)
-        notes = []
+        notes: list[str] = []
         if not failed and (tool.name in TAINT_TOOLS or tool.name.startswith(TAINT_PREFIXES)):
             if tool.name not in task.tainted_by:
                 task.tainted_by.append(tool.name)
@@ -337,9 +345,10 @@ class GuardPlugin(BasePlugin):
             notes.append(REFLECT_NOTE.format(n=task.tool_errors_in_row))
         if notes:
             # Spezialisten (AgentTool) liefern reinen Text; dann wird daraus ein Objekt mit Hinweis.
+            out_dict = _as_dict(out)
             out = (
-                {**out, "hinweis": " ".join(notes)}
-                if isinstance(out, dict)
+                {**out_dict, "hinweis": " ".join(notes)}
+                if out_dict is not None
                 else {"result": out, "hinweis": " ".join(notes)}
             )
         return out if json.dumps(out, default=str) != json.dumps(result, default=str) else None

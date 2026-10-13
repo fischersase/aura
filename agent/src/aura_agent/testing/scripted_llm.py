@@ -58,7 +58,7 @@ class ScriptedLlm(BaseLlm):
             LlmRequest(
                 model=llm_request.model,
                 contents=copy.deepcopy(llm_request.contents),
-                config=llm_request.config.model_copy(deep=True) if llm_request.config else None,
+                config=llm_request.config.model_copy(deep=True),
             )
         )
         step: Step = self._steps.pop(0) if self._steps else self._fallback

@@ -5,6 +5,8 @@ Gelistet werden Fenster, die auch in der Taskleiste stehen: sichtbar, ohne Besit
 nicht „verhüllt“ (DWM cloaked: Apps auf anderen virtuellen Desktops oder unsichtbare UWP-Rahmen).
 Alle Aufrufe sind blockierend; Werkzeuge rufen sie mit asyncio.to_thread auf.
 """
+# pyright: reportAttributeAccessIssue=false, reportMissingImports=false
+# (Windows-only module: pyright runs on Linux, where ctypes.WinDLL, winreg and comtypes do not exist.)
 
 from __future__ import annotations
 

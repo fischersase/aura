@@ -3,6 +3,8 @@
 Jeder Player, der sich in der Medienübersicht von Windows zeigt (Spotify, Chrome/Edge mit YouTube Music,
 Medienwiedergabe …), ist eine Sitzung mit Titel, Status und Steuerung. Zugriff über pywinrt.
 """
+# pyright: reportAttributeAccessIssue=false, reportMissingImports=false
+# (Windows-only module: pyright runs on Linux, where ctypes.WinDLL, winreg and comtypes do not exist.)
 
 from __future__ import annotations
 
@@ -41,6 +43,8 @@ class Smtc:
         self.mgr = None
 
     def _sessions(self) -> dict[str, Any]:
+        if self.mgr is None:
+            return {}
         return {s.source_app_user_model_id: s for s in self.mgr.get_sessions()}
 
     async def _state(self, s: Any) -> dict[str, Any]:
@@ -67,6 +71,8 @@ class Smtc:
         }
 
     async def states(self) -> list[dict[str, Any]]:
+        if self.mgr is None:
+            return []
         return [await self._state(s) for s in self.mgr.get_sessions()]
 
     async def state(self, key: str) -> dict[str, Any]:

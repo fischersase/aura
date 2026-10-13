@@ -1,4 +1,6 @@
 """Ein MPRIS-Player für Tests, auf einem eigenen D-Bus (nie auf dem echten Desktop)."""
+# pyright: reportUndefinedVariable=false
+# (dbus-fast reads D-Bus signatures such as "s" and "a{sv}" from string annotations.)
 
 from __future__ import annotations
 
@@ -71,7 +73,7 @@ class Player(ServiceInterface):
         return self.status
 
     @dbus_property(access=PropertyAccess.READ)
-    def Metadata(self) -> "a{sv}":  # noqa: F821
+    def Metadata(self) -> "a{sv}":  # noqa: F821  # pyright: ignore - D-Bus signature, not a Python type
         title, artist = TRACKS[self.track]
         return {"xesam:title": Variant("s", title), "xesam:artist": Variant("as", [artist])}
 

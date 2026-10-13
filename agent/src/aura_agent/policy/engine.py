@@ -27,7 +27,7 @@ import tomllib
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from ..harness.tiers import Tier
 
@@ -100,9 +100,13 @@ class PolicyEngine:
         except (tomllib.TOMLDecodeError, OSError) as e:
             log.warning("policy.toml unlesbar, Regeln ignoriert: %s", e)
             return []
-        out = []
-        for r in data.get("rule", []):
-            if isinstance(r, dict) and r.get("decision") in DECISIONS and r.get("tool"):
+        out: list[Rule] = []
+        rules: Any = data.get("rule", [])
+        for raw in cast("list[Any]", rules) if isinstance(rules, list) else []:
+            if not isinstance(raw, dict):
+                continue
+            r = cast("dict[str, Any]", raw)
+            if r.get("decision") in DECISIONS and r.get("tool"):
                 out.append(
                     Rule(
                         tool=str(r["tool"]),

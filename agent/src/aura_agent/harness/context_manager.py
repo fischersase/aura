@@ -14,6 +14,7 @@ nie die gespeicherte Sitzung:
 from __future__ import annotations
 
 import json
+from typing import cast
 
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.models.llm_request import LlmRequest
@@ -53,7 +54,7 @@ def trim_images(contents: list[types.Content], keep: int = KEEP_IMAGES) -> int:
     seen = 0
     removed = 0
     for c in reversed(contents):
-        new_parts = []
+        new_parts: list[types.Part] = []
         for p in c.parts or []:
             is_image = p.inline_data is not None and (p.inline_data.mime_type or "").startswith("image/")
             if is_image:
@@ -63,7 +64,7 @@ def trim_images(contents: list[types.Content], keep: int = KEEP_IMAGES) -> int:
                     new_parts.append(types.Part(text="[älteres Bildschirmfoto entfernt]"))
                     continue
             if p.function_response and p.function_response.parts:
-                kept = []
+                kept: list[types.FunctionResponsePart] = []
                 for fp in p.function_response.parts:
                     if fp.inline_data is not None and (fp.inline_data.mime_type or "").startswith("image/"):
                         seen += 1
@@ -87,16 +88,17 @@ def shorten_old_results(
     ]
     shortened = 0
     for ci, pi in responses[:-keep_full] if keep_full else responses:
-        p = contents[ci].parts[pi]
-        text = json.dumps(p.function_response.response or {}, ensure_ascii=False, default=str)
+        parts = contents[ci].parts
+        response = parts[pi].function_response if parts else None
+        if parts is None or response is None:
+            continue
+        text = json.dumps(response.response or {}, ensure_ascii=False, default=str)
         if len(text) > limit:
             short = {
                 "gekürzt": text[: limit // 2]
                 + f" … ({len(text) - limit // 2} Zeichen ausgelassen, älteres Ergebnis)"
             }
-            contents[ci].parts[pi] = types.Part(
-                function_response=p.function_response.model_copy(update={"response": short})
-            )
+            parts[pi] = types.Part(function_response=response.model_copy(update={"response": short}))
             shortened += 1
     return shortened
 
@@ -121,7 +123,11 @@ def drop_oldest_steps(contents: list[types.Content], budget_chars: int) -> list[
         )
         if idx is None:
             break
-        dropped += [p.function_call.name for p in contents[idx].parts or [] if p.function_call]
+        dropped += [
+            p.function_call.name
+            for p in contents[idx].parts or []
+            if p.function_call and p.function_call.name
+        ]
         del contents[idx : idx + 2]
     if dropped:
         note = types.Content(
@@ -164,10 +170,12 @@ class ContextManagerPlugin(BasePlugin):
         request_text = current_request(contents)
         trim_images(contents)
         shorten_old_results(contents)
-        system_size = len(str(llm_request.config.system_instruction or "")) if llm_request.config else 0
+        # system_instruction is a genai union containing partially unknown types; only its text length matters.
+        instruction = cast("object", llm_request.config.system_instruction)  # pyright: ignore[reportUnknownMemberType]
+        system_size = len(str(instruction or ""))
         drop_oldest_steps(contents, max(4000, self.budget_chars - system_size))
-        pins = []
-        todos = callback_context.state.get("todos") if callback_context.state is not None else None
+        pins: list[str] = []
+        todos = callback_context.state.get("todos")
         if todos:
             pins.append(
                 "Aktuelle Aufgabenliste:\n"
@@ -175,7 +183,7 @@ class ContextManagerPlugin(BasePlugin):
             )
         if request_text and len(contents) > 8:
             pins.append("Ursprüngliche Bitte des Nutzers in diesem Auftrag: " + request_text[:1500])
-        if pins and llm_request.config is not None:
+        if pins:
             llm_request.append_instructions(
                 ["## Stand des Auftrags (von der App angeheftet)\n" + "\n\n".join(pins)]
             )

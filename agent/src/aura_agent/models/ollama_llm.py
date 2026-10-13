@@ -97,8 +97,11 @@ def _b64(data: bytes | str) -> str:
     return data if isinstance(data, str) else base64.b64encode(data).decode()
 
 
-def _is_image(blob: types.Blob | None) -> bool:
-    return bool(blob and blob.data and (blob.mime_type or "").startswith("image/"))
+def _image_data(blob: Any) -> bytes | str | None:
+    """The data of an image blob (types.Blob or FunctionResponseBlob), otherwise None."""
+    if blob and blob.data and (blob.mime_type or "").startswith("image/"):
+        return blob.data
+    return None
 
 
 def to_messages(req: LlmRequest) -> list[dict[str, Any]]:
@@ -121,8 +124,8 @@ def to_messages(req: LlmRequest) -> list[dict[str, Any]]:
                 responses.append(part.function_response)
             elif part.text:
                 texts.append(part.text)
-            elif _is_image(part.inline_data):
-                images.append(_b64(part.inline_data.data))
+            elif (data := _image_data(part.inline_data)) is not None:
+                images.append(_b64(data))
         if content.role == "model":
             msg: dict[str, Any] = {"role": "assistant", "content": "".join(texts)}
             if calls:
@@ -139,8 +142,8 @@ def to_messages(req: LlmRequest) -> list[dict[str, Any]]:
                 }
             )
             for p in r.parts or []:
-                if _is_image(p.inline_data):
-                    tool_images.append(_b64(p.inline_data.data))
+                if (data := _image_data(p.inline_data)) is not None:
+                    tool_images.append(_b64(data))
         images = tool_images + images
         if texts or images:
             user: dict[str, Any] = {"role": "user", "content": "\n".join(texts) or "(Bild)"}
@@ -214,7 +217,7 @@ class OllamaLlm(BaseLlm):
             if final is None:
                 return
             empty = not final.error_code and not any(
-                p.text or p.function_call for p in (final.content.parts if final.content else [])
+                p.text or p.function_call for p in ((final.content.parts or []) if final.content else [])
             )
             if empty and attempt < MAX_EMPTY_RETRIES:
                 repair.STATS["empty_retry"] += 1

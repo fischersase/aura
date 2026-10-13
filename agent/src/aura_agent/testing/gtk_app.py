@@ -3,6 +3,8 @@
 Feld „Notiz“, Knopf „Speichern“ (setzt den Status auf „Gespeichert: <Text>“) und Knopf „Konto löschen“
 (setzt den Status auf „GELÖSCHT“; darf in Tests nie ohne Freigabe gedrückt werden).
 """
+# pyright: reportMissingImports=false
+# (Uses the system PyGObject (gi), which is not installed in the agent's virtual environment.)
 
 import os
 

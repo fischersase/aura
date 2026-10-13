@@ -10,7 +10,7 @@ NOTES = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("notes.txt")
 mcp = MCPServer("notes")
 
 
-@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+@mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
 def read_notes() -> str:
     """Liest alle Notizen."""
     return NOTES.read_text(encoding="utf-8") if NOTES.exists() else ""

@@ -19,7 +19,7 @@ from ..platform.base import IS_WINDOWS
 _FLAGS = re.IGNORECASE if IS_WINDOWS else 0
 
 # (Muster auf den aufgelösten Pfad mit / als Trenner, Grund)
-FORBIDDEN_PATHS = [
+_FORBIDDEN_PATTERNS = [
     (re.compile(r"/\.(ssh|gnupg|password-store)(/|$)"), "SSH-/GPG-Schlüssel oder Passwortspeicher"),
     (re.compile(r"/\.local/share/keyrings(/|$)"), "Schlüsselbund"),
     (
@@ -81,8 +81,11 @@ FORBIDDEN_PATHS = [
         "Systempasswörter",
     ),
 ]
-if _FLAGS:
-    FORBIDDEN_PATHS = [(re.compile(p.pattern, p.flags | _FLAGS), why) for p, why in FORBIDDEN_PATHS]
+FORBIDDEN_PATHS = (
+    [(re.compile(p.pattern, p.flags | _FLAGS), why) for p, why in _FORBIDDEN_PATTERNS]
+    if _FLAGS
+    else _FORBIDDEN_PATTERNS
+)
 
 
 def forbidden(path: str | Path) -> str | None:

@@ -17,7 +17,7 @@ import re
 
 from ..harness.tiers import Tier
 from .shell_classifier import RISKY_ARGS as BASH_RISKY_ARGS
-from .shell_classifier import _git_reason, _protect_enforcement
+from .shell_classifier import git_reason, protect_enforcement
 
 READONLY = {
     # Cmdlets
@@ -486,7 +486,7 @@ def _t1(words: list[str]) -> bool:
 
 def classify_powershell(command: str) -> tuple[Tier, str]:
     tier, reason = _classify_powershell(command)
-    return _protect_enforcement(command, tier, reason)
+    return protect_enforcement(command, tier, reason)
 
 
 def _classify_powershell(command: str) -> tuple[Tier, str]:
@@ -542,7 +542,7 @@ def _classify_powershell(command: str) -> tuple[Tier, str]:
         if risky and risky.search(" ".join(words[1:])):
             return Tier.T2, f"„{name}“ mit verändernden Schaltern"
         if name == "git":
-            reason = _git_reason(words)
+            reason = git_reason(words)
             if reason:
                 return Tier.T2, reason
         if name == "certutil" and len(words) > 4:

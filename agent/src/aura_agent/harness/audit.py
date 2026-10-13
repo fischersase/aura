@@ -15,7 +15,7 @@ import re
 import threading
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 GENESIS = "0" * 64
 MAX_VALUE = 500
@@ -69,9 +69,10 @@ def redact(value: Any, key: str = "") -> Any:
     if key and _SECRET_KEY.search(key):
         return "***"
     if isinstance(value, dict):
-        return {k: redact(v, k) for k, v in value.items()}
+        # str(k): JSON-like data may carry non-string keys, and the key check expects text.
+        return {k: redact(v, str(k)) for k, v in cast("dict[Any, Any]", value).items()}
     if isinstance(value, list):
-        return [redact(v) for v in value[:50]]
+        return [redact(v) for v in cast("list[Any]", value)[:50]]
     if isinstance(value, str):
         value = scrub(value)
         if len(value) > MAX_VALUE:

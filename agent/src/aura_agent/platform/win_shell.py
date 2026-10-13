@@ -3,6 +3,8 @@
 SHFileOperationW mit FOF_ALLOWUNDO verschiebt in den Papierkorb. Auf Laufwerken ohne Papierkorb (Netzlaufwerke,
 manche USB-Sticks) würde es endgültig löschen; deshalb nur auf festen lokalen Laufwerken.
 """
+# pyright: reportAttributeAccessIssue=false, reportMissingImports=false
+# (Windows-only module: pyright runs on Linux, where ctypes.WinDLL, winreg and comtypes do not exist.)
 
 from __future__ import annotations
 

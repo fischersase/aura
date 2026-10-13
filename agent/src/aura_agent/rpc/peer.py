@@ -14,7 +14,7 @@ import itertools
 import json
 import logging
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import Any, cast
 
 log = logging.getLogger(__name__)
 
@@ -36,6 +36,17 @@ class RpcError(Exception):
         self.code = code
         self.message = message
         self.data = data
+
+
+def _rpc_error(error: Any) -> RpcError:
+    """RpcError from the error member of a response; tolerates a missing or non-object value."""
+    if isinstance(error, dict):
+        e = cast("dict[str, Any]", error)
+        code = e.get("code")
+        return RpcError(
+            code if isinstance(code, int) else INTERNAL_ERROR, str(e.get("message", "Fehler")), e.get("data")
+        )
+    return RpcError(INTERNAL_ERROR, str(error or "Fehler"))
 
 
 class Peer:
@@ -101,22 +112,19 @@ class Peer:
                 {"id": None, "error": {"code": INVALID_REQUEST, "message": "Nachricht muss ein Objekt sein"}}
             )
             return
-        if "method" in msg:
-            task = asyncio.create_task(self._handle(msg))
+        message = cast("dict[str, Any]", msg)
+        if "method" in message:
+            task = asyncio.create_task(self._handle(message))
             self._tasks.add(task)
             task.add_done_callback(self._tasks.discard)
-        elif "id" in msg:
-            fut = self._pending.get(msg["id"])
+        elif isinstance(message.get("id"), int):
+            # Responses to our own requests; anything malformed is ignored instead of stopping the reader.
+            fut = self._pending.get(message["id"])
             if fut and not fut.done():
-                if "error" in msg:
-                    err = msg["error"] or {}
-                    fut.set_exception(
-                        RpcError(
-                            err.get("code", INTERNAL_ERROR), err.get("message", "Fehler"), err.get("data")
-                        )
-                    )
+                if "error" in message:
+                    fut.set_exception(_rpc_error(message["error"]))
                 else:
-                    fut.set_result(msg.get("result"))
+                    fut.set_result(message.get("result"))
 
     async def _handle(self, msg: dict[str, Any]) -> None:
         rid = msg.get("id")
@@ -124,10 +132,10 @@ class Peer:
         try:
             if handler is None:
                 raise RpcError(METHOD_NOT_FOUND, f"Unbekannte Methode {msg['method']}")
-            params = msg.get("params") or {}
+            params: Any = msg.get("params") or {}
             if not isinstance(params, dict):
                 raise RpcError(INVALID_PARAMS, "params muss ein Objekt sein")
-            result = await handler(params)
+            result = await handler(cast("dict[str, Any]", params))
             if rid is not None:
                 self._send({"id": rid, "result": result if result is not None else {}})
         except RpcError as e:
