@@ -22,7 +22,9 @@ from ..harness.audit import AuditLog
 from ..harness.context_manager import ContextManagerPlugin
 from ..harness.guard import GuardPlugin
 from ..harness.hooks import Hooks
+from ..memory.store import FactStore
 from ..models.ollama_llm import OllamaLlm
+from ..models.unconfigured import UnconfiguredLlm
 from ..policy.engine import PolicyEngine
 from ..rpc.peer import INVALID_PARAMS, PROTOCOL_VERSION, Peer, RpcError
 from ..tools.browser import build_browser_toolset
@@ -73,7 +75,11 @@ def make_model(settings: AgentSettings) -> BaseLlm:
     """Lokal über Ollama (Standard) oder Gemini, wenn der Nutzer Gemini als Anbieter gewählt hat."""
     if settings.provider == "gemini":
         if not settings.gemini_api_key:
-            raise RpcError(INVALID_PARAMS, "Gemini ist gewählt, aber es ist kein API-Schlüssel hinterlegt.")
+            # Start anyway; tasks report the missing key (models/unconfigured.py).
+            return UnconfiguredLlm(
+                model="unconfigured",
+                reason="Gemini ist gewählt, aber es ist kein API-Schlüssel hinterlegt. Trag ihn in den Einstellungen ein.",
+            )
         from google.adk.models.google_llm import Gemini
 
         return Gemini(model=settings.gemini_model, client_kwargs={"api_key": settings.gemini_api_key})
@@ -124,6 +130,10 @@ class AgentServer:
         peer.on("task.cancelAll", self.task_cancel_all)
         peer.on("chat.forget", self.chat_forget)
         peer.on("chat.retain", self.chat_retain)
+        peer.on("memory.list", self.memory_list)
+        peer.on("memory.update", self.memory_update)
+        peer.on("memory.delete", self.memory_delete)
+        peer.on("memory.deleteAll", self.memory_delete_all)
         peer.on("catalog.list", self.catalog)
         peer.on("policy.list", self.policy_list)
         peer.on("ping", self.ping)
@@ -147,6 +157,7 @@ class AgentServer:
             self.settings.max_llm_calls,
             episodes_db=self.settings.data_dir / "memory.db",
         )
+        self.controller.memory_paused = self.settings.memory_paused
         if self._model is None and p.get("warmUp", True) and self.settings.provider == "ollama":
             self._warm_task = asyncio.create_task(
                 self._warm_up()
@@ -172,7 +183,9 @@ class AgentServer:
         ctl = self._require()
         if not p.get("taskId") or not p.get("chatId") or not isinstance(p.get("text"), str):
             raise RpcError(INVALID_PARAMS, "taskId, chatId und text sind nötig")
-        ctl.start(p["taskId"], p["chatId"], p["text"], p.get("images"))
+        ctl.start(
+            p["taskId"], p["chatId"], p["text"], p.get("images"), incognito=bool(p.get("incognito", False))
+        )
         return {"accepted": True}
 
     async def task_cancel(self, p: dict[str, Any]) -> dict[str, Any]:
@@ -192,6 +205,39 @@ class AgentServer:
         if not isinstance(ids, list) or not all(isinstance(i, str) for i in cast("list[Any]", ids)):
             raise RpcError(INVALID_PARAMS, "chatIds muss eine Liste von Texten sein")
         return await self._require().retain_chats(set(cast("list[str]", ids)))
+
+    # Memory page in the Zentrale (AURA-108): facts with their provenance; changes are audited without content.
+    def _facts(self) -> FactStore:
+        if self.settings is None:
+            raise RpcError(INVALID_PARAMS, "initialize fehlt")
+        return FactStore(self.settings.aura_dir)
+
+    async def memory_list(self, _p: dict[str, Any]) -> dict[str, Any]:
+        facts = await asyncio.to_thread(self._facts().list)
+        return {"facts": facts, "paused": bool(self.settings and self.settings.memory_paused)}
+
+    async def memory_update(self, p: dict[str, Any]) -> dict[str, Any]:
+        fid, text = p.get("id"), p.get("text")
+        if not isinstance(fid, str) or not isinstance(text, str):
+            raise RpcError(INVALID_PARAMS, "id und text sind nötig")
+        r = await asyncio.to_thread(self._facts().update, fid, text)
+        if r.get("ok"):
+            self._require().audit.write("memory_edited", fact=fid)
+        return r
+
+    async def memory_delete(self, p: dict[str, Any]) -> dict[str, Any]:
+        fid = p.get("id")
+        if not isinstance(fid, str):
+            raise RpcError(INVALID_PARAMS, "id fehlt")
+        removed = await asyncio.to_thread(self._facts().delete, fid)
+        if removed:
+            self._require().audit.write("memory_deleted", fact=fid)
+        return {"removed": removed}
+
+    async def memory_delete_all(self, _p: dict[str, Any]) -> dict[str, Any]:
+        removed = await asyncio.to_thread(self._facts().delete_all)
+        self._require().audit.write("memory_cleared", count=removed)
+        return {"removed": removed}
 
     async def catalog(self, _p: dict[str, Any]) -> dict[str, Any]:
         return {"tools": tool_catalog()}

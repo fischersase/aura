@@ -21,7 +21,19 @@ def _remember_tier(_a: dict[str, Any]) -> Tier | tuple[Tier, str]:
     return Tier.T1
 
 
-def make_memory_tools(files: FactStore, episodes: BaseMemoryService | None) -> list:
+def _memory_off(paused: bool) -> dict[str, Any] | None:
+    """Memory paused in the Zentrale, or an incognito chat (AURA-108): say so instead of reading or writing."""
+    if paused:
+        return {
+            "error": "Gedächtnis pausiert: Aura merkt sich gerade nichts und liest nichts aus dem Gedächtnis."
+        }
+    task = current()
+    if task is not None and task.incognito:
+        return {"error": "Inkognito-Chat: Aura merkt sich hier nichts und nutzt kein Gedächtnis."}
+    return None
+
+
+def make_memory_tools(files: FactStore, episodes: BaseMemoryService | None, paused: bool = False) -> list:
     @aura_tool(
         _remember_tier,
         label=lambda a: str(a.get("fact", ""))[:120],
@@ -37,6 +49,8 @@ def make_memory_tools(files: FactStore, episodes: BaseMemoryService | None) -> l
           fact: Der Fakt in einem kurzen Satz, z. B. "Hört Musik meist über YouTube Music".
           topic: Thema, z. B. "Vorlieben", "Geräte", "Arbeit".
         """
+        if off := _memory_off(paused):
+            return off
         task = current()
         r = files.remember(
             fact, topic, "explicit", task.chat_id if task else "", task.task_id if task else ""
@@ -52,6 +66,8 @@ def make_memory_tools(files: FactStore, episodes: BaseMemoryService | None) -> l
         Args:
           text: Teil des Eintrags.
         """
+        if off := _memory_off(paused):
+            return off
         return files.forget(text)
 
     @aura_tool(Tier.T0, label=lambda a: str(a.get("query", ""))[:120])
@@ -61,6 +77,8 @@ def make_memory_tools(files: FactStore, episodes: BaseMemoryService | None) -> l
         Args:
           query: Suchbegriffe, z. B. "Drucker Modell".
         """
+        if off := _memory_off(paused):
+            return off
         facts = files.search(query)
         talks: list[str] = []
         if episodes is not None:

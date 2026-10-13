@@ -1,7 +1,5 @@
-import pytest
-
 from aura_agent.models.ollama_llm import OllamaLlm
-from aura_agent.rpc.peer import RpcError
+from aura_agent.models.unconfigured import UnconfiguredLlm
 from aura_agent.runtime.server import make_model
 from aura_agent.runtime.settings import AgentSettings
 
@@ -20,8 +18,10 @@ def test_gemini_only_when_chosen_and_with_key():
         )
     )
     assert isinstance(m, Gemini) and m.model == "gemini-3.8-flash"
-    with pytest.raises(RpcError):
-        make_model(AgentSettings.from_params({"provider": "gemini"}))
+    # Without a key the agent still starts (memory page, system check); tasks then report the missing key.
+    unconfigured = make_model(AgentSettings.from_params({"provider": "gemini"}))
+    assert isinstance(unconfigured, UnconfiguredLlm)
+    assert "kein API-Schlüssel" in unconfigured.reason
 
 
 def test_api_key_is_not_in_repr():

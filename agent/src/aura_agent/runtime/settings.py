@@ -45,6 +45,8 @@ class AgentSettings:
     provider: str = "ollama"
     gemini_model: str = "gemini-3.8-flash"
     gemini_api_key: str = field(default="", repr=False)
+    # Memory paused in the Zentrale (AURA-108): nothing is read from or written to memory.
+    memory_paused: bool = False
 
     @classmethod
     def from_params(cls, p: dict[str, Any]) -> AgentSettings:
@@ -78,6 +80,7 @@ class AgentSettings:
             s.gemini_model = str(p["geminiModel"])
         if p.get("geminiApiKey"):
             s.gemini_api_key = str(p["geminiApiKey"])
+        s.memory_paused = bool(p.get("memoryPaused", False))
         if p.get("auraDir"):
             s.aura_dir = Path(p["auraDir"])
         return s

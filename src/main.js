@@ -582,7 +582,7 @@ ipcMain.on('open:external', (_e, url) => {
   if (/^https:\/\//.test(url)) shell.openExternal(url);
 });
 
-ipcMain.on('chat:send', async (e, { id, chatId, history, includeScreen }) => {
+ipcMain.on('chat:send', async (e, { id, chatId, history, includeScreen, incognito }) => {
   const ctrl = new AbortController();
   chatAborts.set(id, ctrl);
   try {
@@ -597,7 +597,7 @@ ipcMain.on('chat:send', async (e, { id, chatId, history, includeScreen }) => {
     }
     const onText = (t) => e.sender.send('chat:chunk', { id, text: t });
     if (s.agentEnabled && agentVersion() === 'v2' && agentV2.available()) {
-      await runAgentV2(e.sender, id, chatId || id, ctrl, contents, onText);
+      await runAgentV2(e.sender, id, chatId || id, ctrl, contents, onText, !!incognito);
     } else if (s.agentEnabled) {
       await runAgent(e.sender, id, ctrl, contents, onText);
     } else if (store.isLocal()) {
@@ -741,6 +741,7 @@ const agentV2 = new AgentBridge({
       ...browserLauncher(),
       mcpServers: mcpServersForAgent(),
       disabledSkills: s.disabledSkills || [],
+      memoryPaused: !!s.memoryPaused,
       dataDir: path.join(app.getPath('userData'), 'agent'),
       auraDir: defaultAuraDir()
     };
@@ -919,7 +920,7 @@ function notifyIfHidden(text, verified) {
   n.show();
 }
 
-async function runAgentV2(sender, id, chatId, ctrl, contents, onText) {
+async function runAgentV2(sender, id, chatId, ctrl, contents, onText, incognito = false) {
   const send = (ch, data) => {
     if (!sender.isDestroyed()) sender.send(ch, data);
   };
@@ -953,7 +954,7 @@ async function runAgentV2(sender, id, chatId, ctrl, contents, onText) {
   registerStopHotkey();
   try {
     const done = await agentV2.runTask(
-      { taskId: id, chatId, text, images },
+      { taskId: id, chatId, text, images, incognito },
       {
         onText,
         onStep: (st) =>
@@ -1052,8 +1053,19 @@ ipcMain.handle('usage:get', () => usageSummary());
 Object.assign(zentrale.API, {
   policy: () => zentraleV2.policy(),
   savePolicy: (text) => zentraleV2.savePolicy(text),
-  memory: () => zentraleV2.memory(),
-  saveMemory: (text) => zentraleV2.saveMemory(text),
+  // Memory page (AURA-108): facts with provenance from the agent; pausing is a setting the agent starts with.
+  memory: async () => {
+    if (!agentV2.available()) return { facts: [], paused: !!store.load().memoryPaused, unavailable: true };
+    return agentV2.call('memory.list');
+  },
+  memoryUpdate: ({ id, text } = {}) =>
+    agentV2.call('memory.update', { id: String(id || ''), text: String(text || '') }),
+  memoryDelete: (id) => agentV2.call('memory.delete', { id: String(id || '') }),
+  memoryDeleteAll: () => agentV2.call('memory.deleteAll'),
+  memoryPause: (paused) => {
+    store.save({ memoryPaused: !!paused });
+    return { paused: !!paused };
+  },
   audit: () => zentraleV2.audit(),
   doctor: () => zentraleV2.doctor({ settings: () => agentV2.settings(), bridge: agentV2 }),
   installExtension: () => zentraleV2.installExtension()

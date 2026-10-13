@@ -66,6 +66,8 @@ class TaskContext:
     local_data_from: list[str] = field(default_factory=list)
     # Has the task met a web app whose content Aura cannot read (AURA-92)? Then blind clicks and keys ask first.
     web_content_unavailable: bool = False
+    # Incognito chat (AURA-108): memory is neither read nor written, and the conversation is not kept for recall.
+    incognito: bool = False
 
     @property
     def tainted(self) -> bool:

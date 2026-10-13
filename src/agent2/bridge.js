@@ -131,6 +131,17 @@ class AgentBridge {
     return this.ready;
   }
 
+  /**
+   * Any other request to the agent (e.g. memory.list for the Zentrale); starts the agent if needed.
+   * @param {string} method
+   * @param {Record<string, unknown>} [params]
+   */
+  async call(method, params = {}) {
+    await this.ensure();
+    if (!this.peer) throw new Error('Agent-Prozess ist nicht verbunden.');
+    return this.peer.request(method, params, 15000);
+  }
+
   forgetQueueFile() {
     return path.join(this.app.getPath('userData'), 'agent', 'forget-queue.json');
   }
@@ -217,10 +228,10 @@ class AgentBridge {
 
   /**
    * Ein Auftrag; löst mit {text, cancelled, steps, usage} auf, wenn der Agent fertig ist.
-   * @param {{ taskId: string, chatId?: string, text: string, images?: unknown[] }} task
+   * @param {{ taskId: string, chatId?: string, text: string, images?: unknown[], incognito?: boolean }} task
    * @param {TaskHandlers} [handlers]
    */
-  async runTask({ taskId, chatId, text, images }, handlers = {}) {
+  async runTask({ taskId, chatId, text, images, incognito }, handlers = {}) {
     await this.ensure();
     const peer = this.peer;
     if (!peer) throw new Error('Agent-Prozess ist nicht verbunden.');
@@ -228,7 +239,11 @@ class AgentBridge {
       this.tasks.set(taskId, { handlers: /** @type {RunningTask['handlers']} */ (handlers), resolve, reject })
     );
     try {
-      await peer.request('task.start', { taskId, chatId, text, images: images || [] }, 10000);
+      await peer.request(
+        'task.start',
+        { taskId, chatId, text, images: images || [], ...(incognito ? { incognito: true } : {}) },
+        10000
+      );
     } catch (err) {
       this.tasks.delete(taskId);
       throw err;

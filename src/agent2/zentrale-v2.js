@@ -7,7 +7,6 @@ const path = require('path');
 
 const auraDir = () => path.join(os.homedir(), '.aura');
 const policyFile = () => path.join(auraDir(), 'policy.toml');
-const memoryFile = () => path.join(auraDir(), 'memory', 'MEMORY.md');
 // Electron erst bei Bedarf laden, damit sich das Modul auch ohne Electron testen lässt.
 function userData() {
   try {
@@ -32,9 +31,6 @@ const POLICY_TEMPLATE = `# Regeln für Aura (Agent v2). Reihenfolge: deny vor as
 # match = 'paypal|bank'
 # decision = "deny"
 `;
-
-const MEMORY_TEMPLATE =
-  '# Aura-Gedächtnis\n\nDinge, die Aura sich über dich und deinen Rechner gemerkt hat. Du kannst die Datei frei bearbeiten.\n';
 
 const read = (f, fallback = '') => {
   try {
@@ -336,8 +332,6 @@ module.exports = {
     write(policyFile(), text);
     return { ok: true };
   },
-  memory: () => ({ file: memoryFile(), text: read(memoryFile(), MEMORY_TEMPLATE) }),
-  saveMemory: (text) => write(memoryFile(), text),
   audit: () => readAudit(),
   doctor,
   installExtension,
