@@ -42,7 +42,13 @@ security.guardIpc(ipcMain); // vor der ersten IPC-Registrierung (AURA-18)
 const { AgentBridge, defaultAuraDir } = require('./agent2/bridge');
 const zentraleV2 = require('./agent2/zentrale-v2');
 // Secrets filled in, then catalog/registry servers wrapped in the sandbox (AURA-97).
-agentMcp.setResolver((c, name) => sandbox.wrap(name, secrets.resolveServerConfig(c)));
+agentMcp.setResolver((c, name) => sandbox.wrap(name, builtinConfig(secrets.resolveServerConfig(c))));
+// Connectors shipped with Aura run with Aura's Python (AURA-98); agentV2 is defined further down, used lazily.
+function builtinConfig(cfg) {
+  if (!cfg || !cfg.builtin) return cfg;
+  const dev = !app.isPackaged ? path.join(app.getAppPath(), 'agent', 'src') : undefined;
+  return connectors.resolveBuiltin(cfg, agentV2.pythonPath(), dev);
+}
 
 const R = (f) => path.join(__dirname, 'renderer', f);
 const ICON = path.join(__dirname, '..', 'assets', 'icon.png');
@@ -1008,7 +1014,7 @@ function mcpServersForAgent() {
         // A server added by hand with a catalog URL gets the catalog's tiers too (AURA-96).
         const catalogId = c.catalogId || (connectors.forUrl(c.url) || {}).id;
         const resolved = { ...secrets.resolveServerConfig(c), ...(catalogId ? { catalogId } : {}) };
-        const { sandboxed: _s, ...run } = sandbox.wrap(name, resolved);
+        const { sandboxed: _s, ...run } = sandbox.wrap(name, builtinConfig(resolved));
         // Paused by drift protection (AURA-97): the agent checks the hash itself, too.
         const st = agentMcp.status().find((x) => x.name === name);
         if (st && st.drift) return { name, error: st.error };

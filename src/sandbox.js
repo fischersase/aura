@@ -20,7 +20,7 @@ const HINT_BLOCKED =
 
 /**
  * @typedef {{ command?: string, args?: string[], env?: Record<string, string>, cwd?: string, url?: string,
- *   catalogId?: string, source?: string, sandbox?: boolean, [k: string]: any }} ServerConfig
+ *   catalogId?: string, source?: string, sandbox?: boolean, roPaths?: string[], [k: string]: any }} ServerConfig
  * @typedef {{ platform?: string, home?: string, auraDir?: string, bwrap?: () => string | null,
  *   which?: (cmd: string) => string | null }} Deps
  */
@@ -79,7 +79,7 @@ function programDirs(program, home) {
   const tooWide = (/** @type {string} */ d) =>
     d === path.parse(d).root || homes.has(d) || [...homes].some((h) => d === path.join(h, '.local'));
   const out = new Set();
-  for (const p of new Set([program, safeRealpath(program)])) {
+  for (const p of new Set([program, ...linkChain(program), safeRealpath(program)])) {
     if (SYSTEM.some((s) => p === s || p.startsWith(s + path.sep))) continue;
     const dir = path.dirname(p);
     const parent = path.dirname(dir);
@@ -88,6 +88,23 @@ function programDirs(program, home) {
   }
   // Nested roots (npm inside node/v20) are covered by the outer one.
   return [...out].filter((d) => ![...out].some((o) => o !== d && d.startsWith(o + path.sep)));
+}
+
+/** Every path a symlinked program points through (venv → interpreter → versioned folder), not only the last. */
+function linkChain(/** @type {string} */ p) {
+  const out = [];
+  let cur = p;
+  for (let i = 0; i < 8; i++) {
+    let target;
+    try {
+      target = fs.readlinkSync(cur);
+    } catch {
+      break;
+    }
+    cur = path.resolve(path.dirname(cur), target);
+    out.push(cur);
+  }
+  return out;
 }
 
 function safeRealpath(/** @type {string} */ p) {
@@ -172,7 +189,11 @@ function wrap(name, cfg, deps = {}) {
   if (!program) throw new Error(`Startprogramm „${cfg.command}“ nicht gefunden.`);
   const dir = serverDir(auraDir, name);
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-  const dirs = programDirs(program, home);
+  // Extra read-only paths a connector needs (e.g. the agent's sources in development, AURA-98); never home itself.
+  const extra = (Array.isArray(cfg.roPaths) ? cfg.roPaths : []).filter(
+    (p) => typeof p === 'string' && path.isAbsolute(p) && p !== home && p !== path.dirname(home)
+  );
+  const dirs = [...programDirs(program, home), ...extra];
   const binDirs = [...new Set([path.dirname(program), ...dirs.map((d) => path.join(d, 'bin'))])];
   return {
     ...cfg,

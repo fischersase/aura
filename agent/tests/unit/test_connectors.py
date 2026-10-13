@@ -149,6 +149,15 @@ async def test_registry_candidates_are_marked_unreviewed(task):
 async def test_propose_refuses_unknown_coming_and_connected(task):
     _, propose = tools(connected={"github"})
     assert "find_connector" in (await propose("nope", "x"))["error"]
-    assert "noch nicht verfügbar" in (await propose("mail", "x"))["error"]
+    coming = {
+        "id": "soon",
+        "title": "Bald",
+        "description": "x",
+        "keywords": ["x"],
+        "publisher": "Aura",
+        "status": "coming",
+    }
+    _, propose_soon = make_connector_tools([*ENTRIES, coming], set(), set())
+    assert "noch nicht verfügbar" in (await propose_soon("soon", "x"))["error"]
     assert "schon eingerichtet" in (await propose("github", "x"))["error"]
     assert task.host.proposals == []

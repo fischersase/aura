@@ -131,7 +131,7 @@ async function state(force) {
     name,
     catalogId: c.catalogId || (connectors.forUrl(c.url) || {}).id || '',
     // Sandbox (AURA-97): 'on', 'missing' (required but bwrap does not work), 'unsupported' (Windows/macOS), ''
-    sandbox: !sandbox.wanted(c)
+    sandbox: !sandbox.wanted(c.builtin ? { ...c, command: 'python' } : c)
       ? c.command && (c.catalogId || c.source === 'registry')
         ? 'disabled'
         : ''
@@ -141,7 +141,7 @@ async function state(force) {
           ? 'on'
           : 'missing',
     type: c.url ? 'http' : 'stdio',
-    command: c.url ? c.url : [c.command, ...(c.args || [])].join(' '),
+    command: c.url ? c.url : c.builtin ? `Aura (eingebaut): ${c.builtin}` : [c.command, ...(c.args || [])].join(' '),
     env: Object.keys(c.env || {}),
     disabled: !!c.disabled,
     plainSecrets: plainSecrets(c),

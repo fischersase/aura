@@ -4,82 +4,273 @@
   "title": "Aura connector catalog (AURA-96)",
   "description": "Connectors the maintainer reviewed. A local server must pin its package version; a remote server is pinned by its URL.",
   "type": "object",
-  "required": ["version", "connectors"],
+  "required": [
+    "version",
+    "connectors"
+  ],
   "properties": {
-    "$schema": { "type": "string" },
-    "version": { "const": 1 },
-    "connectors": { "type": "array", "items": { "$ref": "#/$defs/connector" } }
+    "$schema": {
+      "type": "string"
+    },
+    "version": {
+      "const": 1
+    },
+    "connectors": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/connector"
+      }
+    }
   },
   "additionalProperties": false,
   "$defs": {
-    "tier": { "enum": ["T0", "T1", "T2"] },
+    "tier": {
+      "enum": [
+        "T0",
+        "T1",
+        "T2"
+      ]
+    },
     "credential": {
       "type": "object",
-      "required": ["name", "label", "kind", "secret", "help"],
+      "required": [
+        "name",
+        "label",
+        "kind",
+        "secret",
+        "help"
+      ],
       "properties": {
-        "name": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
-        "label": { "type": "string", "minLength": 1 },
-        "kind": { "enum": ["api-token", "password", "app-password", "text", "email", "url"] },
-        "secret": { "type": "boolean" },
-        "tokenUrl": { "type": "string", "pattern": "^https://" },
-        "help": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]*$"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "api-token",
+            "password",
+            "app-password",
+            "text",
+            "email",
+            "url"
+          ]
+        },
+        "secret": {
+          "type": "boolean"
+        },
+        "tokenUrl": {
+          "type": "string",
+          "pattern": "^https://"
+        },
+        "help": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        }
       },
       "additionalProperties": false
     },
     "localConfig": {
       "type": "object",
-      "required": ["command", "args"],
+      "required": [
+        "command",
+        "args"
+      ],
       "properties": {
-        "command": { "enum": ["npx", "uvx", "docker"] },
+        "command": {
+          "enum": [
+            "npx",
+            "uvx",
+            "docker"
+          ]
+        },
         "args": {
           "type": "array",
-          "items": { "type": "string" },
-          "contains": { "type": "string", "pattern": "^[^-].*(@[0-9]+\\.[0-9]+\\.[0-9]+|==[0-9]+\\.[0-9]+\\.[0-9]+|@sha256:[0-9a-f]{64})$" }
+          "items": {
+            "type": "string"
+          },
+          "contains": {
+            "type": "string",
+            "pattern": "^[^-].*(@[0-9]+\\.[0-9]+\\.[0-9]+|==[0-9]+\\.[0-9]+\\.[0-9]+|@sha256:[0-9a-f]{64})$"
+          }
         },
-        "env": { "type": "object", "additionalProperties": { "type": "string" } }
+        "env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
       },
       "additionalProperties": false
     },
     "remoteConfig": {
       "type": "object",
-      "required": ["url"],
+      "required": [
+        "url"
+      ],
       "properties": {
-        "url": { "type": "string", "pattern": "^https://" },
-        "auth": { "const": "oauth" },
-        "headers": { "type": "object", "additionalProperties": { "type": "string" } }
+        "url": {
+          "type": "string",
+          "pattern": "^https://"
+        },
+        "auth": {
+          "const": "oauth"
+        },
+        "headers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
       },
       "additionalProperties": false
     },
     "connector": {
       "type": "object",
-      "required": ["id", "title", "description", "keywords", "publisher", "verified", "status", "homepage", "credentials"],
+      "required": [
+        "id",
+        "title",
+        "description",
+        "keywords",
+        "publisher",
+        "verified",
+        "status",
+        "homepage",
+        "credentials"
+      ],
       "properties": {
-        "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
-        "title": { "type": "string", "minLength": 1 },
-        "description": { "type": "string", "minLength": 1 },
-        "keywords": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
-        "publisher": { "type": "string", "minLength": 1 },
-        "verified": { "const": "aura" },
-        "status": { "enum": ["available", "coming", "advanced"] },
-        "homepage": { "type": "string", "pattern": "^https://" },
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "keywords": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "publisher": {
+          "type": "string",
+          "minLength": 1
+        },
+        "verified": {
+          "const": "aura"
+        },
+        "status": {
+          "enum": [
+            "available",
+            "coming",
+            "advanced"
+          ]
+        },
+        "homepage": {
+          "type": "string",
+          "pattern": "^https://"
+        },
         "review": {
           "type": "object",
-          "required": ["date", "source", "tools"],
-          "properties": { "date": { "type": "string" }, "source": { "type": "string" }, "tools": { "type": "string" } },
+          "required": [
+            "date",
+            "source",
+            "tools"
+          ],
+          "properties": {
+            "date": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            },
+            "tools": {
+              "type": "string"
+            }
+          },
           "additionalProperties": false
         },
-        "config": { "oneOf": [{ "$ref": "#/$defs/localConfig" }, { "$ref": "#/$defs/remoteConfig" }] },
-        "credentials": { "type": "array", "items": { "$ref": "#/$defs/credential" } },
-        "setup": { "type": "array", "items": { "type": "string" } },
+        "config": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/localConfig"
+            },
+            {
+              "$ref": "#/$defs/remoteConfig"
+            },
+            {
+              "$ref": "#/$defs/builtinConfig"
+            }
+          ]
+        },
+        "credentials": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/credential"
+          }
+        },
+        "setup": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "tiers": {
           "type": "object",
           "description": "Tool name pattern (fnmatch) → tier, first match wins; read tools T0, anything that sends, writes or deletes T2.",
-          "additionalProperties": { "$ref": "#/$defs/tier" }
+          "additionalProperties": {
+            "$ref": "#/$defs/tier"
+          }
         }
       },
       "additionalProperties": false,
-      "if": { "properties": { "status": { "const": "available" } } },
-      "then": { "required": ["config", "tiers", "review"] }
+      "if": {
+        "properties": {
+          "status": {
+            "const": "available"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "config",
+          "tiers",
+          "review"
+        ]
+      }
+    },
+    "builtinConfig": {
+      "type": "object",
+      "required": [
+        "builtin"
+      ],
+      "properties": {
+        "builtin": {
+          "enum": [
+            "mail"
+          ]
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "description": "A connector shipped with Aura (agent/src/aura_agent/connectors/<name>.py), started with Aura's own Python."
     }
   }
 }

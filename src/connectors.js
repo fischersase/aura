@@ -8,7 +8,7 @@
  * @typedef {{ id: string, title: string, description: string, keywords: string[], publisher: string,
  *   verified: string, status: string, homepage: string,
  *   config?: { url?: string, auth?: string, headers?: Record<string, string>, command?: string, args?: string[],
- *     env?: Record<string, string> },
+ *     env?: Record<string, string>, builtin?: string },
  *   credentials: Credential[], setup?: string[], tiers?: Record<string, string> }} Connector
  */
 
@@ -82,7 +82,9 @@ function configFor(entry, values, secretName, store) {
   /** @type {Record<string, any>} */
   const cfg = c.url
     ? { url: c.url, ...(c.auth ? { auth: c.auth } : {}), ...(c.headers ? { headers: mapValues(c.headers) } : {}) }
-    : { command: c.command, args: (c.args || []).map(fill), ...(c.env ? { env: mapValues(c.env) } : {}) };
+    : c.builtin
+      ? { builtin: c.builtin, ...(c.env ? { env: mapValues(c.env) } : {}) }
+      : { command: c.command, args: (c.args || []).map(fill), ...(c.env ? { env: mapValues(c.env) } : {}) };
   cfg.catalogId = entry.id;
   cfg.description = entry.description;
   return cfg;
@@ -105,4 +107,26 @@ function registrySummary(r) {
   };
 }
 
-module.exports = { list, byId, forUrl, prefix, collisions, configFor, registrySummary };
+const BUILTINS = new Set(['mail']);
+
+/**
+ * A connector shipped with Aura ({"builtin": "mail"} in mcp.json) becomes a command with Aura's own Python
+ * (AURA-98). In development the agent's sources are bound read-only into the sandbox (they are not in site-packages).
+ * @param {Record<string, any>} cfg
+ * @param {string | null} python path of Aura's Python (agent bridge)
+ * @param {string} [agentSrc] agent/src for development builds
+ */
+function resolveBuiltin(cfg, python, agentSrc) {
+  if (!cfg || !cfg.builtin) return cfg;
+  if (!BUILTINS.has(cfg.builtin)) throw new Error(`Unbekannte eingebaute Verbindung „${cfg.builtin}“.`);
+  if (!python) throw new Error('Aura-Python nicht gefunden (Agent v2 nicht installiert).');
+  const { builtin, ...rest } = cfg;
+  return {
+    ...rest,
+    command: python,
+    args: ['-I', '-m', `aura_agent.connectors.${builtin}`],
+    ...(agentSrc ? { roPaths: [agentSrc] } : {})
+  };
+}
+
+module.exports = { list, byId, forUrl, prefix, collisions, configFor, registrySummary, resolveBuiltin };
