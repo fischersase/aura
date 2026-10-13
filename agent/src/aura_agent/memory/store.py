@@ -104,22 +104,24 @@ class FactStore:
 
     @contextmanager
     def _session(self) -> Iterator[sqlite3.Connection]:
-        """One long-lived connection per store (opening and closing per call costs an fsync each), used under the lock."""
-        with self._lock:
-            if self._db is None:
-                self.dir.mkdir(parents=True, exist_ok=True)
-                db = sqlite3.connect(self.db, check_same_thread=False)
-                db.row_factory = sqlite3.Row
-                # WAL with NORMAL sync: durable enough for notes, without an fsync per remember.
-                db.execute("PRAGMA journal_mode=WAL")
-                db.execute("PRAGMA synchronous=NORMAL")
-                self._db = db
-            yield self._db
+        """A connection for one public operation; nested calls share it, and it is closed at the end.
 
-    def close(self) -> None:
+        Short-lived on purpose: an open SQLite file cannot be deleted or replaced on Windows (temp directories in
+        tests and the selftest, backups), and memory is touched only a few times per task.
+        """
         with self._lock:
-            if self._db is not None:
-                self._db.close()
+            if self._db is not None:  # nested inside an operation that already holds the connection
+                yield self._db
+                return
+            self.dir.mkdir(parents=True, exist_ok=True)
+            conn = sqlite3.connect(self.db, check_same_thread=False)
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA synchronous=NORMAL")
+            self._db = conn
+            try:
+                yield conn
+            finally:
+                conn.close()
                 self._db = None
 
     def _meta(self, db: sqlite3.Connection, key: str) -> str | None:
@@ -234,8 +236,8 @@ class FactStore:
             }
         if source not in SOURCES:
             raise ValueError(f"unknown source {source}")
-        self._prepare()
         with self._session() as db:
+            self._prepare()
             if db.execute("SELECT 1 FROM facts WHERE lower(text) = ?", (fact.lower(),)).fetchone():
                 return {"ok": True, "note": "Stand schon im Gedächtnis."}
             fid = self._insert(db, fact, topic, source, chat_id, task_id)
@@ -243,25 +245,45 @@ class FactStore:
             self._render(db)
         return {"ok": True, "id": fid, "saved": fact, "topic": topic, "file": str(self.index)}
 
-    def forget(self, text: str) -> dict[str, Any]:
-        self._prepare()
-        needle = text.strip().lower()
-        if not needle:
-            return {"removed": 0}
+    def add_many(self, facts: list[tuple[str, str]], source: str = "imported") -> int:
+        """Bulk import of (text, topic): one transaction and one rendering of the view. Skips secrets and duplicates."""
+        if source not in SOURCES:
+            raise ValueError(f"unknown source {source}")
+        added = 0
         with self._session() as db:
-            rows = db.execute("SELECT id, text FROM facts").fetchall()
-            hits = [r for r in rows if needle in str(r["text"]).lower()]
-            for r in hits:
-                db.execute("DELETE FROM facts WHERE id = ?", (r["id"],))
+            self._prepare()
+            have = {str(r[0]).lower() for r in db.execute("SELECT text FROM facts")}
+            for text, topic in facts:
+                text = " ".join(text.split()).strip()
+                if not text or SECRET.search(text) or text.lower() in have:
+                    continue
+                self._insert(db, text, " ".join((topic or PINNED_TOPIC).split())[:40] or PINNED_TOPIC, source)
+                have.add(text.lower())
+                added += 1
             db.commit()
-            if hits:
-                self._render(db)
-        return {"removed": len(hits), "texts": [str(r["text"]) for r in hits]}
+            self._render(db)
+        return added
+
+    def forget(self, text: str) -> dict[str, Any]:
+        with self._session():
+            self._prepare()
+            needle = text.strip().lower()
+            if not needle:
+                return {"removed": 0}
+            with self._session() as db:
+                rows = db.execute("SELECT id, text FROM facts").fetchall()
+                hits = [r for r in rows if needle in str(r["text"]).lower()]
+                for r in hits:
+                    db.execute("DELETE FROM facts WHERE id = ?", (r["id"],))
+                db.commit()
+                if hits:
+                    self._render(db)
+            return {"removed": len(hits), "texts": [str(r["text"]) for r in hits]}
 
     def delete_where(self, chat_id: str, source: str = "learned") -> int:
         """Facts of one chat and source (deleting a chat removes what was learned from it, FR-MEM-008)."""
-        self._prepare()
         with self._session() as db:
+            self._prepare()
             n = db.execute("DELETE FROM facts WHERE chat_id = ? AND source = ?", (chat_id, source)).rowcount
             db.commit()
             if n:
@@ -269,8 +291,8 @@ class FactStore:
         return n
 
     def list(self) -> list[dict[str, Any]]:
-        self._prepare()
         with self._session() as db:
+            self._prepare()
             return [dict(r) for r in db.execute("SELECT * FROM facts ORDER BY topic, created")]
 
     def _scored(self, query: str) -> list[tuple[float, sqlite3.Row]]:
@@ -295,37 +317,39 @@ class FactStore:
 
     def search(self, query: str, limit: int = 10) -> list[str]:
         """Facts sharing words with the query, best first."""
-        self._prepare()
-        hits = [r for score, r in self._scored(query) if score >= 1][:limit]
-        self._touch([str(r["id"]) for r in hits])
-        return [str(r["text"]) for r in hits]
+        with self._session():
+            self._prepare()
+            hits = [r for score, r in self._scored(query) if score >= 1][:limit]
+            self._touch([str(r["id"]) for r in hits])
+            return [str(r["text"]) for r in hits]
 
     def select_for_prompt(self, request: str, budget: int = PROMPT_BUDGET) -> str:
         """The facts for this request: the pinned topic first (up to PINNED_BUDGET), then by relevance."""
-        self._prepare()
-        lines: list[str] = []
-        used = 0
-        chosen: list[str] = []
-        with self._session() as db:
-            pinned = db.execute(
-                "SELECT id, text FROM facts WHERE topic = ? ORDER BY created DESC", (PINNED_TOPIC,)
-            ).fetchall()
-        for r in pinned:
-            line = f"- {r['text']}"
-            if used + len(line) + 1 > PINNED_BUDGET:
-                break
-            lines.append(line)
-            used += len(line) + 1
-            chosen.append(str(r["id"]))
-        for score, r in self._scored(request):
-            if score < 1:
-                break
-            if str(r["id"]) in chosen:
-                continue
-            line = f"- {r['text']} ({r['topic']})"
-            if used + len(line) + 1 > budget:
-                break
-            lines.append(line)
-            used += len(line) + 1
-            chosen.append(str(r["id"]))
-        return "\n".join(lines)
+        with self._session():
+            self._prepare()
+            lines: list[str] = []
+            used = 0
+            chosen: list[str] = []
+            with self._session() as db:
+                pinned = db.execute(
+                    "SELECT id, text FROM facts WHERE topic = ? ORDER BY created DESC", (PINNED_TOPIC,)
+                ).fetchall()
+            for r in pinned:
+                line = f"- {r['text']}"
+                if used + len(line) + 1 > PINNED_BUDGET:
+                    break
+                lines.append(line)
+                used += len(line) + 1
+                chosen.append(str(r["id"]))
+            for score, r in self._scored(request):
+                if score < 1:
+                    break
+                if str(r["id"]) in chosen:
+                    continue
+                line = f"- {r['text']} ({r['topic']})"
+                if used + len(line) + 1 > budget:
+                    break
+                lines.append(line)
+                used += len(line) + 1
+                chosen.append(str(r["id"]))
+            return "\n".join(lines)

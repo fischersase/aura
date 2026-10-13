@@ -107,8 +107,10 @@ def test_delete_where_removes_only_learned_facts_of_that_chat(tmp_path):
 def test_prompt_holds_only_relevant_facts_within_the_budget(tmp_path):
     m = FactStore(tmp_path)
     m.remember("Wohnt in Hamburg", "Allgemein")
-    for i in range(500):
-        m.remember(f"Notiz Nummer {i} über das Gartenhaus und die Hecke", "Garten")
+    assert (
+        m.add_many([(f"Notiz Nummer {i} über das Gartenhaus und die Hecke", "Garten") for i in range(500)])
+        == 500
+    )
     m.remember("Drucker im Büro ist ein Brother HL-L2350DW", "Geräte")
     text = m.select_for_prompt("Druck mir das bitte auf dem Drucker aus")
     assert len(text) <= 1500
@@ -122,8 +124,7 @@ def test_prompt_holds_only_relevant_facts_within_the_budget(tmp_path):
 
 def test_pinned_topic_has_its_own_budget(tmp_path):
     m = FactStore(tmp_path)
-    for i in range(50):
-        m.remember(f"Allgemeiner Fakt Nummer {i} mit etwas Text", "Allgemein")
+    m.add_many([(f"Allgemeiner Fakt Nummer {i} mit etwas Text", "Allgemein") for i in range(50)])
     assert len(m.select_for_prompt("nichts passendes")) <= PINNED_BUDGET
 
 
@@ -151,3 +152,22 @@ def test_store_is_bounded(tmp_path, monkeypatch):
     assert len(texts) == 5
     assert "Fakt 0" not in texts and "Fakt 7" in texts
     assert MAX_FACTS == 2000
+
+
+def test_add_many_skips_secrets_and_duplicates(tmp_path):
+    m = FactStore(tmp_path)
+    m.remember("Wohnt in Hamburg")
+    n = m.add_many(
+        [("Wohnt in Hamburg", "Allgemein"), ("PIN ist 1234", "x"), ("Mag Tee", "Vorlieben")], "edited"
+    )
+    assert n == 1
+    assert {r["text"]: r["source"] for r in m.list()} == {"Wohnt in Hamburg": "explicit", "Mag Tee": "edited"}
+
+
+def test_no_open_database_after_an_operation(tmp_path):
+    # Windows cannot delete an open file; temp directories of the selftest must be removable (CI failure).
+    m = FactStore(tmp_path)
+    m.remember("Mag Tee")
+    m.select_for_prompt("Tee")
+    assert m._db is None
+    m.db.rename(tmp_path / "moved.db")  # would fail on Windows if a handle were open
