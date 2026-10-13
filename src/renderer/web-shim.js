@@ -72,6 +72,8 @@
     'installRegistry',
     'connectors',
     'driftInfo',
+    'tasks',
+    'removeTask',
     'approveTools',
     'installConnector',
     'getSkill',
@@ -95,5 +97,6 @@
   z.setPolicy = (tool, policy) => call('setPolicy', { tool, policy });
   z.toggleServer = (name, enabled) => call('toggleServer', { name, enabled });
   z.toggleSkill = (name, enabled) => call('toggleSkill', { name, enabled });
+  z.toggleTask = (id, enabled) => call('toggleTask', { id, enabled });
   window.api = { z, web: true };
 })();

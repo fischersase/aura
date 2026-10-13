@@ -27,6 +27,7 @@ from ..tools.desktop import launch_app, list_windows, open_target, window_action
 from ..tools.files import edit_file, find_files, list_dir, move_path, read_file, trash, write_file
 from ..tools.interaction import ask_user, todo_write
 from ..tools.memory import make_memory_tools
+from ..tools.schedule import cancel_scheduled_task, list_scheduled_tasks, schedule_task
 from ..tools.screen import screenshot
 from ..tools.shell import run_command
 from ..tools.system import media_control, media_status, now_text, system_info, volume
@@ -66,6 +67,9 @@ TOOLS = [
     trash,
     run_command,
     screenshot,
+    schedule_task,
+    list_scheduled_tasks,
+    cancel_scheduled_task,
 ]
 
 
@@ -160,6 +164,9 @@ def instruction(
                 )
                 + "- Wetter, Regen, Temperatur (auch „brauche ich einen Schirm?“): weather; ohne Ort nimmt es den Ort des "
                 "Nutzers. Wo der Nutzer ist: location. Nie dafür den Browser.\n"
+                + "- Später oder regelmäßig etwas tun („erinnere mich morgen um 9“, „jeden Montag“, „jede Stunde prüfen“): "
+                "schedule_task; das genaue Datum rechnest du aus „Jetzt“ aus. Geplantes ansehen oder löschen: "
+                "list_scheduled_tasks, cancel_scheduled_task.\n"
                 + "- Was gerade auf dem Bildschirm zu sehen ist: screenshot.\n"
                 + f"- Alles andere: run_command ({SHELL_NAME}). Nur lesende Befehle laufen ohne Rückfrage. Pfade dürfen mit ~ beginnen."
             ),

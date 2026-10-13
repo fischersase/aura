@@ -38,6 +38,18 @@ class Host(Protocol):
         """Authorization header for one request to an OAuth MCP server (AURA-95); raises if not signed in."""
         ...
 
+    async def schedule_task(self, request: dict[str, Any]) -> dict[str, Any]:
+        """Store a scheduled task in the app (AURA-121). Answer: {id, title, when} or {error}."""
+        ...
+
+    async def list_tasks(self) -> dict[str, Any]:
+        """Scheduled tasks: {tasks: [{id, title, when, nextRun, lastStatus, lastText}]}."""
+        ...
+
+    async def cancel_task(self, task_id: str) -> dict[str, Any]:
+        """Delete a scheduled task: {removed: bool}."""
+        ...
+
     async def takeover(self, request: dict[str, Any]) -> dict[str, Any]:
         """The user takes over the browser (login, CAPTCHA, AURA-118). Answer: {decision: continue|cancel}."""
         ...
