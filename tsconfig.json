@@ -18,6 +18,8 @@
     "src/live-relay.js",
     "src/redact.js",
     "src/secrets.js",
+    "src/keystore.js",
+    "src/credential-audit.js",
     "src/store.js",
     "src/agent2/rpc.js",
     "src/agent2/bridge.js"

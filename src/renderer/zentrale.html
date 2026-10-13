@@ -12,7 +12,7 @@
   <div class="logo"><img src="../../assets/icon.png" alt="">Aura Zentrale</div>
   <button data-page="overview" class="on">Übersicht</button>
   <button data-page="profile">Profil</button>
-  <button data-page="secrets">Schlüssel</button>
+  <button data-page="secrets">Schlüssel &amp; Konten</button>
   <button data-page="tools">Werkzeuge</button>
   <button data-page="rules">Regeln</button>
   <button data-page="servers">MCP-Server</button>
@@ -75,8 +75,8 @@
 
   <!-- Schlüssel -->
   <section id="secrets" class="page hidden">
-    <div class="head"><h1>Schlüssel</h1><span class="grow"></span><button id="newSecret" class="primary">Schlüssel hinzufügen</button></div>
-    <p class="lead">API-Keys und Tokens für Gemini und MCP-Server. Aura speichert sie verschlüsselt und zeigt sie nie wieder an; du kannst sie nur ersetzen oder löschen. In einem MCP-Server verwendest du sie als <code>${secret:NAME}</code> in Variablen, Headern oder Argumenten.</p>
+    <div class="head"><h1>Schlüssel &amp; Konten</h1><span class="grow"></span><button id="newSecret" class="primary">Schlüssel hinzufügen</button></div>
+    <p class="lead">API-Keys, Tokens, Anmeldungen und Passwörter für Gemini, MCP-Server und Dienste. Aura speichert sie verschlüsselt im Schlüsselspeicher deines Systems und zeigt sie nie wieder an; du kannst sie nur ersetzen oder löschen. In einem MCP-Server verwendest du sie als <code>${secret:NAME}</code> in Variablen, Headern oder Argumenten.</p>
     <div id="secretProtection" class="card small"></div>
     <div id="secretList" class="list"></div>
   </section>

@@ -181,8 +181,10 @@ async function sync(force = false) {
     next.set('mcp.json', { tools: [], error: 'mcp.json ist kein gültiges JSON: ' + cfg.__error });
   }
   await Promise.all(Object.entries(cfg).filter(([n, c]) => n !== '__error' && c && !c.disabled).map(async ([name, c]) => {
+    // Change detection: compare the resolved config itself (it lives in this process anyway) instead of hashing
+    // values that contain secrets (CodeQL js/insufficient-password-hash).
     let key = JSON.stringify(c);
-    try { key = require('crypto').createHash('sha256').update(JSON.stringify(resolveConfig(c))).digest('hex'); } catch {}
+    try { key = JSON.stringify(resolveConfig(c)); } catch {}
     const old = servers.get(name);
     if (old && old.cfgKey === key && !old.error) { next.set(name, old); servers.delete(name); return; }
     try {

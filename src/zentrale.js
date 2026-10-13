@@ -1,5 +1,6 @@
 // „Aura Zentrale“: Verwaltungsfenster für Werkzeuge, MCP-Server, Skills, Anweisungen, Protokoll und Chats.
-const { BrowserWindow, ipcMain, shell } = require('electron');
+const { BrowserWindow, ipcMain, shell, safeStorage } = require('electron');
+const { enableWeakIfAllowed } = require('./keystore');
 const fs = require('fs');
 const path = require('path');
 const store = require('./store');
@@ -211,9 +212,9 @@ const secretNameFor = (server, key) =>
     .slice(0, 64);
 
 // Werte, die wie Schlüssel aussehen, in die Schlüsselverwaltung verschieben und durch ${secret:…} ersetzen.
-// Ohne Verschlüsselung (Linux ohne Schlüsselbund) bleibt die Konfiguration wie eingegeben; die Oberfläche warnt dann.
+// Ohne Schlüsselbund wirft secrets.set (AURA-93): der Server wird dann nicht gespeichert, statt den Schlüssel still im
+// Klartext in mcp.json zu lassen. Wer das trotzdem will, speichert den Server ausdrücklich ohne Schutz (protect: false).
 function protectConfig(serverName, cfg) {
-  if (secrets.protection() === 'none') return cfg;
   const out = JSON.parse(JSON.stringify(cfg));
   for (const field of ['env', 'headers']) {
     for (const [k, v] of Object.entries(out[field] || {})) {
@@ -355,7 +356,7 @@ const API = {
     try {
       for (const [k, x] of Object.entries(env || {})) {
         const value = typeof x === 'object' && x ? String(x.value || '') : String(x || '');
-        if (typeof x === 'object' && x && x.secret && value && secrets.protection() !== 'none') {
+        if (typeof x === 'object' && x && x.secret && value) {
           const sn = secretNameFor(n, k);
           secrets.set(sn, value, `MCP-Server ${n}, ${k}`);
           plain[k] = '${secret:' + sn + '}';
@@ -416,7 +417,18 @@ const API = {
   },
 
   // Schlüssel: Werte gehen nur hinein, nie heraus.
-  secrets: () => ({ protection: secrets.protection(), list: secrets.list(usedBy()) }),
+  secrets: () => ({
+    protection: secrets.protection(),
+    allowWeak: !!store.load().allowWeakSecretStorage,
+    geminiPlaintext: !!store.load().apiKeyPlaintext,
+    list: secrets.list(usedBy())
+  }),
+  // Linux ohne Schlüsselbund: schwache Speicherung nur nach ausdrücklicher Zustimmung (AURA-93).
+  setWeakStorage(allowed) {
+    store.save({ allowWeakSecretStorage: !!allowed });
+    enableWeakIfAllowed(safeStorage, !!allowed);
+    return API.secrets();
+  },
   async setSecret({ name, value, note }) {
     try {
       secrets.set(String(name || '').trim(), value, note);

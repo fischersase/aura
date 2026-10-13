@@ -57,8 +57,15 @@ async function testKey() {
   const r = await window.api.testKey(key);
   keyOk = r.ok;
   status($('keyStatus'), r.ok ? 'Key funktioniert.' : 'Fehler: ' + r.message, r.ok);
-  if (r.ok) await window.api.saveSettings({ apiKey: key });
-  return r.ok;
+  if (!r.ok) return false;
+  const saved = await window.api.saveSettings({ apiKey: key });
+  if (saved.keyError) {
+    // No keyring: the key works but is not stored (AURA-93).
+    keyOk = false;
+    status($('keyStatus'), saved.keyError, false);
+    return false;
+  }
+  return true;
 }
 
 $('testKey').onclick = testKey;

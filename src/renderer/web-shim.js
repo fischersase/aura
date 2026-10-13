@@ -73,6 +73,7 @@
     'setSecret',
     'setSecretNote',
     'deleteSecret',
+    'setWeakStorage',
     'profile',
     'saveProfile',
     'openPath',
