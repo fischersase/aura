@@ -171,8 +171,7 @@ const SANDBOX_BADGE = {
     '<span class="badge bad" title="bubblewrap fehlt: sudo apt install bubblewrap, dann Aura neu starten">Sandbox fehlt</span>',
   unsupported:
     '<span class="badge" title="Auf diesem System gibt es noch keine Sandbox; der Server sieht deine Dateien">ohne Sandbox</span>',
-  disabled:
-    '<span class="badge bad" title="In mcp.json ausgeschaltet (sandbox: false)">ohne Sandbox</span>'
+  disabled: '<span class="badge bad" title="In mcp.json ausgeschaltet (sandbox: false)">ohne Sandbox</span>'
 };
 
 function renderServers() {
