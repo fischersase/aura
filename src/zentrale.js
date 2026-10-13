@@ -11,6 +11,7 @@ const mcp = require('./agent/mcp');
 const loop = require('./agent/loop');
 const secrets = require('./secrets');
 const connectors = require('./connectors');
+const sandbox = require('./sandbox');
 
 const REGISTRY = 'https://registry.modelcontextprotocol.io/v0.1/servers';
 let win = null;
@@ -100,6 +101,16 @@ async function state(force) {
   const servers = Object.entries(cfg).map(([name, c]) => ({
     name,
     catalogId: c.catalogId || (connectors.forUrl(c.url) || {}).id || '',
+    // Sandbox (AURA-97): 'on', 'missing' (required but bwrap does not work), 'unsupported' (Windows/macOS), ''
+    sandbox: !sandbox.wanted(c)
+      ? c.command && (c.catalogId || c.source === 'registry')
+        ? 'disabled'
+        : ''
+      : process.platform !== 'linux'
+        ? 'unsupported'
+        : sandbox.findBwrap()
+          ? 'on'
+          : 'missing',
     type: c.url ? 'http' : 'stdio',
     command: c.url ? c.url : [c.command, ...(c.args || [])].join(' '),
     env: Object.keys(c.env || {}),

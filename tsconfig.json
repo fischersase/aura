@@ -22,6 +22,7 @@
     "src/credential-audit.js",
     "src/oauth.js",
     "src/connectors.js",
+    "src/sandbox.js",
     "src/win-autostart.js",
     "src/store.js",
     "src/agent2/rpc.js",
