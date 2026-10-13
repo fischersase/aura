@@ -532,6 +532,21 @@ TASKS: list[Task] = [
         approve=ALLOW,
     ),
     Task(
+        "schedule-watch",
+        "Sag mir Bescheid, wenn in meinem Downloads-Ordner neue PDF-Dateien landen. Schau jede halbe Stunde nach.",
+        {
+            "plant einen Prüfauftrag": lambda o: any(
+                s["tool"] == "schedule_task" and s["state"] == "ok" and "nur bei Neuem" in s["label"]
+                for s in o.steps
+            ),
+            "alle 30 Minuten": lambda o: any(
+                "alle 30 Minuten" in s["label"] for s in o.steps if s["tool"] == "schedule_task"
+            ),
+        },
+        ["schedule"],
+        approve=ALLOW,
+    ),
+    Task(
         "weather-tomorrow",
         "Wie wird das Wetter morgen?",
         {

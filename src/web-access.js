@@ -35,6 +35,7 @@ const CONFIRM = {
   saveServer: (a) => `MCP-Server „${a.name}“ speichern: ${serverCommand(a.config)}`,
   installRegistry: (a) =>
     `MCP-Server „${a.name || (a.server && a.server.name) || '?'}“ aus dem Verzeichnis installieren`,
+  addTask: (a) => `Geplante Aufgabe „${a && a.title}“ anlegen`,
   stopTask: (a) => `Laufende Aufgabe „${a}“ stoppen`,
   removeTask: (a) => `Geplante Aufgabe „${a}“ löschen`,
   toggleTask: (a) => `Geplante Aufgabe „${a.id}“ ${a.enabled ? 'einschalten' : 'pausieren'}`,

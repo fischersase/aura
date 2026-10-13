@@ -1001,6 +1001,10 @@
                   }
                 }
               ]
+            },
+            "onlyIfNew": {
+              "type": "boolean",
+              "description": "Watch task (AURA-123): report only when something new turned up."
             }
           }
         },

@@ -100,3 +100,33 @@ test('at most three run in parallel; errors are recorded', async () => {
   assert.ok(s.remove(broken.id));
   assert.ok(!s.remove(broken.id));
 });
+
+test('watch tasks: prompt carries the last result; "NICHTS NEUES" keeps the last real result', async () => {
+  const { runPrompt, isNothingNew } = require('../src/scheduler');
+  const clock = { t: at('2026-10-13T08:00') };
+  const answers = ['AURA-131 ist neu: Login-Fehler', 'NICHTS NEUES', '**NICHTS NEUES**'];
+  const prompts = [];
+  const { s } = scheduler(clock, async (task) => {
+    prompts.push(runPrompt(task));
+    return { text: answers.shift() };
+  });
+  s.add({
+    title: 'Jira',
+    prompt: 'Gibt es neue Jira-Tickets?',
+    trigger: { kind: 'interval', minutes: 30 },
+    onlyIfNew: true
+  });
+  for (let i = 0; i < 3; i++) {
+    clock.t += 31 * 60_000;
+    await Promise.all(s.tick());
+  }
+  assert.match(prompts[0], /antworte genau „NICHTS NEUES“/);
+  assert.doesNotMatch(prompts[0], /Letztes Ergebnis/);
+  assert.match(prompts[1], /Letztes Ergebnis: AURA-131 ist neu/);
+  assert.match(prompts[2], /Letztes Ergebnis: AURA-131 ist neu/, 'a quiet run does not replace the last result');
+  assert.strictEqual(s.list()[0].lastText, 'AURA-131 ist neu: Login-Fehler');
+  assert.ok(isNothingNew(' **NICHTS NEUES**'));
+  assert.ok(!isNothingNew('Es gibt nichts Neues, aber …'));
+  // Normal tasks get their prompt unchanged.
+  assert.strictEqual(runPrompt({ prompt: 'x' }), 'x');
+});

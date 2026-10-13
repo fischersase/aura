@@ -492,6 +492,34 @@ async function renderTasks() {
     });
 }
 
+// Daily briefing (AURA-123): a ready-made recurring task; it uses whatever is connected and allowed.
+const BRIEFING_PROMPT =
+  'Tagesbriefing für mich, kurz und in Stichpunkten: das Wetter heute an meinem Ort (weather); meine Termine heute, ' +
+  'falls ein Kalender verbunden ist; neue wichtige Mails und offene Tickets, falls verbunden. Was nicht verbunden ist, ' +
+  'lässt du weg, ohne es aufzuzählen.';
+$('addBriefing').onclick = () =>
+  dialog(
+    'Tagesbriefing einrichten',
+    `<p class="small muted">Aura fasst dir morgens zusammen, was für den Tag wichtig ist: Wetter, Termine, Mails und Tickets (soweit verbunden). Das Ergebnis kommt als Benachrichtigung und steht als Chat „Hintergrund: Tagesbriefing“ bereit.</p>
+    <label>Uhrzeit</label><input type="text" id="bTime" value="07:30" maxlength="5">
+    <label class="check"><input type="checkbox" id="bWeekdays" checked> nur werktags (Mo–Fr)</label>`,
+    async () => {
+      const r = await z.addTask({
+        title: 'Tagesbriefing',
+        prompt: BRIEFING_PROMPT,
+        trigger: {
+          kind: 'daily',
+          time: $('bTime').value.trim(),
+          ...($('bWeekdays').checked ? { days: [1, 2, 3, 4, 5] } : {})
+        }
+      });
+      if (r.error) return r.error;
+      renderTasks();
+      return null;
+    },
+    'Einrichten'
+  );
+
 // ---------- Verbindungen: Aura-Katalog (AURA-96) ----------
 
 let connectorEntries = [];
