@@ -22,12 +22,12 @@ mkdir -p "$BUILD"
 
 uv python install "$PY_VERSION" --install-dir "$BUILD/agent-dl" --no-bin
 if [ "$WINDOWS" = 1 ]; then
-  SRC="$(ls -d "$BUILD"/agent-dl/cpython-"$PY_VERSION".*-windows-x86_64-none | head -1)"
+  SRC="$(find "$BUILD/agent-dl" -maxdepth 1 -name "cpython-$PY_VERSION.*-windows-x86_64-none" | head -1)"
   cp -a "$SRC" "$OUT"
   PY="$OUT/python.exe"
   LIB="$OUT/Lib"
 else
-  SRC="$(ls -d "$BUILD"/agent-dl/cpython-"$PY_VERSION".*-linux-x86_64-gnu | head -1)"
+  SRC="$(find "$BUILD/agent-dl" -maxdepth 1 -name "cpython-$PY_VERSION.*-linux-x86_64-gnu" | head -1)"
   cp -a "$SRC" "$OUT"
   PY="$OUT/bin/python3"
   LIB="$OUT/lib/python$PY_VERSION"

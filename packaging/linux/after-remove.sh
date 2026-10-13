@@ -1,5 +1,6 @@
 #!/bin/bash
 # Aura: Vorlage von electron-builder (app-builder-lib/templates/linux) plus Paketquelle; ${…} setzt electron-builder ein.
+# shellcheck disable=SC2016  # '${executable}' etc. are build-time placeholders, filled in by electron-builder
 
 # Delete the link to the binary
 # update-alternatives --remove <name> <path>: 'path' must be the registered alternative binary,
