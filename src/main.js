@@ -1,6 +1,17 @@
 const {
-  app, BrowserWindow, globalShortcut, ipcMain, screen, Tray, Menu, clipboard,
-  desktopCapturer, session, nativeImage, shell, Notification
+  app,
+  BrowserWindow,
+  globalShortcut,
+  ipcMain,
+  screen,
+  Tray,
+  Menu,
+  clipboard,
+  desktopCapturer,
+  session,
+  nativeImage,
+  shell,
+  Notification
 } = require('electron');
 const fs = require('fs');
 const path = require('path');
@@ -91,7 +102,9 @@ app.on('second-instance', (_e, argv) => {
   else openSetup();
 });
 
-function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
 
 function displayUnderCursor() {
   return screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
@@ -161,7 +174,13 @@ function placePanel(display) {
 }
 
 function createRamblerBar() {
-  ramblerBar = baseWindow({ width: RAMBLER_W, height: RAMBLER_H, focusable: false, alwaysOnTop: true, preload: 'preload-rambler.js' });
+  ramblerBar = baseWindow({
+    width: RAMBLER_W,
+    height: RAMBLER_H,
+    focusable: false,
+    alwaysOnTop: true,
+    preload: 'preload-rambler.js'
+  });
   ramblerBar.setAlwaysOnTop(true, 'screen-saver');
   ramblerBar.setContentProtection(true);
   ramblerBar.loadFile(R('rambler.html'));
@@ -179,7 +198,11 @@ function placeRamblerBar() {
 }
 
 function openSetup() {
-  if (setupWin && !setupWin.isDestroyed()) { setupWin.show(); setupWin.focus(); return; }
+  if (setupWin && !setupWin.isDestroyed()) {
+    setupWin.show();
+    setupWin.focus();
+    return;
+  }
   setupWin = new BrowserWindow({
     width: 620,
     height: 720,
@@ -192,7 +215,10 @@ function openSetup() {
   setupWin.loadFile(R('setup.html'));
   setupWin.on('focus', () => globalShortcut.unregisterAll());
   setupWin.on('blur', () => registerHotkeys());
-  setupWin.on('closed', () => { setupWin = null; registerHotkeys(); });
+  setupWin.on('closed', () => {
+    setupWin = null;
+    registerHotkeys();
+  });
 }
 
 ipcMain.on('setup:done', () => {
@@ -221,7 +247,10 @@ function openSettings() {
   // Beim Aufnehmen neuer Kürzel sollen die alten nicht auslösen.
   settingsWin.on('focus', () => globalShortcut.unregisterAll());
   settingsWin.on('blur', () => registerHotkeys());
-  settingsWin.on('closed', () => { settingsWin = null; registerHotkeys(); });
+  settingsWin.on('closed', () => {
+    settingsWin = null;
+    registerHotkeys();
+  });
 }
 
 // ---------- Glow und Panel ----------
@@ -257,7 +286,9 @@ function closePanel() {
   glow('outro');
   panel.webContents.send('panel:close');
   // Fenster erst nach der Schließ-Animation verstecken.
-  setTimeout(() => { if (!panelOpen) panel.hide(); }, 260);
+  setTimeout(() => {
+    if (!panelOpen) panel.hide();
+  }, 260);
 }
 
 function toggleGemini() {
@@ -268,7 +299,10 @@ function toggleGemini() {
 function toggleLive() {
   if (panelOpen) {
     panel.webContents.send(liveActive ? 'live:stop' : 'live:start');
-    if (!liveActive) { panel.show(); panel.focus(); }
+    if (!liveActive) {
+      panel.show();
+      panel.focus();
+    }
   } else {
     openPanel({ startLive: true });
   }
@@ -299,7 +333,10 @@ function ramblerSend(channel, data) {
 
 async function toggleRambler() {
   if (ramblerState.busy) return;
-  if (!store.ready()) { openSetup(); return; }
+  if (!store.ready()) {
+    openSetup();
+    return;
+  }
   if (ramblerState.recording) {
     ramblerState.recording = false;
     ramblerSend('rambler:stop');
@@ -346,7 +383,10 @@ function hideRamblerBarSoon(ms) {
 
 ipcMain.on('rambler:audio', async (_e, { wavBase64 }) => {
   ramblerState.recording = false;
-  if (!wavBase64) { ramblerBar.hide(); return; }
+  if (!wavBase64) {
+    ramblerBar.hide();
+    return;
+  }
   ramblerSend('rambler:state', { state: 'processing' });
   try {
     const over = budgetError();
@@ -356,7 +396,13 @@ ipcMain.on('rambler:audio', async (_e, { wavBase64 }) => {
     if (store.isLocal()) {
       const transcript = await transcribe(wavBase64);
       if (!transcript) throw new Error('Nichts verstanden.');
-      out = await ollama.rambler({ url: s.ollamaUrl, model: s.ollamaModel, transcript, selection: ramblerState.selection, language: s.language });
+      out = await ollama.rambler({
+        url: s.ollamaUrl,
+        model: s.ollamaModel,
+        transcript,
+        selection: ramblerState.selection,
+        language: s.language
+      });
     } else {
       out = await gemini.rambler({
         apiKey: store.getApiKey(),
@@ -372,7 +418,10 @@ ipcMain.on('rambler:audio', async (_e, { wavBase64 }) => {
     const pasted = await pasteText(out.text);
     ramblerState.last = { ...out, fullAvailable: !ramblerState.selection };
     if (!pasted) {
-      ramblerSend('rambler:state', { state: 'error', message: 'In der Zwischenablage – mit Strg+V einfügen (xdotool/wtype fehlt)' });
+      ramblerSend('rambler:state', {
+        state: 'error',
+        message: 'In der Zwischenablage – mit Strg+V einfügen (xdotool/wtype fehlt)'
+      });
       hideRamblerBarSoon(7000);
       return;
     }
@@ -411,13 +460,21 @@ ipcMain.on('rambler:error', (_e, message) => {
 
 // Unter Wayland liefert desktopCapturer keine brauchbaren Vorschaubilder; dann über eine
 // dauerhafte Bildschirmfreigabe im Panel (fragt das System einmal, nicht bei jedem Bild).
-const USE_STREAM_CAPTURE = IS_LINUX && (process.env.XDG_SESSION_TYPE === 'wayland' || !!process.env.WAYLAND_DISPLAY || process.env.AURA_SCREEN_STREAM === '1');
+const USE_STREAM_CAPTURE =
+  IS_LINUX &&
+  (process.env.XDG_SESSION_TYPE === 'wayland' ||
+    !!process.env.WAYLAND_DISPLAY ||
+    process.env.AURA_SCREEN_STREAM === '1');
 
 async function grabViaPanel(maxWidth) {
   if (!panel || panel.isDestroyed()) throw new Error('Aura-Fenster nicht bereit.');
   const r = await panel.webContents.executeJavaScript(`window.__grabScreen(${Number(maxWidth) || 1600})`, true);
-  if (!r || r.error) throw new Error('Bildschirmaufnahme fehlgeschlagen: ' + ((r && r.error) || 'unbekannt') +
-    (IS_LINUX ? ' (Unter Wayland muss die Freigabe im System-Dialog bestätigt werden.)' : ''));
+  if (!r || r.error)
+    throw new Error(
+      'Bildschirmaufnahme fehlgeschlagen: ' +
+        ((r && r.error) || 'unbekannt') +
+        (IS_LINUX ? ' (Unter Wayland muss die Freigabe im System-Dialog bestätigt werden.)' : '')
+    );
   return r.jpeg;
 }
 
@@ -428,7 +485,12 @@ function noteAgentScreenshot() {
   if (panel && panelOpen && panel.isVisible()) return;
   if (Date.now() - lastScreenshotNotice < 60000 || !Notification.isSupported()) return;
   lastScreenshotNotice = Date.now();
-  new Notification({ title: 'Aura', body: 'Aura hat für die laufende Aufgabe ein Bildschirmfoto gemacht.', icon: ICON, silent: true }).show();
+  new Notification({
+    title: 'Aura',
+    body: 'Aura hat für die laufende Aufgabe ein Bildschirmfoto gemacht.',
+    icon: ICON,
+    silent: true
+  }).show();
 }
 
 async function screenshotJpeg(display, maxWidth = 1600) {
@@ -466,8 +528,10 @@ function budgetError() {
   if (store.isLocal()) return null; // lokale Modelle kosten nichts
   const u = usageSummary();
   if (!u.overBudget) return null;
-  return `Monatsbudget von ${u.budgetUsd.toFixed(2)} $ erreicht (geschätzt ${u.costUsd.toFixed(2)} $). ` +
-    'Du kannst es in den Einstellungen erhöhen.';
+  return (
+    `Monatsbudget von ${u.budgetUsd.toFixed(2)} $ erreicht (geschätzt ${u.costUsd.toFixed(2)} $). ` +
+    'Du kannst es in den Einstellungen erhöhen.'
+  );
 }
 
 // ---------- IPC ----------
@@ -475,8 +539,8 @@ function budgetError() {
 const CHAT_SYSTEM = (lang) =>
   `Du bist Aura, ein Assistent in einem kompakten Overlay auf einem ${IS_LINUX ? 'Linux-' : 'Windows-'}PC. Antworte kurz, klar und freundlich, ` +
   `standardmäßig auf ${lang}. Nutze Markdown sparsam (kurze Listen, **fett**, \`code\`). ` +
-  'Wenn ein Screenshot beiliegt, beziehe dich konkret auf das, was zu sehen ist.'
-  + (store.profilePrompt() ? '\n\n' + store.profilePrompt() : '');
+  'Wenn ein Screenshot beiliegt, beziehe dich konkret auf das, was zu sehen ist.' +
+  (store.profilePrompt() ? '\n\n' + store.profilePrompt() : '');
 
 const chatAborts = new Map();
 
@@ -528,7 +592,14 @@ ipcMain.on('chat:send', async (e, { id, chatId, history, includeScreen }) => {
     } else if (s.agentEnabled) {
       await runAgent(e.sender, id, ctrl, contents, onText);
     } else if (store.isLocal()) {
-      await ollama.streamChat({ url: s.ollamaUrl, model: s.ollamaModel, history: contents, system: CHAT_SYSTEM(s.language), signal: ctrl.signal, onText });
+      await ollama.streamChat({
+        url: s.ollamaUrl,
+        model: s.ollamaModel,
+        history: contents,
+        system: CHAT_SYSTEM(s.language),
+        signal: ctrl.signal,
+        onText
+      });
     } else {
       const res = await gemini.streamChat({
         apiKey: store.getApiKey(),
@@ -562,16 +633,29 @@ let agentRuns = 0;
 
 async function runAgent(sender, id, ctrl, contents, onText) {
   const s = store.load();
-  const send = (ch, data) => { if (!sender.isDestroyed()) sender.send(ch, data); };
+  const send = (ch, data) => {
+    if (!sender.isDestroyed()) sender.send(ch, data);
+  };
   let allowAll = false; // „Alle erlauben“ gilt bis zum Ende dieses Auftrags
-  const approve = (step) => new Promise((resolve) => {
-    if (ctrl.signal.aborted) return resolve(false);
-    if (allowAll) return resolve(true);
-    approvals.set(step.id, (ok) => { if (ok === 'all') allowAll = true; resolve(!!ok); });
-    ctrl.signal.addEventListener('abort', () => { approvals.delete(step.id); resolve(false); }, { once: true });
-    send('agent:approve', { chatId: id, ...step });
-    if (panel && !panelOpen) openPanel();
-  });
+  const approve = (step) =>
+    new Promise((resolve) => {
+      if (ctrl.signal.aborted) return resolve(false);
+      if (allowAll) return resolve(true);
+      approvals.set(step.id, (ok) => {
+        if (ok === 'all') allowAll = true;
+        resolve(!!ok);
+      });
+      ctrl.signal.addEventListener(
+        'abort',
+        () => {
+          approvals.delete(step.id);
+          resolve(false);
+        },
+        { once: true }
+      );
+      send('agent:approve', { chatId: id, ...step });
+      if (panel && !panelOpen) openPanel();
+    });
   const opts = {
     history: contents,
     language: s.language,
@@ -580,7 +664,10 @@ async function runAgent(sender, id, ctrl, contents, onText) {
     approve,
     signal: ctrl.signal,
     ctx: {
-      screenshot: () => { noteAgentScreenshot(); return screenshotJpeg(currentDisplay); },
+      screenshot: () => {
+        noteAgentScreenshot();
+        return screenshotJpeg(currentDisplay);
+      },
       // 0–1000 im Bildschirmfoto → echte Bildschirm-Pixel
       toScreen: (x, y) => {
         const d = currentDisplay || displayUnderCursor();
@@ -600,7 +687,10 @@ async function runAgent(sender, id, ctrl, contents, onText) {
         ...opts,
         apiKey: store.getApiKey(),
         model: s.chatModel,
-        onUsage: (u) => { usage.addTokens(s.chatModel, u); broadcastUsage(); }
+        onUsage: (u) => {
+          usage.addTokens(s.chatModel, u);
+          broadcastUsage();
+        }
       });
     }
   } finally {
@@ -611,7 +701,10 @@ async function runAgent(sender, id, ctrl, contents, onText) {
 
 ipcMain.on('agent:approval', (_e, { stepId, ok }) => {
   const r = approvals.get(stepId);
-  if (r) { approvals.delete(stepId); r(ok === 'all' || ok === 'always' ? ok : !!ok); }
+  if (r) {
+    approvals.delete(stepId);
+    r(ok === 'all' || ok === 'always' ? ok : !!ok);
+  }
 });
 
 // ---------- Agent v2 (agent/, Python + Google ADK) ----------
@@ -645,27 +738,38 @@ const agentV2 = new AgentBridge({
   },
   host: {
     // Freigabe über dieselbe Karte im Panel wie beim alten Agenten.
-    approve: (req) => new Promise((resolve) => {
-      const sender = v2Senders.get(req.taskId);
-      if (!sender || sender.isDestroyed()) return resolve({ decision: 'deny' });
-      const answer = (ok) => resolve({ decision: ok === 'all' ? 'task' : ok === 'always' ? 'always' : ok ? 'once' : 'deny' });
-      answer.taskId = req.taskId;
-      approvals.set(req.stepId, answer);
-      const detail = req.effect && req.effect !== req.label ? req.effect : '';
-      sender.send('agent:approve', { chatId: req.taskId, id: req.stepId, tool: req.tool, label: req.label, detail, tier: req.tier, reason: req.reason || '' });
-      if (panel && !panelOpen) openPanel();
-    }),
+    approve: (req) =>
+      new Promise((resolve) => {
+        const sender = v2Senders.get(req.taskId);
+        if (!sender || sender.isDestroyed()) return resolve({ decision: 'deny' });
+        const answer = (ok) =>
+          resolve({ decision: ok === 'all' ? 'task' : ok === 'always' ? 'always' : ok ? 'once' : 'deny' });
+        answer.taskId = req.taskId;
+        approvals.set(req.stepId, answer);
+        const detail = req.effect && req.effect !== req.label ? req.effect : '';
+        sender.send('agent:approve', {
+          chatId: req.taskId,
+          id: req.stepId,
+          tool: req.tool,
+          label: req.label,
+          detail,
+          tier: req.tier,
+          reason: req.reason || ''
+        });
+        if (panel && !panelOpen) openPanel();
+      }),
     // Rückfrage des Agenten (ask_user) als Karte im Panel.
-    ask: (req) => new Promise((resolve) => {
-      const sender = v2Senders.get(req.taskId);
-      if (!sender || sender.isDestroyed()) return resolve({ answer: '' });
-      const id = 'q' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-      const answer = (text) => resolve({ answer: String(text || '') });
-      answer.taskId = req.taskId;
-      v2Questions.set(id, answer);
-      sender.send('agent:ask', { chatId: req.taskId, id, question: req.question, options: req.options || [] });
-      if (panel && !panelOpen) openPanel();
-    }),
+    ask: (req) =>
+      new Promise((resolve) => {
+        const sender = v2Senders.get(req.taskId);
+        if (!sender || sender.isDestroyed()) return resolve({ answer: '' });
+        const id = 'q' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        const answer = (text) => resolve({ answer: String(text || '') });
+        answer.taskId = req.taskId;
+        v2Questions.set(id, answer);
+        sender.send('agent:ask', { chatId: req.taskId, id, question: req.question, options: req.options || [] });
+        if (panel && !panelOpen) openPanel();
+      }),
     screenshot: async (maxWidth) => {
       noteAgentScreenshot();
       return { mime: 'image/jpeg', data: await screenshotJpeg(currentDisplay, maxWidth) };
@@ -674,8 +778,14 @@ const agentV2 = new AgentBridge({
     input: async (req) => {
       if (req.action === 'click') {
         const d = currentDisplay || displayUnderCursor();
-        const dip = { x: d.bounds.x + (Number(req.x) / 1000) * d.bounds.width, y: d.bounds.y + (Number(req.y) / 1000) * d.bounds.height };
-        const p = process.platform === 'win32' ? screen.dipToScreenPoint(dip) : { x: dip.x * d.scaleFactor, y: dip.y * d.scaleFactor };
+        const dip = {
+          x: d.bounds.x + (Number(req.x) / 1000) * d.bounds.width,
+          y: d.bounds.y + (Number(req.y) / 1000) * d.bounds.height
+        };
+        const p =
+          process.platform === 'win32'
+            ? screen.dipToScreenPoint(dip)
+            : { x: dip.x * d.scaleFactor, y: dip.y * d.scaleFactor };
         return agentInput.click(p.x, p.y, { button: req.button === 'right' ? 'right' : 'left', double: !!req.double });
       }
       if (req.action === 'type') return agentInput.typeText(String(req.text || ''));
@@ -687,18 +797,31 @@ const agentV2 = new AgentBridge({
 
 ipcMain.on('agent:answer', (_e, { id, answer }) => {
   const r = v2Questions.get(id);
-  if (r) { v2Questions.delete(id); r(answer); }
+  if (r) {
+    v2Questions.delete(id);
+    r(answer);
+  }
 });
 
 // Eigene MCP-Server aus ~/.aura/mcp.json für Agent v2, mit eingesetzten Schlüsseln (${secret:NAME}).
 // Ein Server mit fehlendem Schlüssel wird mit Fehler übergeben und vom Agenten übersprungen.
 function mcpServersForAgent() {
   let cfg;
-  try { cfg = JSON.parse(fs.readFileSync(agentMcp.configFile(), 'utf8')); } catch { return []; }
+  try {
+    cfg = JSON.parse(fs.readFileSync(agentMcp.configFile(), 'utf8'));
+  } catch {
+    return [];
+  }
   const servers = cfg.mcpServers || cfg.servers || {};
-  return Object.entries(servers).filter(([, c]) => c && !c.disabled).map(([name, c]) => {
-    try { return { name, ...secrets.resolveServerConfig(c) }; } catch (err) { return { name, error: String(err.message || err) }; }
-  });
+  return Object.entries(servers)
+    .filter(([, c]) => c && !c.disabled)
+    .map(([name, c]) => {
+      try {
+        return { name, ...secrets.resolveServerConfig(c) };
+      } catch (err) {
+        return { name, error: String(err.message || err) };
+      }
+    });
 }
 
 // Mitgelieferter Browser-Server (Playwright-MCP), gestartet mit Electron als Node. Ohne Paket nimmt der Agent npx.
@@ -712,23 +835,38 @@ function browserLauncher() {
 // Im Live-Modus wird eine gesprochene Bitte ein ganz normaler Agent-Auftrag; die Antwort wird kurz und vorlesbar.
 // Freigaben sind im Sprachmodus nicht möglich (kein Fenster offen): folgenreiche Aktionen lehnt die App ab,
 // und der Agent sagt, dass sie im Aura-Fenster freizugeben sind.
-const VOICE_HINT = '\n\n[Sprachmodus: Antworte in höchstens zwei kurzen, gesprochenen Sätzen, ohne Markdown, Listen oder Links. '
-  + 'Folgenreiche Aktionen können im Sprachmodus nicht freigegeben werden; sag dann, dass der Nutzer sie im Aura-Fenster schreiben soll.]';
+const VOICE_HINT =
+  '\n\n[Sprachmodus: Antworte in höchstens zwei kurzen, gesprochenen Sätzen, ohne Markdown, Listen oder Links. ' +
+  'Folgenreiche Aktionen können im Sprachmodus nicht freigegeben werden; sag dann, dass der Nutzer sie im Aura-Fenster schreiben soll.]';
 const voiceChatId = () => 'voice-' + new Date().toISOString().slice(0, 10);
 const voiceAgentReady = () => store.load().agentEnabled && agentVersion() === 'v2' && agentV2.available();
 
 function speakable(text) {
-  return String(text || '').replace(/```[\s\S]*?```/g, ' ').replace(/[*_`#>|]/g, '').replace(/\[(.*?)\]\(.*?\)/g, '$1')
-    .replace(/https?:\/\/\S+/g, '').replace(/\s+/g, ' ').trim().slice(0, 500);
+  return String(text || '')
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/[*_`#>|]/g, '')
+    .replace(/\[(.*?)\]\(.*?\)/g, '$1')
+    .replace(/https?:\/\/\S+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 500);
 }
 
 async function runVoiceTask(taskId, text, jpeg) {
   agentRuns++;
   registerStopHotkey();
   try {
-    const done = await agentV2.runTask({ taskId, chatId: voiceChatId(), text: text + VOICE_HINT, images: jpeg ? [{ mime: 'image/jpeg', data: jpeg }] : [] });
+    const done = await agentV2.runTask({
+      taskId,
+      chatId: voiceChatId(),
+      text: text + VOICE_HINT,
+      images: jpeg ? [{ mime: 'image/jpeg', data: jpeg }] : []
+    });
     if (done && done.usage && store.load().provider === 'gemini') {
-      usage.addTokens(store.load().chatModel, { promptTokenCount: done.usage.prompt, candidatesTokenCount: done.usage.output });
+      usage.addTokens(store.load().chatModel, {
+        promptTokenCount: done.usage.prompt,
+        candidatesTokenCount: done.usage.output
+      });
       broadcastUsage();
     }
     return speakable(done && done.cancelled ? 'Abgebrochen.' : done && done.text) || 'Erledigt.';
@@ -743,7 +881,7 @@ let voiceSeq = 0;
 ipcMain.handle('agent:voiceTask', async (_e, { request }) => {
   if (!voiceAgentReady()) return { error: 'Der Agent ist nicht verfügbar.' };
   try {
-    return { result: await runVoiceTask('voice-gl-' + (++voiceSeq), String(request || ''), null) };
+    return { result: await runVoiceTask('voice-gl-' + ++voiceSeq, String(request || ''), null) };
   } catch (err) {
     return { error: String(err.message || err) };
   }
@@ -752,38 +890,78 @@ ipcMain.handle('agent:voiceTask', async (_e, { request }) => {
 // Hintergrund-Aufträge: Ist das Panel zu, wenn ein Auftrag fertig wird, meldet sich Aura mit einer Benachrichtigung.
 function notifyIfHidden(text, verified) {
   if (panelOpen || !Notification.isSupported()) return;
-  const body = String(text || 'Fertig.').replace(/[*_`#>]/g, '').replace(/\s+/g, ' ').slice(0, 180);
-  const n = new Notification({ title: verified === false ? 'Aura: nicht alles hat geklappt' : 'Aura ist fertig', body, icon: ICON, silent: false });
+  const body = String(text || 'Fertig.')
+    .replace(/[*_`#>]/g, '')
+    .replace(/\s+/g, ' ')
+    .slice(0, 180);
+  const n = new Notification({
+    title: verified === false ? 'Aura: nicht alles hat geklappt' : 'Aura ist fertig',
+    body,
+    icon: ICON,
+    silent: false
+  });
   n.on('click', () => openPanel());
   n.show();
 }
 
 async function runAgentV2(sender, id, chatId, ctrl, contents, onText) {
-  const send = (ch, data) => { if (!sender.isDestroyed()) sender.send(ch, data); };
+  const send = (ch, data) => {
+    if (!sender.isDestroyed()) sender.send(ch, data);
+  };
   const last = contents[contents.length - 1] || { parts: [] };
-  const text = last.parts.filter((p) => p.text).map((p) => p.text).join('\n');
-  const images = last.parts.filter((p) => p.inlineData).map((p) => ({ mime: p.inlineData.mimeType, data: p.inlineData.data }));
+  const text = last.parts
+    .filter((p) => p.text)
+    .map((p) => p.text)
+    .join('\n');
+  const images = last.parts
+    .filter((p) => p.inlineData)
+    .map((p) => ({ mime: p.inlineData.mimeType, data: p.inlineData.data }));
   v2Senders.set(id, sender);
   const onAbort = () => {
     // Offene Freigaben dieses Auftrags gelten als abgelehnt, dann Not-Aus im Agenten.
-    for (const [stepId, r] of approvals) { if (r.taskId === id) { approvals.delete(stepId); r(false); } }
-    for (const [qid, r] of v2Questions) { if (r.taskId === id) { v2Questions.delete(qid); r(''); } }
+    for (const [stepId, r] of approvals) {
+      if (r.taskId === id) {
+        approvals.delete(stepId);
+        r(false);
+      }
+    }
+    for (const [qid, r] of v2Questions) {
+      if (r.taskId === id) {
+        v2Questions.delete(qid);
+        r('');
+      }
+    }
     agentV2.cancel(id);
   };
   ctrl.signal.addEventListener('abort', onAbort, { once: true });
   agentRuns++;
   registerStopHotkey();
   try {
-    const done = await agentV2.runTask({ taskId: id, chatId, text, images }, {
-      onText,
-      onStep: (st) => send('agent:step', { chatId: id, id: st.stepId, tool: st.tool, label: st.label, state: st.state, verified: st.verified }),
-      onPlan: (items) => send('agent:plan', { chatId: id, items })
-    });
-    if (done && !done.cancelled && done.verified !== null && done.verified !== undefined) send('agent:verified', { chatId: id, verified: done.verified });
+    const done = await agentV2.runTask(
+      { taskId: id, chatId, text, images },
+      {
+        onText,
+        onStep: (st) =>
+          send('agent:step', {
+            chatId: id,
+            id: st.stepId,
+            tool: st.tool,
+            label: st.label,
+            state: st.state,
+            verified: st.verified
+          }),
+        onPlan: (items) => send('agent:plan', { chatId: id, items })
+      }
+    );
+    if (done && !done.cancelled && done.verified !== null && done.verified !== undefined)
+      send('agent:verified', { chatId: id, verified: done.verified });
     if (done && !done.cancelled) notifyIfHidden(done.text, done.verified);
     if (done && done.usage && store.load().provider === 'gemini') {
       // Kosten wie beim Chat mitzählen (Monatsbudget in den Einstellungen).
-      usage.addTokens(store.load().chatModel, { promptTokenCount: done.usage.prompt, candidatesTokenCount: done.usage.output });
+      usage.addTokens(store.load().chatModel, {
+        promptTokenCount: done.usage.prompt,
+        candidatesTokenCount: done.usage.output
+      });
       broadcastUsage();
     }
   } finally {
@@ -810,7 +988,9 @@ ipcMain.on('agent:openLog', () => {
 
 // Erweiterungen: AGENTS.md, Skills-Ordner, MCP-Server.
 ipcMain.handle('agent:extensions', async (_e, force) => {
-  try { await agentMcp.sync(!!force); } catch {}
+  try {
+    await agentMcp.sync(!!force);
+  } catch {}
   return {
     builtin: agentTools.TOOLS.map((t) => t.name),
     skills: agentSkills.list().map((x) => ({ name: x.name, description: x.description })),
@@ -829,15 +1009,26 @@ ipcMain.on('agent:openFile', (_e, which) => {
     shell.openPath(f);
   }
 });
-app.on('will-quit', () => { agentMcp.closeAll(); web.stop(); agentV2.stop(); });
+app.on('will-quit', () => {
+  agentMcp.closeAll();
+  web.stop();
+  agentV2.stop();
+});
 
 // Das Notbremse-Kürzel ist nur aktiv, solange der Agent arbeitet.
 let stopKeyOn = null;
 function registerStopHotkey() {
   const acc = store.load().hotkeyStop;
-  if (stopKeyOn) { try { globalShortcut.unregister(stopKeyOn); } catch {} stopKeyOn = null; }
+  if (stopKeyOn) {
+    try {
+      globalShortcut.unregister(stopKeyOn);
+    } catch {}
+    stopKeyOn = null;
+  }
   if (agentRuns > 0 && acc) {
-    try { if (globalShortcut.register(acc, stopAgent)) stopKeyOn = acc; } catch {}
+    try {
+      if (globalShortcut.register(acc, stopAgent)) stopKeyOn = acc;
+    } catch {}
   }
 }
 
@@ -853,7 +1044,10 @@ Object.assign(zentrale.API, {
   installExtension: () => zentraleV2.installExtension()
 });
 zentrale.register();
-ipcMain.on('zentrale:open', () => { closePanel(); zentrale.open(ICON); });
+ipcMain.on('zentrale:open', () => {
+  closePanel();
+  zentrale.open(ICON);
+});
 
 // Chat-Verlauf
 ipcMain.handle('chats:list', () => chats.list());
@@ -863,7 +1057,9 @@ ipcMain.handle('chats:delete', (_e, id) => chats.remove(id));
 
 // Solange eine Antwort läuft, schließt ein Fokuswechsel (z. B. Freigabe-Dialog) das Fenster nicht.
 let panelBusy = false;
-ipcMain.on('panel:busy', (_e, v) => { panelBusy = !!v; });
+ipcMain.on('panel:busy', (_e, v) => {
+  panelBusy = !!v;
+});
 
 ipcMain.on('live:usage', (_e, secs) => {
   usage.addLive(secs || {});
@@ -940,7 +1136,11 @@ function ensureStt() {
   if (sttWin && !sttWin.isDestroyed()) return sttReady;
   sttWin = new BrowserWindow({
     show: false,
-    webPreferences: { preload: path.join(__dirname, 'preload-stt.js'), contextIsolation: true, backgroundThrottling: false }
+    webPreferences: {
+      preload: path.join(__dirname, 'preload-stt.js'),
+      contextIsolation: true,
+      backgroundThrottling: false
+    }
   });
   sttReady = new Promise((resolve) => ipcMain.once('stt:ready', resolve));
   sttWin.loadFile(R('stt.html'));
@@ -970,10 +1170,30 @@ async function transcribe(wavBase64, language) {
 }
 
 // Spracheinstellung von Aura → Whisper-Sprache. Bei kurzen Aufnahmen rät Whisper sonst oft Englisch.
-const WHISPER_LANGUAGES = { deutsch: 'german', german: 'german', english: 'english', englisch: 'english', español: 'spanish',
-  spanisch: 'spanish', français: 'french', französisch: 'french', italiano: 'italian', italienisch: 'italian',
-  türkçe: 'turkish', türkisch: 'turkish', polski: 'polish', polnisch: 'polish', nederlands: 'dutch', niederländisch: 'dutch' };
-const whisperLanguage = (language) => WHISPER_LANGUAGES[String(language || '').trim().toLowerCase()];
+const WHISPER_LANGUAGES = {
+  deutsch: 'german',
+  german: 'german',
+  english: 'english',
+  englisch: 'english',
+  español: 'spanish',
+  spanisch: 'spanish',
+  français: 'french',
+  französisch: 'french',
+  italiano: 'italian',
+  italienisch: 'italian',
+  türkçe: 'turkish',
+  türkisch: 'turkish',
+  polski: 'polish',
+  polnisch: 'polish',
+  nederlands: 'dutch',
+  niederländisch: 'dutch'
+};
+const whisperLanguage = (language) =>
+  WHISPER_LANGUAGES[
+    String(language || '')
+      .trim()
+      .toLowerCase()
+  ];
 
 ipcMain.on('stt:result', (_e, { id, text, error }) => {
   const job = sttJobs.get(id);
@@ -985,7 +1205,8 @@ ipcMain.on('stt:result', (_e, { id, text, error }) => {
 
 // Fortschritt beim ersten Laden des Whisper-Modells an Rambler und Panel weitergeben.
 ipcMain.on('stt:progress', (_e, p) => {
-  for (const w of [ramblerBar, panel, settingsWin, setupWin]) if (w && !w.isDestroyed()) w.webContents.send('stt:progress', p);
+  for (const w of [ramblerBar, panel, settingsWin, setupWin])
+    if (w && !w.isDestroyed()) w.webContents.send('stt:progress', p);
 });
 
 // Spracheingabe im Chat: Aufnahme → Text. Lokal mit Whisper (nichts verlässt den Rechner), sonst mit einem
@@ -993,7 +1214,8 @@ ipcMain.on('stt:progress', (_e, p) => {
 ipcMain.handle('chat:transcribe', async (_e, { wavBase64 }) => {
   const s = store.load();
   try {
-    if (store.isLocal()) return { text: String(await transcribe(wavBase64, whisperLanguage(s.language)) || '').trim() };
+    if (store.isLocal())
+      return { text: String((await transcribe(wavBase64, whisperLanguage(s.language))) || '').trim() };
     if (!store.getApiKey()) return { error: 'Kein Gemini-API-Schlüssel eingerichtet.' };
     const over = budgetError();
     if (over) return { error: over };
@@ -1024,7 +1246,15 @@ ipcMain.handle('live:turn', async (_e, { id, wavBase64, history, screen: withScr
       const say = await runVoiceTask('voice-' + id, question, jpeg);
       return { question, say, point: null };
     }
-    const out = await ollama.liveTurn({ url: s.ollamaUrl, model: s.ollamaModel, language: s.language, history, question, jpeg, signal: ctrl.signal });
+    const out = await ollama.liveTurn({
+      url: s.ollamaUrl,
+      model: s.ollamaModel,
+      language: s.language,
+      history,
+      question,
+      jpeg,
+      signal: ctrl.signal
+    });
     return { question, ...out };
   } catch (err) {
     if (err.name === 'AbortError') return { aborted: true };
@@ -1052,9 +1282,15 @@ let pullCtrl = null;
 ipcMain.handle('ollama:pull', async (e, { url, name }) => {
   pullCtrl = new AbortController();
   try {
-    await ollama.pull(url || store.load().ollamaUrl, name, (p) => {
-      if (!e.sender.isDestroyed()) e.sender.send('ollama:progress', { name, status: p.status, completed: p.completed, total: p.total });
-    }, pullCtrl.signal);
+    await ollama.pull(
+      url || store.load().ollamaUrl,
+      name,
+      (p) => {
+        if (!e.sender.isDestroyed())
+          e.sender.send('ollama:progress', { name, status: p.status, completed: p.completed, total: p.total });
+      },
+      pullCtrl.signal
+    );
     return { ok: true };
   } catch (err) {
     return { ok: false, message: err.name === 'AbortError' ? 'Abgebrochen.' : String(err.message || err) };
@@ -1091,23 +1327,28 @@ function applyAutostartLinux(on) {
   const dir = path.join(app.getPath('appData'), 'autostart');
   const file = path.join(dir, 'aura.desktop');
   fs.rmSync(path.join(dir, 'gemini-overlay.desktop'), { force: true }); // Name bis v0.3
-  if (!on) { fs.rmSync(file, { force: true }); return; }
+  if (!on) {
+    fs.rmSync(file, { force: true });
+    return;
+  }
   const exe = process.env.APPIMAGE || process.execPath;
   fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(file, [
-    '[Desktop Entry]',
-    'Type=Application',
-    'Name=Aura',
-    `Exec="${exe}"`,
-    'X-GNOME-Autostart-enabled=true',
-    ''
-  ].join('\n'));
+  fs.writeFileSync(
+    file,
+    ['[Desktop Entry]', 'Type=Application', 'Name=Aura', `Exec="${exe}"`, 'X-GNOME-Autostart-enabled=true', ''].join(
+      '\n'
+    )
+  );
 }
 
 function applyAutostart() {
   if (!app.isPackaged) return; // Im Entwicklungsmodus nicht die electron.exe eintragen.
   if (IS_LINUX) {
-    try { applyAutostartLinux(!!store.load().autostart); } catch (err) { console.warn('Autostart:', err.message); }
+    try {
+      applyAutostartLinux(!!store.load().autostart);
+    } catch (err) {
+      console.warn('Autostart:', err.message);
+    }
     return;
   }
   // Ältere portable .exe entpackten sich in einen Temp-Ordner; eingetragen wird die Original-Datei.
@@ -1124,23 +1365,27 @@ function createTray() {
   tray = new Tray(img);
   tray.setToolTip(`Aura ${app.getVersion()}`);
   const s = () => store.load();
-  const menu = () => Menu.buildFromTemplate([
-    { label: `Aura öffnen\t${s().hotkeyGemini}`, click: () => openPanel() },
-    { label: `Live\t${s().hotkeyLive}`, click: () => toggleLive() },
-    { label: `Rambler: ${s().hotkeyRambler} im Textfeld`, enabled: false },
-    { type: 'separator' },
-    store.isLocal()
-      ? { label: `Lokal über Ollama: ${s().ollamaModel}`, enabled: false }
-      : { label: `Diesen Monat: ≈ ${usageSummary().costUsd.toFixed(2)} $ von ${Number(s().monthlyBudgetUsd).toFixed(2)} $`, enabled: false },
-    ...(agentRuns > 0 ? [{ label: `Agent stoppen\t${s().hotkeyStop}`, click: () => stopAgent() }] : []),
-    { label: 'Aura Zentrale (Werkzeuge, MCP, Skills) …', click: () => zentrale.open(ICON) },
-    { label: 'Aura Zentrale im Browser …', click: () => web.open() },
-    { label: 'Einstellungen …', click: () => openSettings() },
-    { label: 'Einrichtung erneut starten …', click: () => openSetup() },
-    { type: 'separator' },
-    { label: `Version ${app.getVersion()}`, enabled: false },
-    { label: 'Beenden', click: () => app.quit() }
-  ]);
+  const menu = () =>
+    Menu.buildFromTemplate([
+      { label: `Aura öffnen\t${s().hotkeyGemini}`, click: () => openPanel() },
+      { label: `Live\t${s().hotkeyLive}`, click: () => toggleLive() },
+      { label: `Rambler: ${s().hotkeyRambler} im Textfeld`, enabled: false },
+      { type: 'separator' },
+      store.isLocal()
+        ? { label: `Lokal über Ollama: ${s().ollamaModel}`, enabled: false }
+        : {
+            label: `Diesen Monat: ≈ ${usageSummary().costUsd.toFixed(2)} $ von ${Number(s().monthlyBudgetUsd).toFixed(2)} $`,
+            enabled: false
+          },
+      ...(agentRuns > 0 ? [{ label: `Agent stoppen\t${s().hotkeyStop}`, click: () => stopAgent() }] : []),
+      { label: 'Aura Zentrale (Werkzeuge, MCP, Skills) …', click: () => zentrale.open(ICON) },
+      { label: 'Aura Zentrale im Browser …', click: () => web.open() },
+      { label: 'Einstellungen …', click: () => openSettings() },
+      { label: 'Einrichtung erneut starten …', click: () => openSetup() },
+      { type: 'separator' },
+      { label: `Version ${app.getVersion()}`, enabled: false },
+      { label: 'Beenden', click: () => app.quit() }
+    ]);
   tray.on('click', () => openPanel());
   tray.on('right-click', () => tray.popUpContextMenu(menu()));
 }
@@ -1168,7 +1413,9 @@ app.whenReady().then(() => {
   if (!store.load().setupDone || !store.ready()) openSetup();
   else if (!handleArgs(process.argv) && failed.length) openSettings();
   preloadStt().catch(() => {});
-  screen.on('display-removed', () => { currentDisplay = null; });
+  screen.on('display-removed', () => {
+    currentDisplay = null;
+  });
 });
 
 app.on('window-all-closed', (e) => e.preventDefault());

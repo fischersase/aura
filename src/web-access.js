@@ -4,15 +4,33 @@
 
 // Read-only or harmless.
 const ALLOW = new Set([
-  'state', 'log', 'chats', 'deleteChat', 'policy', 'memory', 'saveMemory', 'audit', 'doctor', 'getServer',
-  'searchRegistry', 'getSkill', 'secrets', 'setSecretNote', 'profile', 'saveProfile', 'setAgent', 'openUrl',
-  'webInfo', 'resetWeb'
+  'state',
+  'log',
+  'chats',
+  'deleteChat',
+  'policy',
+  'memory',
+  'saveMemory',
+  'audit',
+  'doctor',
+  'getServer',
+  'searchRegistry',
+  'getSkill',
+  'secrets',
+  'setSecretNote',
+  'profile',
+  'saveProfile',
+  'setAgent',
+  'openUrl',
+  'webInfo',
+  'resetWeb'
 ]);
 
 // Allowed after the user confirms in the desktop app. Value: German text for the dialog (UI language today).
 const CONFIRM = {
   saveServer: (a) => `MCP-Server „${a.name}“ speichern: ${serverCommand(a.config)}`,
-  installRegistry: (a) => `MCP-Server „${a.name || (a.server && a.server.name) || '?'}“ aus dem Verzeichnis installieren`,
+  installRegistry: (a) =>
+    `MCP-Server „${a.name || (a.server && a.server.name) || '?'}“ aus dem Verzeichnis installieren`,
   toggleServer: (a) => `MCP-Server „${a.name}“ ${a.enabled ? 'einschalten (startet ihn)' : 'ausschalten'}`,
   removeServer: (a) => `MCP-Server „${a}“ entfernen`,
   protectServer: (a) => `Schlüssel des MCP-Servers „${a}“ in die Schlüsselverwaltung verschieben`,
@@ -48,7 +66,11 @@ function webAccess(name) {
 function describe(name, arg) {
   const fn = CONFIRM[name];
   if (!fn) return name;
-  try { return fn(arg === undefined || arg === null ? {} : arg); } catch { return name; }
+  try {
+    return fn(arg === undefined || arg === null ? {} : arg);
+  } catch {
+    return name;
+  }
 }
 
 module.exports = { webAccess, describe, ALLOW, CONFIRM, DENY };

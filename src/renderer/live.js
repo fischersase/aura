@@ -6,19 +6,31 @@ class RelaySocket {
     this.readyState = 0; // CONNECTING
     this.id = null;
     this.onopen = this.onmessage = this.onclose = null;
-    const mine = (fn) => (ev) => { if (ev.id === this.id) fn(ev); };
+    const mine = (fn) => (ev) => {
+      if (ev.id === this.id) fn(ev);
+    };
     this.off = [
-      window.api.onLiveOpened(mine(() => { this.readyState = 1; this.onopen && this.onopen(); })),
+      window.api.onLiveOpened(
+        mine(() => {
+          this.readyState = 1;
+          this.onopen && this.onopen();
+        })
+      ),
       window.api.onLiveMessage(mine((ev) => this.onmessage && this.onmessage({ data: ev.data }))),
       window.api.onLiveClosed(mine((ev) => this.closed(ev.code, ev.reason)))
     ];
-    window.api.liveOpen().then((r) => {
-      if (r && r.id) this.id = r.id;
-      else this.closed(1008, (r && r.error) || 'Keine Verbindung');
-    }, (err) => this.closed(1011, String(err.message || err)));
+    window.api.liveOpen().then(
+      (r) => {
+        if (r && r.id) this.id = r.id;
+        else this.closed(1008, (r && r.error) || 'Keine Verbindung');
+      },
+      (err) => this.closed(1011, String(err.message || err))
+    );
   }
 
-  send(text) { if (this.readyState === 1) window.api.liveSend(this.id, text); }
+  send(text) {
+    if (this.readyState === 1) window.api.liveSend(this.id, text);
+  }
 
   close() {
     if (this.id) window.api.liveClose(this.id);
@@ -42,33 +54,42 @@ const LIVE_SYSTEM = (lang) =>
   'Bei mehreren Schritten zeig immer nur den nächsten Schritt und warte, bis der Nutzer ihn erledigt hat. ' +
   'Rufe clear_pointer auf, wenn der Hinweis nicht mehr gebraucht wird. Du klickst nie selbst.';
 
-const LIVE_TOOLS = [{
-  functionDeclarations: [
-    {
-      name: 'point_at',
-      description: 'Zeigt dem Nutzer mit einem leuchtenden Ring auf dem Bildschirm, wo er klicken oder hinschauen soll.',
-      parameters: {
-        type: 'OBJECT',
-        properties: {
-          x: { type: 'NUMBER', description: 'Horizontale Position 0–1000 im neuesten Bildschirmbild' },
-          y: { type: 'NUMBER', description: 'Vertikale Position 0–1000 im neuesten Bildschirmbild' },
-          label: { type: 'STRING', description: 'Kurzer Hinweistext' }
-        },
-        required: ['x', 'y']
-      }
-    },
-    { name: 'clear_pointer', description: 'Entfernt alle Hinweise vom Bildschirm.' }
-  ]
-}];
+const LIVE_TOOLS = [
+  {
+    functionDeclarations: [
+      {
+        name: 'point_at',
+        description:
+          'Zeigt dem Nutzer mit einem leuchtenden Ring auf dem Bildschirm, wo er klicken oder hinschauen soll.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            x: { type: 'NUMBER', description: 'Horizontale Position 0–1000 im neuesten Bildschirmbild' },
+            y: { type: 'NUMBER', description: 'Vertikale Position 0–1000 im neuesten Bildschirmbild' },
+            label: { type: 'STRING', description: 'Kurzer Hinweistext' }
+          },
+          required: ['x', 'y']
+        }
+      },
+      { name: 'clear_pointer', description: 'Entfernt alle Hinweise vom Bildschirm.' }
+    ]
+  }
+];
 
 // Mit Agent v2 kann Live auch selbst handeln: Programme öffnen, Musik steuern, Dateien, Webseiten …
 const AGENT_TOOL = {
   name: 'aura_ausfuehren',
-  description: 'Lässt den Aura-Agenten etwas am Computer erledigen (Programme, Fenster, Musik, Dateien, Webseiten, Einstellungen). ' +
+  description:
+    'Lässt den Aura-Agenten etwas am Computer erledigen (Programme, Fenster, Musik, Dateien, Webseiten, Einstellungen). ' +
     'Gibt das Ergebnis zurück. Folgenreiches muss der Nutzer im Aura-Fenster freigeben.',
-  parameters: { type: 'OBJECT', properties: { request: { type: 'STRING', description: 'Klare, vollständige Aufgabe auf Deutsch' } }, required: ['request'] }
+  parameters: {
+    type: 'OBJECT',
+    properties: { request: { type: 'STRING', description: 'Klare, vollständige Aufgabe auf Deutsch' } },
+    required: ['request']
+  }
 };
-const AGENT_SYSTEM = ' Wenn der Nutzer möchte, dass etwas am Computer erledigt wird, rufe aura_ausfuehren mit einer klaren Aufgabe auf ' +
+const AGENT_SYSTEM =
+  ' Wenn der Nutzer möchte, dass etwas am Computer erledigt wird, rufe aura_ausfuehren mit einer klaren Aufgabe auf ' +
   'und sag danach kurz, was herauskam. Behaupte nur Erfolg, wenn das Ergebnis ihn belegt.';
 
 class LiveSession {
@@ -102,7 +123,11 @@ class LiveSession {
       this.micLevel = rms;
       if (!this.ready || this.muted) return;
       const pcm = Audio16.floatToPcm16(samples);
-      this.send({ realtimeInput: { audio: { mimeType: 'audio/pcm;rate=16000', data: Audio16.bytesToBase64(new Uint8Array(pcm.buffer)) } } });
+      this.send({
+        realtimeInput: {
+          audio: { mimeType: 'audio/pcm;rate=16000', data: Audio16.bytesToBase64(new Uint8Array(pcm.buffer)) }
+        }
+      });
     });
     if (this.screenOn) await this.startScreen();
     this.connect();
@@ -116,13 +141,18 @@ class LiveSession {
     this.ws = ws;
     ws.onopen = () => {
       const generationConfig = { responseModalities: ['AUDIO'] };
-      if (this.cfg.voice) generationConfig.speechConfig = { voiceConfig: { prebuiltVoiceConfig: { voiceName: this.cfg.voice } } };
+      if (this.cfg.voice)
+        generationConfig.speechConfig = { voiceConfig: { prebuiltVoiceConfig: { voiceName: this.cfg.voice } } };
       this.send({
         setup: {
           model: `models/${this.cfg.model}`,
           generationConfig,
-          systemInstruction: { parts: [{ text: LIVE_SYSTEM(this.cfg.language) + (this.cfg.agent ? AGENT_SYSTEM : '') }] },
-          tools: this.cfg.agent ? [{ functionDeclarations: [...LIVE_TOOLS[0].functionDeclarations, AGENT_TOOL] }] : LIVE_TOOLS,
+          systemInstruction: {
+            parts: [{ text: LIVE_SYSTEM(this.cfg.language) + (this.cfg.agent ? AGENT_SYSTEM : '') }]
+          },
+          tools: this.cfg.agent
+            ? [{ functionDeclarations: [...LIVE_TOOLS[0].functionDeclarations, AGENT_TOOL] }]
+            : LIVE_TOOLS,
           inputAudioTranscription: {},
           outputAudioTranscription: {},
           // Ohne Kompression enden Audio+Video-Sitzungen nach 2 Minuten.
@@ -134,7 +164,11 @@ class LiveSession {
     ws.onmessage = async (ev) => {
       const text = typeof ev.data === 'string' ? ev.data : await ev.data.text();
       let msg;
-      try { msg = JSON.parse(text); } catch { return; }
+      try {
+        msg = JSON.parse(text);
+      } catch {
+        return;
+      }
       this.onMessage(msg);
     };
     ws.onclose = (ev) => {
@@ -168,7 +202,9 @@ class LiveSession {
       // Server beendet die Verbindung bald: mit Handle neu verbinden.
       const old = this.ws;
       this.ws = null;
-      try { old.close(); } catch {}
+      try {
+        old.close();
+      } catch {}
       this.connect();
       return;
     }
@@ -178,7 +214,8 @@ class LiveSession {
     if (sc.interrupted) this.player.interrupt();
     if (sc.modelTurn && sc.modelTurn.parts) {
       for (const p of sc.modelTurn.parts) {
-        if (p.inlineData && p.inlineData.data && /audio/.test(p.inlineData.mimeType || 'audio')) this.player.play(p.inlineData.data);
+        if (p.inlineData && p.inlineData.data && /audio/.test(p.inlineData.mimeType || 'audio'))
+          this.player.play(p.inlineData.data);
       }
     }
     if (sc.inputTranscription && sc.inputTranscription.text) this.ui.transcript('you', sc.inputTranscription.text);
@@ -287,7 +324,10 @@ class LiveSession {
       const inp = this.muted ? 0 : this.micLevel * 6;
       const v = Math.min(1, Math.max(out, inp));
       this.ui.level(v, out > inp);
-      if (now - last > 33) { window.api.glowLevel(v); last = now; }
+      if (now - last > 33) {
+        window.api.glowLevel(v);
+        last = now;
+      }
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
@@ -301,7 +341,9 @@ class LiveSession {
     this.ready = false;
     const ws = this.ws;
     this.ws = null;
-    try { ws && ws.close(); } catch {}
+    try {
+      ws && ws.close();
+    } catch {}
     this.stopScreen();
     if (this.mic) this.mic.close();
     if (this.player) this.player.close();

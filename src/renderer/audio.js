@@ -12,7 +12,10 @@ const Audio16 = {
     src.connect(node);
     return {
       close() {
-        try { node.disconnect(); src.disconnect(); } catch {}
+        try {
+          node.disconnect();
+          src.disconnect();
+        } catch {}
         stream.getTracks().forEach((t) => t.stop());
         ctx.close();
       }
@@ -47,14 +50,28 @@ const Audio16 = {
     const total = chunks.reduce((n, c) => n + c.length, 0);
     const pcm = new Int16Array(total);
     let o = 0;
-    for (const c of chunks) { pcm.set(Audio16.floatToPcm16(c), o); o += c.length; }
+    for (const c of chunks) {
+      pcm.set(Audio16.floatToPcm16(c), o);
+      o += c.length;
+    }
     const buf = new ArrayBuffer(44 + pcm.byteLength);
     const v = new DataView(buf);
-    const w = (off, s) => { for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i)); };
-    w(0, 'RIFF'); v.setUint32(4, 36 + pcm.byteLength, true); w(8, 'WAVE');
-    w(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
-    v.setUint32(24, sampleRate, true); v.setUint32(28, sampleRate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
-    w(36, 'data'); v.setUint32(40, pcm.byteLength, true);
+    const w = (off, s) => {
+      for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i));
+    };
+    w(0, 'RIFF');
+    v.setUint32(4, 36 + pcm.byteLength, true);
+    w(8, 'WAVE');
+    w(12, 'fmt ');
+    v.setUint32(16, 16, true);
+    v.setUint16(20, 1, true);
+    v.setUint16(22, 1, true);
+    v.setUint32(24, sampleRate, true);
+    v.setUint32(28, sampleRate * 2, true);
+    v.setUint16(32, 2, true);
+    v.setUint16(34, 16, true);
+    w(36, 'data');
+    v.setUint32(40, pcm.byteLength, true);
     new Int16Array(buf, 44).set(pcm);
     return Audio16.bytesToBase64(new Uint8Array(buf));
   }
@@ -88,18 +105,27 @@ class PcmPlayer {
     src.onended = () => this.sources.delete(src);
   }
   interrupt() {
-    this.sources.forEach((s) => { try { s.stop(); } catch {} });
+    this.sources.forEach((s) => {
+      try {
+        s.stop();
+      } catch {}
+    });
     this.sources.clear();
     this.next = 0;
   }
-  get speaking() { return this.sources.size > 0; }
+  get speaking() {
+    return this.sources.size > 0;
+  }
   level() {
     this.analyser.getFloatTimeDomainData(this.data);
     let s = 0;
     for (const x of this.data) s += x * x;
     return Math.sqrt(s / this.data.length);
   }
-  close() { this.interrupt(); this.ctx.close(); }
+  close() {
+    this.interrupt();
+    this.ctx.close();
+  }
 }
 
 window.Audio16 = Audio16;

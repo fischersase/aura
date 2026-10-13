@@ -5,7 +5,13 @@ const path = require('path');
 const { pathToFileURL } = require('url');
 const sec = require('../src/security');
 
-const DIR = path.join(path.sep === '\\' ? 'C:\\Program Files\\Aura' : '/opt/Aura', 'resources', 'app.asar', 'src', 'renderer');
+const DIR = path.join(
+  path.sep === '\\' ? 'C:\\Program Files\\Aura' : '/opt/Aura',
+  'resources',
+  'app.asar',
+  'src',
+  'renderer'
+);
 const page = (name, extra = '') => pathToFileURL(path.join(DIR, name)).href + extra;
 
 test('Mikrofon nur für Panel und Rambler, Bildschirm nur für das Panel', () => {
@@ -22,8 +28,18 @@ test('Mikrofon nur für Panel und Rambler, Bildschirm nur für das Panel', () =>
 });
 
 test('fremde Seiten und Pfade außerhalb des Renderer-Ordners bekommen nichts', () => {
-  for (const url of ['https://example.com/panel.html', 'http://127.0.0.1:47800/panel.html', 'file:///tmp/panel.html',
-    page('../panel.html'), page('sub/panel.html'), 'data:text/html,<p>', 'javascript:alert(1)', '', undefined, 'not a url']) {
+  for (const url of [
+    'https://example.com/panel.html',
+    'http://127.0.0.1:47800/panel.html',
+    'file:///tmp/panel.html',
+    page('../panel.html'),
+    page('sub/panel.html'),
+    'data:text/html,<p>',
+    'javascript:alert(1)',
+    '',
+    undefined,
+    'not a url'
+  ]) {
     assert.strictEqual(sec.permissionAllowed(url, 'media', DIR), false, String(url));
     assert.strictEqual(sec.navigationAllowed(url, DIR), false, String(url));
   }
@@ -39,25 +55,54 @@ test('Navigation nur zwischen eigenen Seiten; externe Links nur https', () => {
 
 test('install hängt Handler ein: neue Fenster abgelehnt, fremde Navigation verhindert', () => {
   const events = {};
-  const app = { on: (name, fn) => { events[name] = fn; } };
+  const app = {
+    on: (name, fn) => {
+      events[name] = fn;
+    }
+  };
   const handlers = {};
-  const session = { defaultSession: {
-    setPermissionRequestHandler: (fn) => { handlers.request = fn; },
-    setPermissionCheckHandler: (fn) => { handlers.check = fn; }
-  } };
+  const session = {
+    defaultSession: {
+      setPermissionRequestHandler: (fn) => {
+        handlers.request = fn;
+      },
+      setPermissionCheckHandler: (fn) => {
+        handlers.check = fn;
+      }
+    }
+  };
   const opened = [];
   sec.install({ app, session, shell: { openExternal: (u) => opened.push(u) } });
   const contentsEvents = {};
   let openHandler;
-  events['web-contents-created']({}, { setWindowOpenHandler: (fn) => { openHandler = fn; }, on: (n, fn) => { contentsEvents[n] = fn; } });
+  events['web-contents-created'](
+    {},
+    {
+      setWindowOpenHandler: (fn) => {
+        openHandler = fn;
+      },
+      on: (n, fn) => {
+        contentsEvents[n] = fn;
+      }
+    }
+  );
   assert.deepStrictEqual(openHandler({ url: 'https://example.com' }), { action: 'deny' });
   assert.deepStrictEqual(openHandler({ url: 'file:///etc/passwd' }), { action: 'deny' });
   assert.deepStrictEqual(opened, ['https://example.com']);
   let prevented = false;
-  contentsEvents['will-navigate']({ preventDefault: () => { prevented = true; } }, 'https://evil.example');
+  contentsEvents['will-navigate'](
+    {
+      preventDefault: () => {
+        prevented = true;
+      }
+    },
+    'https://evil.example'
+  );
   assert.strictEqual(prevented, true);
   let granted;
-  handlers.request({ getURL: () => 'https://evil.example' }, 'media', (ok) => { granted = ok; });
+  handlers.request({ getURL: () => 'https://evil.example' }, 'media', (ok) => {
+    granted = ok;
+  });
   assert.strictEqual(granted, false);
   assert.strictEqual(handlers.check(null, 'media'), false);
 });

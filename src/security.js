@@ -115,21 +115,30 @@ function guardIpc(ipcMain, { rendererDir = RENDERER_DIR, log = console.warn } = 
   const known = (channel) => {
     if (!ipcPages(channel)) throw new Error(`IPC channel ${channel} has no entry in IPC_ACCESS (src/security.js)`);
   };
-  const reject = (channel, e) => log(`IPC ${channel} from ${e && e.senderFrame ? e.senderFrame.url : 'unknown frame'} rejected`);
+  const reject = (channel, e) =>
+    log(`IPC ${channel} from ${e && e.senderFrame ? e.senderFrame.url : 'unknown frame'} rejected`);
   const handle = ipcMain.handle.bind(ipcMain);
   const on = ipcMain.on.bind(ipcMain);
   ipcMain.handle = (channel, fn) => {
     known(channel);
     return handle(channel, (e, ...args) => {
-      if (!senderAllowed(e, channel, rendererDir)) { reject(channel, e); throw new Error('Not allowed'); }
+      if (!senderAllowed(e, channel, rendererDir)) {
+        reject(channel, e);
+        throw new Error('Not allowed');
+      }
       return fn(e, ...args);
     });
   };
-  const listener = (channel, fn) => (e, ...args) => {
-    if (!senderAllowed(e, channel, rendererDir)) return reject(channel, e);
-    return fn(e, ...args);
+  const listener =
+    (channel, fn) =>
+    (e, ...args) => {
+      if (!senderAllowed(e, channel, rendererDir)) return reject(channel, e);
+      return fn(e, ...args);
+    };
+  ipcMain.on = (channel, fn) => {
+    known(channel);
+    return on(channel, listener(channel, fn));
   };
-  ipcMain.on = (channel, fn) => { known(channel); return on(channel, listener(channel, fn)); };
   // once: erst ein erlaubter Aufruf verbraucht den Listener.
   ipcMain.once = (channel, fn) => {
     known(channel);
@@ -162,16 +171,30 @@ function install({ app, session, shell }) {
       if (isExternalLink(url)) shell.openExternal(url);
       return { action: 'deny' };
     });
-    contents.on('will-navigate', (e, url) => { if (!navigationAllowed(url)) deny(e); });
-    contents.on('will-redirect', (e, url) => { if (!navigationAllowed(url)) deny(e); });
+    contents.on('will-navigate', (e, url) => {
+      if (!navigationAllowed(url)) deny(e);
+    });
+    contents.on('will-redirect', (e, url) => {
+      if (!navigationAllowed(url)) deny(e);
+    });
     contents.on('will-attach-webview', deny);
   });
   const ses = session.defaultSession;
-  ses.setPermissionRequestHandler((wc, permission, callback) => callback(permissionAllowed(wc && wc.getURL(), permission)));
+  ses.setPermissionRequestHandler((wc, permission, callback) =>
+    callback(permissionAllowed(wc && wc.getURL(), permission))
+  );
   ses.setPermissionCheckHandler((wc, permission) => permissionAllowed(wc && wc.getURL(), permission));
 }
 
 module.exports = {
-  rendererPage, permissionAllowed, navigationAllowed, isExternalLink, install, PERMISSIONS,
-  IPC_ACCESS, ipcAllowed, senderAllowed, guardIpc
+  rendererPage,
+  permissionAllowed,
+  navigationAllowed,
+  isExternalLink,
+  install,
+  PERMISSIONS,
+  IPC_ACCESS,
+  ipcAllowed,
+  senderAllowed,
+  guardIpc
 };

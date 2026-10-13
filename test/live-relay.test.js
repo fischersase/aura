@@ -10,13 +10,32 @@ const { LiveRelay, LIVE_PATH, MAX_MESSAGE } = require('../src/live-relay');
 const KEY = ['AIza', 'Sy', 'TestOnly'].join('') + 'x'.repeat(27);
 const sockets = [];
 class FakeWS {
-  constructor(url, opts) { this.url = url; this.opts = opts; this.readyState = 0; this.sent = []; this.closed = false; sockets.push(this); }
-  send(d) { this.sent.push(d); }
-  close() { this.closed = true; }
+  constructor(url, opts) {
+    this.url = url;
+    this.opts = opts;
+    this.readyState = 0;
+    this.sent = [];
+    this.closed = false;
+    sockets.push(this);
+  }
+  send(d) {
+    this.sent.push(d);
+  }
+  close() {
+    this.closed = true;
+  }
   // test helpers
-  open() { this.readyState = 1; this.onopen(); }
-  message(data) { this.onmessage({ data }); }
-  end(code, reason) { this.readyState = 3; this.onclose({ code, reason }); }
+  open() {
+    this.readyState = 1;
+    this.onopen();
+  }
+  message(data) {
+    this.onmessage({ data });
+  }
+  end(code, reason) {
+    this.readyState = 3;
+    this.onclose({ code, reason });
+  }
 }
 function window() {
   const w = new EventEmitter();

@@ -23,21 +23,32 @@ class Peer {
     this.closed = false;
   }
 
-  on(method, handler) { this.handlers.set(method, handler); }
-  onNotify(method, handler) { this.notifyHandlers.set(method, handler); }
+  on(method, handler) {
+    this.handlers.set(method, handler);
+  }
+  onNotify(method, handler) {
+    this.notifyHandlers.set(method, handler);
+  }
 
   send(msg) {
     if (this.closed) return;
     this.write(JSON.stringify({ jsonrpc: '2.0', ...msg }) + '\n');
   }
 
-  notify(method, params = {}) { this.send({ method, params }); }
+  notify(method, params = {}) {
+    this.send({ method, params });
+  }
 
   request(method, params = {}, timeoutMs = 0) {
     if (this.closed) return Promise.reject(new RpcError(INTERNAL_ERROR, 'Verbindung geschlossen'));
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
-      const timer = timeoutMs ? setTimeout(() => { this.pending.delete(id); reject(new RpcError(INTERNAL_ERROR, `${method}: keine Antwort nach ${timeoutMs} ms`)); }, timeoutMs) : null;
+      const timer = timeoutMs
+        ? setTimeout(() => {
+            this.pending.delete(id);
+            reject(new RpcError(INTERNAL_ERROR, `${method}: keine Antwort nach ${timeoutMs} ms`));
+          }, timeoutMs)
+        : null;
       this.pending.set(id, { resolve, reject, timer });
       this.send({ id, method, params });
     });
@@ -65,11 +76,21 @@ class Peer {
 
   dispatch(line) {
     let msg;
-    try { msg = JSON.parse(line); } catch { return; }
+    try {
+      msg = JSON.parse(line);
+    } catch {
+      return;
+    }
     if (msg.method) {
       if (msg.id === undefined || msg.id === null) {
         const h = this.notifyHandlers.get(msg.method);
-        if (h) { try { h(msg.params || {}); } catch (err) { console.error('[agent2]', msg.method, err); } }
+        if (h) {
+          try {
+            h(msg.params || {});
+          } catch (err) {
+            console.error('[agent2]', msg.method, err);
+          }
+        }
         return;
       }
       this.handle(msg);
@@ -85,7 +106,8 @@ class Peer {
 
   async handle(msg) {
     const h = this.handlers.get(msg.method);
-    if (!h) return this.send({ id: msg.id, error: { code: METHOD_NOT_FOUND, message: `Unbekannte Methode ${msg.method}` } });
+    if (!h)
+      return this.send({ id: msg.id, error: { code: METHOD_NOT_FOUND, message: `Unbekannte Methode ${msg.method}` } });
     try {
       const result = await h(msg.params || {});
       this.send({ id: msg.id, result: result === undefined ? {} : result });

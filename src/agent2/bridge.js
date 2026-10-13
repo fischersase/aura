@@ -36,13 +36,17 @@ class AgentBridge {
     return null;
   }
 
-  available() { return !!this.pythonPath(); }
+  available() {
+    return !!this.pythonPath();
+  }
 
   logStream() {
     const dir = path.join(this.app.getPath('userData'), 'agent');
     fs.mkdirSync(dir, { recursive: true });
     const file = path.join(dir, 'agent.log');
-    try { if (fs.statSync(file).size > LOG_MAX_BYTES) fs.renameSync(file, file + '.1'); } catch {}
+    try {
+      if (fs.statSync(file).size > LOG_MAX_BYTES) fs.renameSync(file, file + '.1');
+    } catch {}
     return fs.createWriteStream(file, { flags: 'a' });
   }
 
@@ -66,7 +70,9 @@ class AgentBridge {
     const log = this.logStream();
     log.write(`\n--- Start ${new Date().toISOString()} (${python}) ---\n`);
     proc.stderr.pipe(log);
-    const peer = new Peer((line) => { if (proc.stdin.writable) proc.stdin.write(line); });
+    const peer = new Peer((line) => {
+      if (proc.stdin.writable) proc.stdin.write(line);
+    });
     this.peer = peer;
     proc.stdout.on('data', (d) => peer.feed(d));
     proc.on('exit', (code, signal) => this.onExit(proc, code, signal));
@@ -83,10 +89,19 @@ class AgentBridge {
     peer.onNotify('task.error', (p) => this.finish(p.taskId, new Error(p.message), null));
     peer.onNotify('model.status', (p) => this.onModelStatus(p));
 
-    this.ready = peer.request('initialize', {
-      protocol: PROTOCOL_VERSION,
-      settings: init
-    }, 30000).catch((err) => { this.stop(); throw err; });
+    this.ready = peer
+      .request(
+        'initialize',
+        {
+          protocol: PROTOCOL_VERSION,
+          settings: init
+        },
+        30000
+      )
+      .catch((err) => {
+        this.stop();
+        throw err;
+      });
     return this.ready;
   }
 
@@ -99,7 +114,8 @@ class AgentBridge {
     const t = this.tasks.get(taskId);
     if (!t) return;
     this.tasks.delete(taskId);
-    if (err) t.reject(err); else t.resolve(result);
+    if (err) t.reject(err);
+    else t.resolve(result);
   }
 
   // Ein Auftrag; löst mit {text, cancelled, steps, usage} auf, wenn der Agent fertig ist.
@@ -138,9 +154,13 @@ class AgentBridge {
     if (this.proc && this.proc.exitCode === null) {
       // Windows: ganzen Prozessbaum beenden (laufende PowerShell-Befehle des Agenten eingeschlossen).
       if (process.platform === 'win32') {
-        try { execFile('taskkill', ['/F', '/T', '/PID', String(this.proc.pid)], { windowsHide: true }, () => {}); } catch {}
+        try {
+          execFile('taskkill', ['/F', '/T', '/PID', String(this.proc.pid)], { windowsHide: true }, () => {});
+        } catch {}
       }
-      try { this.proc.kill('SIGKILL'); } catch {}
+      try {
+        this.proc.kill('SIGKILL');
+      } catch {}
     }
     this.onExit(this.proc, null, reason);
   }
@@ -158,9 +178,19 @@ class AgentBridge {
   stop() {
     const proc = this.proc;
     if (!proc) return;
-    try { this.peer.notify('shutdown'); } catch {}
-    try { proc.stdin.end(); } catch {}
-    setTimeout(() => { if (proc.exitCode === null) { try { proc.kill('SIGKILL'); } catch {} } }, 1500);
+    try {
+      this.peer.notify('shutdown');
+    } catch {}
+    try {
+      proc.stdin.end();
+    } catch {}
+    setTimeout(() => {
+      if (proc.exitCode === null) {
+        try {
+          proc.kill('SIGKILL');
+        } catch {}
+      }
+    }, 1500);
     this.onExit(proc, null, 'beendet');
   }
 }

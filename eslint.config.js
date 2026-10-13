@@ -6,7 +6,10 @@ const n = require('eslint-plugin-n');
 const security = require('eslint-plugin-security');
 
 const shared = {
-  'no-unused-vars': ['error', { args: 'after-used', argsIgnorePattern: '^_', caughtErrors: 'none', ignoreRestSiblings: true }],
+  'no-unused-vars': [
+    'error',
+    { args: 'after-used', argsIgnorePattern: '^_', caughtErrors: 'none', ignoreRestSiblings: true }
+  ],
   'no-empty': ['error', { allowEmptyCatch: true }],
   // Too many false positives on obj[key] with internal keys.
   'security/detect-object-injection': 'off',

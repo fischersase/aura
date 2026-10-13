@@ -1,15 +1,15 @@
 // Bildschirmrand-Glow (WebGL) und "Hier klicken"-Hinweise.
 // Startwerte aus dem Plan; in Phase 1 an Googlebook-Aufnahmen kalibrierbar (siehe TUNING).
 const TUNING = {
-  widthPx: 34,          // Breite des weichen Glows am Rand
+  widthPx: 34, // Breite des weichen Glows am Rand
   rotationPerSec: 0.25, // Umdrehungen der Farbstopps pro Sekunde (≈ 4 s pro Runde)
-  introIn: 340,         // ms bis volle Helligkeit
-  introHold: 900,       // ms bunt
-  introBlue: 450,       // ms Übergang zu Blau
-  introOut: 500,        // ms Ausblenden
-  fade: 400,            // ms Ausblenden (outro/off)
-  liveBase: 0.55,       // Grundhelligkeit während Live
-  holdLevel: 0.6,       // Helligkeit, solange das Fenster offen bleibt
+  introIn: 340, // ms bis volle Helligkeit
+  introHold: 900, // ms bunt
+  introBlue: 450, // ms Übergang zu Blau
+  introOut: 500, // ms Ausblenden
+  fade: 400, // ms Ausblenden (outro/off)
+  liveBase: 0.55, // Grundhelligkeit während Live
+  holdLevel: 0.6, // Helligkeit, solange das Fenster offen bleibt
   pointerTimeout: 12000 // ms, bis ein Klick-Hinweis verschwindet
 };
 
@@ -68,7 +68,9 @@ if (gl) {
   const loc = gl.getAttribLocation(prog, 'p');
   gl.enableVertexAttribArray(loc);
   gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-  const U = Object.fromEntries(['uRes', 'uTime', 'uIntensity', 'uBlue', 'uLevel', 'uWidth'].map((n) => [n, gl.getUniformLocation(prog, n)]));
+  const U = Object.fromEntries(
+    ['uRes', 'uTime', 'uIntensity', 'uBlue', 'uLevel', 'uWidth'].map((n) => [n, gl.getUniformLocation(prog, n)])
+  );
   draw = (now) => {
     gl.uniform2f(U.uRes, canvas.width, canvas.height);
     gl.uniform1f(U.uTime, now / 1000);
@@ -87,9 +89,10 @@ if (gl) {
   draw = (now) => {
     const w = TUNING.widthPx * (1 + level);
     const c = blue > 0.5 ? ['#4285F4', '#4285F4', '#4285F4', '#4285F4'] : ['#4285F4', '#EA4335', '#FBBC04', '#34A853'];
-    const r = Math.floor(now / 1000 / (1 / TUNING.rotationPerSec) * 4) % 4;
+    const r = Math.floor((now / 1000 / (1 / TUNING.rotationPerSec)) * 4) % 4;
     const k = (i) => c[(i + r) % 4];
-    fallback.style.boxShadow = `inset ${w}px 0 ${w * 1.5}px -${w / 2}px ${k(0)}, inset 0 ${w}px ${w * 1.5}px -${w / 2}px ${k(1)}, ` +
+    fallback.style.boxShadow =
+      `inset ${w}px 0 ${w * 1.5}px -${w / 2}px ${k(0)}, inset 0 ${w}px ${w * 1.5}px -${w / 2}px ${k(1)}, ` +
       `inset -${w}px 0 ${w * 1.5}px -${w / 2}px ${k(2)}, inset 0 -${w}px ${w * 1.5}px -${w / 2}px ${k(3)}`;
     fallback.style.opacity = intensity.toFixed(3);
   };
@@ -130,10 +133,19 @@ function computeIntensity(now) {
   const T = TUNING;
   switch (mode) {
     case 'intro': {
-      if (t < T.introIn) { blue = 0; return fadeFrom + (1 - fadeFrom) * easeOut(t / T.introIn); }
-      if (t < T.introIn + T.introHold) { blue = 0; return 1; }
+      if (t < T.introIn) {
+        blue = 0;
+        return fadeFrom + (1 - fadeFrom) * easeOut(t / T.introIn);
+      }
+      if (t < T.introIn + T.introHold) {
+        blue = 0;
+        return 1;
+      }
       const t2 = t - T.introIn - T.introHold;
-      if (t2 < T.introBlue) { blue = easeInOut(t2 / T.introBlue); return 1 - 0.3 * blue; }
+      if (t2 < T.introBlue) {
+        blue = easeInOut(t2 / T.introBlue);
+        return 1 - 0.3 * blue;
+      }
       const t3 = t2 - T.introBlue;
       blue = 1;
       if (t3 < T.introOut) return 0.7 * (1 - easeInOut(t3 / T.introOut));
@@ -177,7 +189,9 @@ function start() {
 }
 
 window.api.onGlowMode((m) => setMode(m));
-window.api.onGlowLevel((v) => { targetLevel = Math.max(0, Math.min(1, v)); });
+window.api.onGlowLevel((v) => {
+  targetLevel = Math.max(0, Math.min(1, v));
+});
 
 // ---------- Klick-Hinweise ----------
 function clearPointers() {
@@ -204,7 +218,12 @@ window.api.onPointerShow(({ x, y, label }) => {
     el.appendChild(l);
   }
   document.body.appendChild(el);
-  setTimeout(() => { if (el.isConnected) { el.classList.add('out'); setTimeout(() => el.remove(), 280); } }, TUNING.pointerTimeout);
+  setTimeout(() => {
+    if (el.isConnected) {
+      el.classList.add('out');
+      setTimeout(() => el.remove(), 280);
+    }
+  }, TUNING.pointerTimeout);
 });
 
 window.api.onPointerClear(clearPointers);
