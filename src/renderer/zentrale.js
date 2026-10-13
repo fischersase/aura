@@ -178,9 +178,11 @@ function renderServers() {
     .map((s) => {
       const state = s.disabled
         ? '<span class="badge">aus</span>'
-        : s.error
-          ? '<span class="badge bad">Fehler</span>'
-          : '<span class="badge ok">verbunden</span>';
+        : s.auth === 'oauth' && !s.signedIn
+          ? ''
+          : s.error
+            ? '<span class="badge bad">Fehler</span>'
+            : '<span class="badge ok">verbunden</span>';
       const tools =
         s.disabled || !s.tools.length
           ? ''
@@ -194,13 +196,36 @@ function renderServers() {
       return `<div class="server">
       <div class="top"><label class="switch"><input type="checkbox" data-toggle="${esc(s.name)}"${s.disabled ? '' : ' checked'}><span></span></label>
         <span class="title">${esc(s.name)}</span>${state}<span class="badge">${s.type === 'http' ? 'Remote' : 'lokal'}</span>
+        ${s.auth === 'oauth' ? (s.signedIn ? '<span class="badge ok">angemeldet</span>' : '<span class="badge bad">Anmeldung nötig</span>') : ''}
         ${s.disabled ? '' : `<span class="badge">${s.tools.length} Werkzeuge</span>`}
-        <span class="grow"></span><button class="small" data-edit="${esc(s.name)}">Bearbeiten</button><button class="small danger" data-remove="${esc(s.name)}">Entfernen</button></div>
+        <span class="grow"></span>${s.auth === 'oauth' ? (s.signedIn ? `<button class="small" data-signout="${esc(s.name)}">Abmelden</button>` : `<button class="small primary" data-signin="${esc(s.name)}">Anmelden</button>`) : ''}<button class="small" data-edit="${esc(s.name)}">Bearbeiten</button><button class="small danger" data-remove="${esc(s.name)}">Entfernen</button></div>
       <div class="cmd">${esc(s.command)}${s.env.length ? ' · Variablen: ' + esc(s.env.join(', ')) : ''}${s.secretRefs.length ? ' · Schlüssel: ' + esc(s.secretRefs.join(', ')) : ''}</div>
       ${s.plainSecrets.length ? `<div class="warnbox"><span>${esc(s.plainSecrets.join(', '))} steht im Klartext in mcp.json.</span><button class="small" data-protect="${esc(s.name)}">Verschlüsselt speichern</button></div>` : ''}
       ${s.error && !s.disabled ? `<div class="err">${esc(s.error)}</div>` : ''}${tools}</div>`;
     })
     .join('');
+  // OAuth sign-in (AURA-95): opens the browser; the Zentrale waits until the user is back.
+  $('serverList')
+    .querySelectorAll('[data-signin]')
+    .forEach((b) => {
+      b.onclick = async () => {
+        b.disabled = true;
+        b.textContent = 'Im Browser anmelden …';
+        const r = await z.connectServer(b.dataset.signin);
+        if (r && r.error) alert(r.error);
+        load();
+      };
+    });
+  $('serverList')
+    .querySelectorAll('[data-signout]')
+    .forEach((b) => {
+      b.onclick = async () => {
+        if (!confirm(`Bei „${b.dataset.signout}“ abmelden? Aura löscht die Anmeldung und widerruft sie beim Dienst.`))
+          return;
+        await z.disconnectServer(b.dataset.signout);
+        load();
+      };
+    });
   $('serverList')
     .querySelectorAll('[data-toggle]')
     .forEach((c) => {
@@ -299,6 +324,8 @@ async function serverDialog(name) {
     </div>
     <div id="fHttp" class="${isHttp ? '' : 'hidden'}">
       <label>URL</label><input type="text" id="fUrl" value="${esc((cfg && cfg.url) || '')}" placeholder="https://example.com/mcp" spellcheck="false">
+      <label class="check"><input type="checkbox" id="fOauth"${cfg && cfg.auth === 'oauth' ? ' checked' : ''}> Anmeldung über den Browser (OAuth)</label>
+      <label>Client-ID (nur falls der Dienst eine eigene verlangt, z. B. Google)</label><input type="text" id="fClientId" value="${esc((cfg && cfg.clientId) || '')}" spellcheck="false">
       <label>Header (einer pro Zeile, Name=Wert, z. B. Authorization=Bearer …)</label><textarea id="fHeaders" rows="3" spellcheck="false">${esc(kv(cfg && cfg.headers))}</textarea>
     </div>
     <label>Ohne Nachfrage erlaubte Werkzeuge (optional, durch Komma getrennt; * = alle)</label>
@@ -323,6 +350,9 @@ async function serverDialog(name) {
         if (!/^https?:\/\//.test(config.url)) return 'Die URL muss mit https:// beginnen.';
         const h = parseKv($('fHeaders').value);
         if (Object.keys(h).length) config.headers = h;
+        if ($('fOauth').checked) config.auth = 'oauth';
+        if ($('fClientId').value.trim()) config.clientId = $('fClientId').value.trim();
+        if (cfg && cfg.clientSecretRef) config.clientSecretRef = cfg.clientSecretRef;
       } else {
         const parts = splitArgs($('fCmd').value.trim());
         if (!parts.length) return 'Bitte einen Befehl eintragen.';

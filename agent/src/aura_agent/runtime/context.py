@@ -34,6 +34,10 @@ class Host(Protocol):
         """Bildschirmfoto als {mime, data (base64), width, height}."""
         ...
 
+    async def auth_header(self, server: str) -> dict[str, str]:
+        """Authorization header for one request to an OAuth MCP server (AURA-95); raises if not signed in."""
+        ...
+
     def emit(self, method: str, params: dict[str, Any]) -> None:
         """Benachrichtigung an die UI (task.text, task.step …)."""
         ...

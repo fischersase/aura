@@ -30,6 +30,7 @@ const agentSkills = require('./agent/skills');
 const agentMcp = require('./agent/mcp');
 const secrets = require('./secrets');
 const web = require('./web');
+const { createOAuthClient } = require('./oauth');
 const { enableWeakIfAllowed } = require('./keystore');
 const security = require('./security');
 const { LiveRelay } = require('./live-relay');
@@ -723,6 +724,29 @@ const agentVersion = () => process.env.AURA_AGENT_VERSION || store.load().agentV
 const v2Senders = new Map(); // Auftrags-ID → Fenster, das den Auftrag geschickt hat
 const v2Questions = new Map(); // Frage-ID → resolve({answer})
 
+// Sign-in for remote MCP servers (AURA-95). Authorization URLs open in the user's browser (https only, checked in
+// oauth.js); the refresh token goes to the vault.
+const oauth = createOAuthClient({
+  fetch,
+  openExternal: (url) => shell.openExternal(url),
+  vault: {
+    get: (n) => secrets.get(n),
+    set: (n, v, note, meta) => secrets.set(n, v, note, meta),
+    remove: (n) => secrets.remove(n)
+  },
+  clientMetadataUrl: 'https://fischersase.github.io/aura/oauth/client.json'
+});
+
+/** @param {string} name */
+function mcpServerConfig(name) {
+  try {
+    const cfg = JSON.parse(fs.readFileSync(agentMcp.configFile(), 'utf8'));
+    return (cfg.mcpServers || cfg.servers || {})[name] || null;
+  } catch {
+    return null;
+  }
+}
+
 const agentV2 = new AgentBridge({
   app,
   settings: () => {
@@ -783,6 +807,14 @@ const agentV2 = new AgentBridge({
     screenshot: async (maxWidth) => {
       noteAgentScreenshot();
       return { mime: 'image/jpeg', data: await screenshotJpeg(currentDisplay, maxWidth) };
+    },
+    // OAuth MCP servers (AURA-95): a fresh header per request; refresh tokens never leave this process.
+    authHeader: async (req) => {
+      try {
+        return await oauth.authHeader(String((req && req.server) || ''));
+      } catch (err) {
+        return { error: err instanceof Error ? err.message : String(err) };
+      }
     },
     // Maus und Tastatur (Notlösung für Programme ohne Barrierefreiheit). x, y: 0–1000 im letzten Bildschirmfoto.
     input: async (req) => {
@@ -1068,7 +1100,24 @@ Object.assign(zentrale.API, {
   },
   audit: () => zentraleV2.audit(),
   doctor: () => zentraleV2.doctor({ settings: () => agentV2.settings(), bridge: agentV2 }),
-  installExtension: () => zentraleV2.installExtension()
+  installExtension: () => zentraleV2.installExtension(),
+  // OAuth sign-in for a remote MCP server (AURA-95); the user signs in in their browser.
+  connectServer: async (name) => {
+    const c = mcpServerConfig(String(name || ''));
+    if (!c || !c.url) return { error: 'Server nicht gefunden oder kein Remote-Server.' };
+    try {
+      const clientSecret = c.clientSecretRef ? secrets.resolve(c.clientSecretRef) : undefined;
+      const r = await oauth.connect(String(name), c.url, {
+        clientId: c.clientId || undefined,
+        clientSecret: typeof clientSecret === 'string' && clientSecret ? clientSecret : undefined,
+        scope: c.scope || undefined
+      });
+      return { ok: true, scope: r.scope };
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : String(err) };
+    }
+  },
+  disconnectServer: async (name) => oauth.disconnect(String(name || ''))
 });
 zentrale.register();
 ipcMain.on('zentrale:open', () => {

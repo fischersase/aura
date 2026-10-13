@@ -17,6 +17,7 @@ const LOG_MAX_BYTES = 5 * 1024 * 1024;
  * @property {(req: any) => unknown} ask
  * @property {(maxWidth: number) => unknown} screenshot
  * @property {(req: any) => unknown} [input]
+ * @property {(req: any) => unknown} [authHeader] fresh Authorization header for an OAuth MCP server (AURA-95)
  */
 /** @typedef {{ onText?: (delta: string) => void, onStep?: (step: any) => void, onPlan?: (items: any) => void }} TaskHandlers */
 /** @typedef {{ handlers: Record<string, ((arg: any) => void) | undefined>, resolve: (result: any) => void, reject: (err: Error) => void }} RunningTask */
@@ -106,6 +107,9 @@ class AgentBridge {
     peer.on('host.screenshot', (req) => this.host.screenshot(req.maxWidth || 1600));
     peer.on('host.ask', (req) => this.host.ask(req));
     peer.on('host.input', (req) => (this.host.input ? this.host.input(req) : { error: 'Eingabe nicht verfügbar' }));
+    peer.on('host.authHeader', (req) =>
+      this.host.authHeader ? this.host.authHeader(req) : { error: 'Anmeldung nicht verfügbar' }
+    );
     peer.onNotify('task.text', (p) => this.handler(p.taskId, 'onText', p.delta));
     peer.onNotify('task.step', (p) => this.handler(p.taskId, 'onStep', p));
     peer.onNotify('task.plan', (p) => this.handler(p.taskId, 'onPlan', p.items));

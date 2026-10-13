@@ -67,6 +67,13 @@ class RpcHost:
     async def screenshot(self, max_width: int = 1600) -> dict[str, Any]:
         return await self.peer.request("host.screenshot", {"maxWidth": max_width}, timeout=30)
 
+    async def auth_header(self, server: str) -> dict[str, str]:
+        res = await self.peer.request("host.authHeader", {"server": server}, timeout=30)
+        header = (res or {}).get("Authorization")
+        if not isinstance(header, str) or not header.startswith("Bearer "):
+            raise RuntimeError((res or {}).get("error") or "Nicht verbunden – in der Aura Zentrale anmelden.")
+        return {"Authorization": header}
+
     def emit(self, method: str, params: dict[str, Any]) -> None:
         self.peer.notify(method, params)
 

@@ -15,10 +15,12 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
 from google.adk.agents import LlmAgent
+from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.models.base_llm import BaseLlm
 from google.adk.tools.agent_tool import AgentTool
 from google.adk.tools.mcp_tool.mcp_session_manager import (
@@ -30,6 +32,7 @@ from mcp import StdioServerParameters
 
 from ..harness.tiers import RESOLVERS, Tier, ToolMeta
 from ..platform.proc import child_env
+from ..runtime.context import current
 
 log = logging.getLogger(__name__)
 
@@ -45,6 +48,7 @@ class ServerConfig:
     headers: dict[str, str] = field(default_factory=dict)
     auto_approve: list[str] = field(default_factory=list)
     description: str = ""
+    auth: str = ""  # "oauth": sign-in through the app, header per request (AURA-95)
 
     @property
     def prefix(self) -> str:
@@ -62,6 +66,7 @@ class ServerConfig:
             headers={str(k): str(v) for k, v in (d.get("headers") or {}).items()},
             auto_approve=[str(x) for x in d.get("autoApprove") or []],
             description=str(d.get("description") or ""),
+            auth=str(d.get("auth") or ""),
         )
 
 
@@ -98,6 +103,18 @@ def _mcp_meta(tool: Any) -> ToolMeta | None:
 RESOLVERS.append(_mcp_meta)
 
 
+def oauth_header_provider(server: str) -> Callable[[ReadonlyContext], Awaitable[dict[str, str]]]:
+    """Fresh Authorization header per request from the app (host.authHeader); the agent never holds a refresh token."""
+
+    async def provide(_ctx: ReadonlyContext) -> dict[str, str]:
+        task = current()
+        if task is None:
+            raise RuntimeError(f"MCP-Server {server}: Anmeldung nur während eines Auftrags möglich.")
+        return await task.host.auth_header(server)
+
+    return provide
+
+
 def build_toolsets(configs: list[dict[str, Any]]) -> list[tuple[ServerConfig, McpToolset]]:
     out = []
     for d in configs:
@@ -105,8 +122,11 @@ def build_toolsets(configs: list[dict[str, Any]]) -> list[tuple[ServerConfig, Mc
             continue
         try:
             cfg = ServerConfig.from_dict(d)
+            header_provider = None
             if cfg.url:
                 params = StreamableHTTPConnectionParams(url=cfg.url, headers=cfg.headers or None)
+                if cfg.auth == "oauth":
+                    header_provider = oauth_header_provider(cfg.name)
             elif cfg.command:
                 params = StdioConnectionParams(
                     server_params=StdioServerParameters(
@@ -117,7 +137,14 @@ def build_toolsets(configs: list[dict[str, Any]]) -> list[tuple[ServerConfig, Mc
             else:
                 continue
             _SERVERS[cfg.prefix] = cfg
-            out.append((cfg, McpToolset(connection_params=params, tool_name_prefix=cfg.prefix)))
+            out.append(
+                (
+                    cfg,
+                    McpToolset(
+                        connection_params=params, tool_name_prefix=cfg.prefix, header_provider=header_provider
+                    ),
+                )
+            )
         except Exception as e:  # noqa: BLE001 - ein kaputter Server darf die anderen nicht verhindern
             log.warning("MCP-Server %s übersprungen: %s", d.get("name"), e)
     return out
