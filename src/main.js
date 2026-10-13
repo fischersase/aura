@@ -1440,6 +1440,8 @@ function applyAutostart() {
     app.setLoginItemSettings({ openAtLogin: false, name });
   }
   app.setLoginItemSettings({ openAtLogin: !!store.load().autostart, path: exe });
+  // Old portable Aura (≤ 0.10) in autostart would start first and keep this version from running (AURA-114).
+  if (process.platform === 'win32') require('./win-autostart').removeStaleAutostart(exe);
 }
 
 function createTray() {
