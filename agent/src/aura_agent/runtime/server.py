@@ -35,6 +35,8 @@ from .settings import AgentSettings
 log = logging.getLogger(__name__)
 
 APPROVAL_TIMEOUT_S = 600
+# Background runs (AURA-122): the approval waits in the inbox until the user is back, at most a day.
+BACKGROUND_APPROVAL_TIMEOUT_S = 24 * 3600
 # Nur für Ende-zu-Ende-Tests der Electron-Brücke: JSON-Datei mit Drehbuch statt echtem Modell.
 TEST_SCRIPT_ENV = "AURA_AGENT_TEST_SCRIPT"
 
@@ -55,7 +57,9 @@ class RpcHost:
         self.peer = peer
 
     async def approve(self, request: dict[str, Any]) -> str:
-        res = await self.peer.request("host.approve", request, timeout=APPROVAL_TIMEOUT_S)
+        background = str(request.get("taskId", "")).startswith("bg-")
+        timeout = BACKGROUND_APPROVAL_TIMEOUT_S if background else APPROVAL_TIMEOUT_S
+        res = await self.peer.request("host.approve", request, timeout=timeout)
         decision = str((res or {}).get("decision", "deny"))
         ok = decision in ("once", "task", "session", "always", "deny") or parse_hours(decision) > 0
         return decision if ok else "deny"

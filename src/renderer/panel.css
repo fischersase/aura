@@ -231,3 +231,8 @@ button svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke
 .ask.takeover button.primary { background: #4285F4; color: #fff; }
 /* Longer approval scopes (AURA-119) */
 .approve select.longer { font: inherit; font-size: 12.5px; border-radius: 14px; padding: 5px 8px; background: var(--bg-3); color: inherit; border: 0; cursor: pointer; }
+/* Approvals of background runs (AURA-122) */
+#inbox { padding: 8px 12px 0; max-height: 45%; overflow-y: auto; }
+#inbox.hidden { display: none; }
+#inbox .inbox-head { font-size: 12px; font-weight: 600; color: #fdd663; margin: 0 4px 6px; }
+#inbox .inbox-item { margin-bottom: 8px; }

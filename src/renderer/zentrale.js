@@ -457,8 +457,9 @@ async function renderTasks() {
         <label class="switch"><input type="checkbox" data-task-toggle="${esc(t.id)}"${t.enabled ? ' checked' : ''}><span></span></label>
         <span class="title">${esc(t.title)}</span><span class="badge">${esc(t.when)}</span>
         ${t.running ? '<span class="badge ok">läuft</span>' : ''}
+        ${t.waiting ? '<span class="badge bad" title="Freigabe im Aura-Fenster (Wartet auf dich)">wartet auf dich</span>' : ''}
         ${t.lastStatus === 'error' ? '<span class="badge bad">Fehler</span>' : ''}
-        <span class="grow"></span><button class="small danger" data-task-remove="${esc(t.id)}">Löschen</button></div>
+        <span class="grow"></span>${t.running ? `<button class="small" data-task-stop="${esc(t.id)}">Stoppen</button>` : ''}<button class="small danger" data-task-remove="${esc(t.id)}">Löschen</button></div>
         <div class="cmd">${esc(t.prompt)}</div>
         <div class="muted small">Nächster Lauf: ${esc(when(t.nextRun))}${t.lastRun ? ` · Zuletzt: ${esc(when(t.lastRun))}` : ''}</div>
         ${t.lastText ? `<div class="desc">${esc(t.lastText)}</div>` : ''}</div>`
@@ -469,6 +470,14 @@ async function renderTasks() {
     .forEach((c) => {
       c.onchange = async () => {
         await z.toggleTask(c.dataset.taskToggle, c.checked);
+        renderTasks();
+      };
+    });
+  $('taskList')
+    .querySelectorAll('[data-task-stop]')
+    .forEach((b) => {
+      b.onclick = async () => {
+        await z.stopTask(b.dataset.taskStop);
         renderTasks();
       };
     });

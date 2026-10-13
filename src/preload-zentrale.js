@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld('api', {
       'driftInfo',
       'tasks',
       'removeTask',
+      'stopTask',
       'approveTools',
       'installConnector',
       'getSkill',
