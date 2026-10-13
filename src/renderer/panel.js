@@ -626,6 +626,13 @@ window.api.onAgentVerified(({ chatId: cid, verified }) => {
 });
 
 function autosize() {
+  // Compact pill: the text shares the row with the buttons. As soon as it needs a second line, the buttons move
+  // below the text so it gets the full width (instead of wrapping after a few characters); back once it is empty.
+  if (!input.value) card.classList.remove('typing');
+  else if (card.classList.contains('compact') && !card.classList.contains('typing')) {
+    input.style.height = 'auto';
+    if (input.scrollHeight > input.clientHeight + 2 || input.value.includes('\n')) card.classList.add('typing');
+  }
   input.style.height = 'auto';
   input.style.height = Math.min(140, input.scrollHeight) + 'px';
   input.style.overflowY = input.scrollHeight > 140 ? 'auto' : 'hidden';

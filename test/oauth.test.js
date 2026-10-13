@@ -175,6 +175,25 @@ test('sign-in that never completes times out and closes the listener', async (t)
   await assert.rejects(c.connect('jira', srv.mcpUrl), /Zeit abgelaufen/);
 });
 
+test('servers without resource metadata (MCP 2025-03-26, e.g. Atlassian) use their origin as authorization server', async (t) => {
+  const srv = await startOAuthServer({ prm: false });
+  t.after(() => srv.close());
+  const { c, opened } = client();
+  assert.strictEqual((await c.connect('jira', srv.mcpUrl)).ok, true);
+  assert.ok(opened[0].startsWith(`${srv.base}/authorize?`));
+  assert.strictEqual((await fetch(srv.mcpUrl, { headers: await c.authHeader('jira') })).status, 200);
+});
+
+test('a server that does not ask for a bearer token is not treated as an OAuth server', async (t) => {
+  const http = require('http');
+  const plain = http.createServer((_req, res) => res.end('{}'));
+  await new Promise((r) => plain.listen(0, '127.0.0.1', r));
+  t.after(() => new Promise((r) => plain.close(r)));
+  const { c, opened } = client();
+  await assert.rejects(c.connect('x', `http://127.0.0.1:${plain.address().port}/mcp`), /protected resource metadata/);
+  assert.strictEqual(opened.length, 0);
+});
+
 test('resource metadata URL is read from the WWW-Authenticate challenge', () => {
   assert.strictEqual(
     resourceMetadataFrom(

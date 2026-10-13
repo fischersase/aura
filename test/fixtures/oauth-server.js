@@ -4,7 +4,7 @@ const http = require('http');
 const crypto = require('crypto');
 
 /**
- * @param {{ s256?: boolean, cimd?: boolean, dcr?: boolean, tokenTtl?: number, scopes?: string[] }} [opts]
+ * @param {{ s256?: boolean, cimd?: boolean, dcr?: boolean, tokenTtl?: number, scopes?: string[], prm?: boolean }} [opts]
  */
 // Like a real authorization server for native apps (RFC 8252): redirect only to the loopback callback, rebuilt from
 // its validated port rather than echoed back.
@@ -18,7 +18,7 @@ function loopbackRedirect(redirectUri, code, state) {
 }
 
 async function startOAuthServer(opts = {}) {
-  const o = { s256: true, cimd: false, dcr: true, tokenTtl: 3600, scopes: ['read'], ...opts };
+  const o = { s256: true, cimd: false, dcr: true, tokenTtl: 3600, scopes: ['read'], prm: true, ...opts };
   const state = {
     clients: new Map(), // client_id → { redirect_uris }
     codes: new Map(), // code → { client_id, challenge, redirect_uri, resource }
@@ -64,12 +64,14 @@ async function startOAuthServer(opts = {}) {
           401,
           { error: 'unauthorized' },
           {
-            'WWW-Authenticate': `Bearer resource_metadata="${base}/.well-known/oauth-protected-resource/mcp"`
+            'WWW-Authenticate': o.prm
+              ? `Bearer resource_metadata="${base}/.well-known/oauth-protected-resource/mcp"`
+              : 'Bearer realm="OAuth", error="invalid_token"' // MCP 2025-03-26 servers such as Atlassian
           }
         );
       return json(res, 200, { ok: true, tools: ['list_issues'] });
     }
-    if (u.pathname === '/.well-known/oauth-protected-resource/mcp')
+    if (u.pathname === '/.well-known/oauth-protected-resource/mcp' && o.prm)
       return json(res, 200, { resource: `${base}/mcp`, authorization_servers: [base], scopes_supported: o.scopes });
     if (u.pathname === '/.well-known/oauth-authorization-server')
       return json(res, 200, {

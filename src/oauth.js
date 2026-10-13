@@ -91,12 +91,15 @@ function createOAuthClient(deps) {
     assertSecureUrl(serverUrl, allowHttp);
     const u = new URL(serverUrl);
     const candidates = [];
+    let wantsToken = false;
     try {
       const probe = await deps.fetch(serverUrl, {
         method: 'GET',
         headers: { Accept: 'application/json, text/event-stream' }
       });
-      const fromHeader = resourceMetadataFrom(probe.headers.get('www-authenticate'));
+      const challenge = probe.headers.get('www-authenticate');
+      wantsToken = probe.status === 401 && /^\s*Bearer\b/i.test(challenge || '');
+      const fromHeader = resourceMetadataFrom(challenge);
       if (fromHeader) candidates.push(fromHeader);
     } catch {}
     const path = u.pathname.replace(/\/$/, '');
@@ -109,6 +112,9 @@ function createOAuthClient(deps) {
         if (prm && Array.isArray(prm.authorization_servers) && prm.authorization_servers.length) return prm;
       } catch {}
     }
+    // MCP spec 2025-03-26 (e.g. Atlassian): no resource metadata; the server's own origin is the authorization server.
+    // Only for servers that actually asked for a bearer token; the origin's metadata is still checked afterwards.
+    if (wantsToken) return { resource: serverUrl, authorization_servers: [u.origin] };
     throw new OAuthError('Der Server nennt keinen Anmeldedienst (protected resource metadata fehlt).');
   }
 
