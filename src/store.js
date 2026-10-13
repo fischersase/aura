@@ -27,6 +27,8 @@ const DEFAULTS = {
   liveVoice: '',
   language: 'Deutsch',
   panelCorner: 'bottom-right',
+  // Panel size chosen by the user (resize grip / enlarge button); null = default.
+  panelSize: null,
   glowStay: true, // Rand leuchtet, solange das Fenster offen ist (false = nur kurz aufleuchten)
   liveFps: 1,
   autostart: true,

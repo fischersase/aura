@@ -1008,3 +1008,46 @@ function showUsage(u) {
 }
 window.api.onUsage(showUsage);
 costEl.onclick = () => window.api.openSettings();
+
+// ---------- Panel size: enlarge button and resize grip ----------
+// The panel stays anchored to its screen corner; the grip sits on the opposite corner of the card.
+const sizeBtn = document.getElementById('sizeBtn');
+const resizeGrip = document.getElementById('resizeGrip');
+function syncSize(r) {
+  if (!r) return;
+  sizeBtn.title = r.large ? 'Kleiner' : 'Größer';
+  sizeBtn.classList.toggle('on', !!r.large);
+}
+sizeBtn.onclick = async () => {
+  const now = await window.api.getPanelSize();
+  syncSize(await window.api.setPanelSize(now.large ? 'default' : 'large'));
+};
+window.api.getPanelSize().then(syncSize);
+resizeGrip.addEventListener('pointerdown', async (e) => {
+  e.preventDefault();
+  resizeGrip.setPointerCapture(e.pointerId);
+  const start = { x: e.screenX, y: e.screenY, ...(await window.api.getPanelSize()) };
+  const fromLeft = !document.body.classList.contains('corner-left');
+  const fromTop = !document.body.classList.contains('corner-top');
+  let pending = null;
+  let busy = false;
+  const flush = async () => {
+    if (busy || !pending) return;
+    busy = true;
+    const p = pending;
+    pending = null;
+    syncSize(await window.api.setPanelSize(p));
+    busy = false;
+    flush();
+  };
+  resizeGrip.onpointermove = (ev) => {
+    pending = {
+      w: start.w + (fromLeft ? start.x - ev.screenX : ev.screenX - start.x),
+      h: start.h + (fromTop ? start.y - ev.screenY : ev.screenY - start.y)
+    };
+    flush();
+  };
+  resizeGrip.onpointerup = () => {
+    resizeGrip.onpointermove = null;
+  };
+});
