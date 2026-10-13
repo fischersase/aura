@@ -26,6 +26,8 @@ contextBridge.exposeInMainWorld('api', {
       'saveServer',
       'removeServer',
       'protectServer',
+      'connectServer',
+      'disconnectServer',
       'searchRegistry',
       'installRegistry',
       'getSkill',

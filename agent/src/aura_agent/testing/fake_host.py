@@ -18,6 +18,8 @@ class FakeHost:
         self.questions: list[dict[str, Any]] = []
         self.inputs: list[dict[str, Any]] = []
         self.events: list[tuple[str, dict[str, Any]]] = []
+        self.auth_headers: dict[str, str] = {}  # server → "Bearer …" (AURA-95)
+        self.auth_requests: list[str] = []
 
     async def approve(self, request: dict[str, Any]) -> str:
         self.approvals.append(request)
@@ -28,6 +30,12 @@ class FakeHost:
     async def ask(self, request: dict[str, Any]) -> dict[str, Any]:
         self.questions.append(request)
         return {"answer": self._answers.pop(0) if self._answers else ""}
+
+    async def auth_header(self, server: str) -> dict[str, str]:
+        self.auth_requests.append(server)
+        if server not in self.auth_headers:
+            raise RuntimeError("Nicht verbunden – in der Aura Zentrale anmelden.")
+        return {"Authorization": self.auth_headers[server]}
 
     async def input(self, request: dict[str, Any]) -> dict[str, Any]:
         self.inputs.append(request)

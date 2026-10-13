@@ -34,6 +34,8 @@ const CONFIRM = {
     `MCP-Server „${a.name || (a.server && a.server.name) || '?'}“ aus dem Verzeichnis installieren`,
   toggleServer: (a) => `MCP-Server „${a.name}“ ${a.enabled ? 'einschalten (startet ihn)' : 'ausschalten'}`,
   removeServer: (a) => `MCP-Server „${a}“ entfernen`,
+  connectServer: (a) => `Beim MCP-Server „${a}“ anmelden (öffnet den Browser)`,
+  disconnectServer: (a) => `Beim MCP-Server „${a}“ abmelden`,
   protectServer: (a) => `Schlüssel des MCP-Servers „${a}“ in die Schlüsselverwaltung verschieben`,
   setPolicy: (a) => `Regel für „${a.tool}“ auf „${a.policy}“ setzen`,
   savePolicy: () => 'Regeln (policy.toml) überschreiben',

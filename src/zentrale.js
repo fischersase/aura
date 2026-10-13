@@ -85,6 +85,9 @@ async function state(force) {
             : 'nein',
     policy: policy[t.name] || 'default'
   }));
+  // OAuth servers without a sign-in are not in error, they wait for "Anmelden" (AURA-95).
+  const waitsForSignIn = (/** @type {string} */ name, /** @type {any} */ c) =>
+    c.auth === 'oauth' && !secrets.get(require('./oauth').vaultName(name));
   const servers = Object.entries(cfg).map(([name, c]) => ({
     name,
     type: c.url ? 'http' : 'stdio',
@@ -93,7 +96,9 @@ async function state(force) {
     disabled: !!c.disabled,
     plainSecrets: plainSecrets(c),
     secretRefs: secrets.refsIn(c),
-    error: status[name] ? status[name].error : null,
+    auth: c.auth === 'oauth' ? 'oauth' : '',
+    signedIn: c.auth === 'oauth' ? !!secrets.get(require('./oauth').vaultName(name)) : false,
+    error: waitsForSignIn(name, c) ? null : status[name] ? status[name].error : null,
     running: !!(status[name] && !status[name].error),
     tools: mcpTools
       .filter((t) => t.server === name)
