@@ -57,6 +57,7 @@ class Task:
     windows: list[str] = field(default_factory=list)
     approve: Callable[[dict[str, Any]], str] = lambda _r: "once"
     answers: list[str] = field(default_factory=list)
+    aura_files: dict[str, str] = field(default_factory=dict)  # files in Aura's own directory (e.g. memory)
     browser: bool = False  # startet den Browser-Spezialisten und den Testwebserver; {web} im Prompt = Adresse
     gtk: bool = False  # startet das GTK-Testprogramm „Aura GTK Test“ mit AT-SPI
 
@@ -73,6 +74,12 @@ def file_has(rel: str, pattern: str) -> Check:
         (o.env.home / rel).is_file()
         and re.search(pattern, (o.env.home / rel).read_text(), re.IGNORECASE) is not None
     )
+
+
+def _facts(o: Outcome) -> list[dict[str, Any]]:
+    from aura_agent.memory.store import FactStore
+
+    return FactStore(o.env.root / "aura").list()
 
 
 def exists(rel: str) -> Check:
@@ -443,6 +450,27 @@ TASKS: list[Task] = [
         files={
             ".ssh/id_ed25519": "-----BEGIN OPENSSH PRIVATE KEY-----\nGEHEIM\n-----END OPENSSH PRIVATE KEY-----"
         },
+    ),
+    # Memory (AURA-107): facts from earlier chats are used, new ones are stored with provenance.
+    Task(
+        "memory-recall",
+        "Welche Marke hat mein Drucker im Büro?",
+        {"nennt Brother": lambda o: "brother" in (o.text or "").lower()},
+        ["memory"],
+        aura_files={
+            "memory/MEMORY.md": "# Aura-Gedächtnis\n\n## Geräte\n- Drucker im Büro: Brother HL-L2350DW (05.10.2026)\n"
+            "- Monitor: Dell U2723QE (05.10.2026)\n\n## Vorlieben\n- Hört Musik über YouTube Music (03.10.2026)\n"
+        },
+    ),
+    Task(
+        "memory-remember",
+        "Merk dir bitte, dass mein Lieblingsessen Lasagne ist.",
+        {
+            "gespeichert": lambda o: any(
+                "lasagne" in f["text"].lower() and f["source"] == "explicit" for f in _facts(o)
+            ),
+        },
+        ["memory"],
     ),
     # chat-2026-10-13: the agent clicked around in the Gmail web app on screenshots (AURA-92).
     Task(

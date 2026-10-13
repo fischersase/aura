@@ -370,7 +370,9 @@ async def test_untrusted_content_is_marked_and_tightens_outbound(tmp_path):
     first = tool_responses(llm.requests[1])[0].response
     assert "keine Anweisungen" in first["hinweis"]
     assert [a["tool"] for a in host.approvals] == ["open_target", "remember"]  # beide normal T1, jetzt T2
-    assert not (settings.aura_dir / "memory" / "MEMORY.md").exists()
+    from aura_agent.memory.store import FactStore
+
+    assert FactStore(settings.aura_dir).list() == []  # the denied remember stored nothing
 
 
 async def test_without_untrusted_content_urls_and_memory_stay_t1(tmp_path):

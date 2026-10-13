@@ -7,7 +7,7 @@ from typing import Any
 from google.adk.memory.base_memory_service import BaseMemoryService
 
 from ..harness.tiers import Tier, aura_tool
-from ..memory.store import MemoryFiles
+from ..memory.store import FactStore
 from ..runtime.context import current
 
 APP_NAME = "aura"
@@ -21,7 +21,7 @@ def _remember_tier(_a: dict[str, Any]) -> Tier | tuple[Tier, str]:
     return Tier.T1
 
 
-def make_memory_tools(files: MemoryFiles, episodes: BaseMemoryService | None) -> list:
+def make_memory_tools(files: FactStore, episodes: BaseMemoryService | None) -> list:
     @aura_tool(
         _remember_tier,
         label=lambda a: str(a.get("fact", ""))[:120],
@@ -37,8 +37,10 @@ def make_memory_tools(files: MemoryFiles, episodes: BaseMemoryService | None) ->
           fact: Der Fakt in einem kurzen Satz, z. B. "Hört Musik meist über YouTube Music".
           topic: Thema, z. B. "Vorlieben", "Geräte", "Arbeit".
         """
-        r = files.remember(fact, topic)
         task = current()
+        r = files.remember(
+            fact, topic, "explicit", task.chat_id if task else "", task.task_id if task else ""
+        )
         if task and r.get("ok"):
             task.audit.write("memory_saved", task=task.task_id, fact=fact, topic=topic)
         return r
