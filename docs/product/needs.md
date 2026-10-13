@@ -53,6 +53,11 @@ Needs describe *what stakeholders must be able to achieve*, independent of the s
 | N-20 | Use Aura fully without sending data to the cloud | P3, P2 | B (for P3) | Must |
 | N-21 | Know exactly which data goes where, and decide when screen, microphone or cloud is used | P1, P3 | B | Must |
 | N-22 | Export and delete everything Aura stored (chats, memory, audit) | P3 | P | Should |
+| N-60 | Ask about my own mail, calendar, files, chats and tickets and get correct answers ([spec](../specs/personal-agent.md)) | P1, P2, P6 | P | Must |
+| N-61 | Aura remembers what I told it and what it learned about me; I can see, correct and delete all of it | All | B | Must |
+| N-62 | Aura gets better over time: reuses procedures that worked, avoids mistakes I corrected | P1, P2 | D | Should |
+| N-63 | When Aura cannot do something, it tells me which integration would help and sets it up with me | P1, P2 | D | Should |
+| N-64 | My API keys, tokens and sign-ins are stored safely in one place; I see which service uses what and can revoke it | All | B | Must |
 | N-23 | Keep cloud costs under control (budget) | P1, P2 | P | Must |
 
 ### Platforms, access and language
