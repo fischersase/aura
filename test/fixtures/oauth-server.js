@@ -6,6 +6,17 @@ const crypto = require('crypto');
 /**
  * @param {{ s256?: boolean, cimd?: boolean, dcr?: boolean, tokenTtl?: number, scopes?: string[] }} [opts]
  */
+// Like a real authorization server for native apps (RFC 8252): redirect only to the loopback callback, rebuilt from
+// its validated port rather than echoed back.
+function loopbackRedirect(redirectUri, code, state) {
+  const u = new URL(redirectUri);
+  if (u.protocol !== 'http:' || u.hostname !== '127.0.0.1' || u.pathname !== '/callback')
+    throw new Error('bad redirect_uri');
+  const port = Number(u.port);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('bad redirect_uri');
+  return `http://127.0.0.1:${port}/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state || '')}`;
+}
+
 async function startOAuthServer(opts = {}) {
   const o = { s256: true, cimd: false, dcr: true, tokenTtl: 3600, scopes: ['read'], ...opts };
   const state = {
@@ -91,7 +102,7 @@ async function startOAuthServer(opts = {}) {
         resource: p.get('resource')
       });
       res.writeHead(302, {
-        Location: `${p.get('redirect_uri')}?code=${code}&state=${encodeURIComponent(p.get('state'))}`
+        Location: loopbackRedirect(p.get('redirect_uri'), code, p.get('state'))
       });
       return res.end();
     }
