@@ -104,6 +104,20 @@
                       },
                       "error": {
                         "type": "string"
+                      },
+                      "auth": {
+                        "enum": [
+                          "oauth",
+                          ""
+                        ]
+                      },
+                      "catalogId": {
+                        "type": "string",
+                        "description": "Entry in the Aura connector catalog (AURA-96); its tiers apply."
+                      },
+                      "source": {
+                        "type": "string",
+                        "description": "\"registry\": installed from the public MCP registry, unreviewed (all tools ask)."
                       }
                     }
                   }
@@ -126,6 +140,27 @@
                 "geminiApiKey": {
                   "type": "string",
                   "description": "Nur wenn provider = gemini; wird nie protokolliert."
+                },
+                "memoryPaused": {
+                  "type": "boolean"
+                },
+                "connectors": {
+                  "type": "array",
+                  "description": "Curated connector catalog (src/catalog/connectors.json, AURA-96).",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "id",
+                      "title"
+                    ]
+                  }
+                },
+                "declinedConnectors": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Connector IDs the user never wants suggested."
                 }
               }
             }
@@ -716,6 +751,122 @@
             },
             "error": {
               "type": "string"
+            }
+          }
+        }
+      },
+      "host.searchRegistry": {
+        "description": "Search the official MCP registry (AURA-96). The app makes the HTTP request; the agent needs no network access.",
+        "params": {
+          "type": "object",
+          "required": [
+            "query"
+          ],
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          }
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "results": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "id"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "publisher": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "needs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "error": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "host.proposeConnector": {
+        "description": "Connect card in the panel (AURA-96). Nothing is installed; on connect the app opens the Zentrale with the entry pre-filled.",
+        "params": {
+          "type": "object",
+          "required": [
+            "taskId",
+            "id",
+            "title",
+            "verified",
+            "risk",
+            "reason"
+          ],
+          "properties": {
+            "taskId": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "publisher": {
+              "type": "string"
+            },
+            "verified": {
+              "enum": [
+                "aura",
+                "registry"
+              ]
+            },
+            "description": {
+              "type": "string"
+            },
+            "needs": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "risk": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "result": {
+          "type": "object",
+          "required": [
+            "decision"
+          ],
+          "properties": {
+            "decision": {
+              "enum": [
+                "connect",
+                "later",
+                "never"
+              ]
             }
           }
         }

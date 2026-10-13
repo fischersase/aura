@@ -8,11 +8,17 @@ lokalen Servern (stdio): deren Code läuft ohnehin auf dem Rechner, eine falsche
 Ein entfernter Server (url) kann dagegen „nur lesen“ behaupten und trotzdem senden oder kaufen; seine Angabe zählt
 nicht (AURA-62).
 
+Servers from the Aura catalog (mcp.json "catalogId", AURA-96) take their tiers from the catalog; that wins over server
+hints and autoApprove can only lift a T2 to T1. Servers installed from the public registry ("source": "registry") are
+unreviewed: their hints do not count (FR-CON-008). Two servers whose tool prefixes collide are both refused
+(FR-DISC-005).
+
 Lokale Server bekommen die Umgebung ohne Zugangsdaten (platform.proc.child_env) plus ihr eigenes env aus mcp.json.
 """
 
 from __future__ import annotations
 
+import fnmatch
 import logging
 import re
 from collections.abc import Awaitable, Callable
@@ -49,6 +55,8 @@ class ServerConfig:
     auto_approve: list[str] = field(default_factory=list)
     description: str = ""
     auth: str = ""  # "oauth": sign-in through the app, header per request (AURA-95)
+    catalog_id: str = ""  # entry in the Aura connector catalog (AURA-96)
+    source: str = ""  # "registry": installed from the public MCP registry, not reviewed
 
     @property
     def prefix(self) -> str:
@@ -67,11 +75,39 @@ class ServerConfig:
             auto_approve=[str(x) for x in d.get("autoApprove") or []],
             description=str(d.get("description") or ""),
             auth=str(d.get("auth") or ""),
+            catalog_id=str(d.get("catalogId") or ""),
+            source=str(d.get("source") or ""),
         )
 
 
 # Präfix → Server, damit die Hülle MCP-Werkzeuge einstufen kann.
 _SERVERS: dict[str, ServerConfig] = {}
+# Catalog ID → {tool pattern: tier}, in catalog order (first match wins).
+_CATALOG_TIERS: dict[str, dict[str, str]] = {}
+
+
+def _catalog_tier(server: ServerConfig, raw: str) -> Tier | None:
+    tiers = _CATALOG_TIERS.get(server.catalog_id) if server.catalog_id else None
+    if not tiers:
+        return None
+    for pattern, tier in tiers.items():
+        if fnmatch.fnmatchcase(raw, pattern):
+            return Tier[tier] if tier in ("T0", "T1", "T2") else Tier.T2
+    return Tier.T2
+
+
+def collisions(configs: list[dict[str, Any]]) -> dict[str, str]:
+    """Server name → error for servers whose tool prefix equals or nests in another's (mcp_a vs. mcp_a_b)."""
+    prefixes: dict[str, str] = {}
+    for d in configs:
+        if d.get("name") and not d.get("error") and not d.get("disabled"):
+            prefixes[str(d["name"])] = ServerConfig(name=str(d["name"])).prefix
+    out: dict[str, str] = {}
+    for name, p in prefixes.items():
+        for other, q in prefixes.items():
+            if other != name and (p == q or p.startswith(q + "_") or q.startswith(p + "_")):
+                out[name] = f"Werkzeugnamen kollidieren mit dem Server „{other}“; einen der beiden umbenennen."
+    return out
 
 
 def _mcp_meta(tool: Any) -> ToolMeta | None:
@@ -89,9 +125,13 @@ def _mcp_meta(tool: Any) -> ToolMeta | None:
         snake = re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
         return bool(getattr(annotations, name, None) or getattr(annotations, snake, None))
 
-    if not server.url and annotations is not None and hint("readOnlyHint") and not hint("destructiveHint"):
+    reviewed = _catalog_tier(server, raw)
+    if reviewed == Tier.T0:
         return ToolMeta(Tier.T0, label=label)
-    if "*" in server.auto_approve or raw in server.auto_approve:
+    if reviewed is None and not server.url and server.source != "registry":
+        if annotations is not None and hint("readOnlyHint") and not hint("destructiveHint"):
+            return ToolMeta(Tier.T0, label=label)
+    if reviewed == Tier.T1 or "*" in server.auto_approve or raw in server.auto_approve:
         return ToolMeta(Tier.T1, label=label)
     return ToolMeta(
         lambda a: (Tier.T2, f"Werkzeug des MCP-Servers „{server.name}“"),
@@ -115,10 +155,19 @@ def oauth_header_provider(server: str) -> Callable[[ReadonlyContext], Awaitable[
     return provide
 
 
-def build_toolsets(configs: list[dict[str, Any]]) -> list[tuple[ServerConfig, McpToolset]]:
+def build_toolsets(
+    configs: list[dict[str, Any]], catalog: list[dict[str, Any]] | None = None
+) -> list[tuple[ServerConfig, McpToolset]]:
+    for entry in catalog or []:
+        if isinstance(entry.get("tiers"), dict):
+            _CATALOG_TIERS[str(entry.get("id"))] = {str(k): str(v) for k, v in entry["tiers"].items()}
+    clashes = collisions(configs)
     out = []
     for d in configs:
         if d.get("error") or d.get("disabled"):
+            continue
+        if str(d.get("name")) in clashes:
+            log.warning("MCP-Server %s übersprungen: %s", d.get("name"), clashes[str(d.get("name"))])
             continue
         try:
             cfg = ServerConfig.from_dict(d)

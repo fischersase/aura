@@ -38,6 +38,14 @@ class Host(Protocol):
         """Authorization header for one request to an OAuth MCP server (AURA-95); raises if not signed in."""
         ...
 
+    async def search_registry(self, query: str) -> dict[str, Any]:
+        """Search the official MCP registry through the app (AURA-96): {results: [{id, title, publisher, …}]}."""
+        ...
+
+    async def propose_connector(self, card: dict[str, Any]) -> dict[str, Any]:
+        """Connect card in the panel (AURA-96). Answer: {decision: connect|later|never}."""
+        ...
+
     def emit(self, method: str, params: dict[str, Any]) -> None:
         """Benachrichtigung an die UI (task.text, task.step …)."""
         ...

@@ -18,7 +18,7 @@ from ..platform.base import IS_WINDOWS
 WEB_APP_NOTE = (
     "Das ist eine Web-App in Chrome. Ihren Inhalt (z. B. Mails, Termine) kann Aura nicht lesen und nicht zuverlässig "
     "bedienen. Sag das dem Nutzer ehrlich und klicke nicht nach Bildschirmfotos herum: Für Mails, Kalender usw. "
-    "braucht Aura eine Verbindung zu dem Dienst (Aura Zentrale → Erweiterungen)."
+    "braucht Aura eine Verbindung zu dem Dienst: such sie mit find_connector und schlag sie mit propose_connector vor."
 )
 
 
