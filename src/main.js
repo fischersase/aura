@@ -736,6 +736,7 @@ const oauth = createOAuthClient({
   },
   clientMetadataUrl: 'https://fischersase.github.io/aura/oauth/client.json'
 });
+agentMcp.setAuthProvider((name) => oauth.authHeader(String(name)));
 
 /** @param {string} name */
 function mcpServerConfig(name) {
@@ -1112,12 +1113,17 @@ Object.assign(zentrale.API, {
         clientSecret: typeof clientSecret === 'string' && clientSecret ? clientSecret : undefined,
         scope: c.scope || undefined
       });
+      await agentMcp.sync(true).catch(() => {}); // the server list now connects with the new sign-in
       return { ok: true, scope: r.scope };
     } catch (err) {
       return { error: err instanceof Error ? err.message : String(err) };
     }
   },
-  disconnectServer: async (name) => oauth.disconnect(String(name || ''))
+  disconnectServer: async (name) => {
+    const r = await oauth.disconnect(String(name || ''));
+    await agentMcp.sync(true).catch(() => {});
+    return r;
+  }
 });
 zentrale.register();
 ipcMain.on('zentrale:open', () => {
