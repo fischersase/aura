@@ -1,0 +1,7 @@
+{
+  "tools": [
+    { "name": "search", "description": "Sucht Tickets – mit Umlauten äöü", "inputSchema": { "type": "object", "properties": { "q": { "type": "string" }, "max": { "type": "integer", "default": 50 } }, "required": ["q"] } },
+    { "name": "create", "description": "Legt ein Ticket an", "inputSchema": { "type": "object", "properties": {} } },
+    { "name": "plain" }
+  ]
+}

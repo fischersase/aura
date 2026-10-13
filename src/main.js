@@ -925,6 +925,9 @@ function mcpServersForAgent() {
         const catalogId = c.catalogId || (connectors.forUrl(c.url) || {}).id;
         const resolved = { ...secrets.resolveServerConfig(c), ...(catalogId ? { catalogId } : {}) };
         const { sandboxed: _s, ...run } = sandbox.wrap(name, resolved);
+        // Paused by drift protection (AURA-97): the agent checks the hash itself, too.
+        const st = agentMcp.status().find((x) => x.name === name);
+        if (st && st.drift) return { name, error: st.error };
         return { name, ...run };
       } catch (err) {
         return { name, error: String(err.message || err) };

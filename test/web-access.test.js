@@ -21,6 +21,7 @@ test('dangerous functions are never allowed without confirmation', () => {
     'saveServer',
     'installRegistry',
     'installConnector',
+    'approveTools',
     'toggleServer',
     'setPolicy',
     'savePolicy',

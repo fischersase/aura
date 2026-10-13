@@ -31,6 +31,8 @@ contextBridge.exposeInMainWorld('api', {
       'searchRegistry',
       'installRegistry',
       'connectors',
+      'driftInfo',
+      'approveTools',
       'installConnector',
       'getSkill',
       'saveSkill',

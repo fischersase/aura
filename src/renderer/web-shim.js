@@ -71,6 +71,8 @@
     'searchRegistry',
     'installRegistry',
     'connectors',
+    'driftInfo',
+    'approveTools',
     'installConnector',
     'getSkill',
     'saveSkill',
