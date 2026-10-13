@@ -35,79 +35,108 @@ TIMEOUT_S = 10.0
 
 
 def hook_argv(command: str) -> list[str]:
-  """Befehl eines Hooks zerlegen. Windows: Pfade mit \\ bleiben erhalten, .ps1 läuft über PowerShell."""
-  if not IS_WINDOWS:
-    return shlex.split(command)
-  parts = [p[1:-1] if len(p) >= 2 and p[0] == p[-1] == '"' else p for p in shlex.split(command, posix=False)]
-  if parts and parts[0].lower().endswith(".ps1"):
-    return ["powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", *parts]
-  return parts
+    """Befehl eines Hooks zerlegen. Windows: Pfade mit \\ bleiben erhalten, .ps1 läuft über PowerShell."""
+    if not IS_WINDOWS:
+        return shlex.split(command)
+    parts = [
+        p[1:-1] if len(p) >= 2 and p[0] == p[-1] == '"' else p for p in shlex.split(command, posix=False)
+    ]
+    if parts and parts[0].lower().endswith(".ps1"):
+        return [
+            "powershell.exe",
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            *parts,
+        ]
+    return parts
 
 
 @dataclass(frozen=True)
 class Hook:
-  tool: str
-  command: str
+    tool: str
+    command: str
 
 
 @dataclass(frozen=True)
 class HookVerdict:
-  decision: str  # "continue" | "ask" | "deny"
-  reason: str = ""
+    decision: str  # "continue" | "ask" | "deny"
+    reason: str = ""
 
 
 class Hooks:
-  def __init__(self, file: Path | None) -> None:
-    self.before: list[Hook] = []
-    self.after: list[Hook] = []
-    if file and file.exists():
-      try:
-        data = json.loads(file.read_text(encoding="utf-8"))
-        self.before = [Hook(str(h.get("tool", "*")), str(h["command"])) for h in data.get("before_tool", []) if h.get("command")]
-        self.after = [Hook(str(h.get("tool", "*")), str(h["command"])) for h in data.get("after_tool", []) if h.get("command")]
-      except (OSError, json.JSONDecodeError, KeyError, TypeError) as e:
-        log.warning("hooks.json unlesbar, Hooks ignoriert: %s", e)
+    def __init__(self, file: Path | None) -> None:
+        self.before: list[Hook] = []
+        self.after: list[Hook] = []
+        if file and file.exists():
+            try:
+                data = json.loads(file.read_text(encoding="utf-8"))
+                self.before = [
+                    Hook(str(h.get("tool", "*")), str(h["command"]))
+                    for h in data.get("before_tool", [])
+                    if h.get("command")
+                ]
+                self.after = [
+                    Hook(str(h.get("tool", "*")), str(h["command"]))
+                    for h in data.get("after_tool", [])
+                    if h.get("command")
+                ]
+            except (OSError, json.JSONDecodeError, KeyError, TypeError) as e:
+                log.warning("hooks.json unlesbar, Hooks ignoriert: %s", e)
 
-  @staticmethod
-  async def _run(hook: Hook, payload: dict[str, Any]) -> tuple[int, str, str]:
-    proc = await asyncio.create_subprocess_exec(
-        *hook_argv(hook.command), stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-        **spawn_kwargs(new_group=False))
-    try:
-      out, err = await asyncio.wait_for(proc.communicate(json.dumps(payload, ensure_ascii=False, default=str).encode()), TIMEOUT_S)
-    except TimeoutError:
-      with contextlib.suppress(ProcessLookupError):
-        proc.kill()
-      return 124, "", f"Hook {hook.command} nach {TIMEOUT_S:.0f} s abgebrochen"
-    return proc.returncode or 0, out.decode(errors="replace").strip(), err.decode(errors="replace").strip()
-
-  async def before_tool(self, payload: dict[str, Any]) -> HookVerdict:
-    verdict = HookVerdict("continue")
-    for hook in self.before:
-      if not fnmatch.fnmatchcase(payload["tool"], hook.tool):
-        continue
-      try:
-        code, out, err = await self._run(hook, {"event": "before_tool", **payload})
-      except OSError as e:
-        return HookVerdict("deny", f"Hook {hook.command} ließ sich nicht starten: {e}")
-      if code == 2:
-        return HookVerdict("deny", err or f"Hook {hook.command} hat die Aktion gesperrt")
-      if code != 0:
-        return HookVerdict("deny", f"Hook {hook.command} ist fehlgeschlagen ({code}): {err[:200]}")
-      try:
-        decision = (json.loads(out) or {}).get("decision") if out.startswith("{") else None
-      except json.JSONDecodeError:
-        decision = None
-      if decision == "deny":
-        return HookVerdict("deny", f"Hook {hook.command} hat die Aktion gesperrt")
-      if decision == "ask":
-        verdict = HookVerdict("ask", f"Hook {hook.command} verlangt eine Rückfrage")
-    return verdict
-
-  async def after_tool(self, payload: dict[str, Any]) -> None:
-    for hook in self.after:
-      if fnmatch.fnmatchcase(payload["tool"], hook.tool):
+    @staticmethod
+    async def _run(hook: Hook, payload: dict[str, Any]) -> tuple[int, str, str]:
+        proc = await asyncio.create_subprocess_exec(
+            *hook_argv(hook.command),
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            **spawn_kwargs(new_group=False),
+        )
         try:
-          await self._run(hook, {"event": "after_tool", **payload})
-        except OSError as e:
-          log.warning("after-Hook %s: %s", hook.command, e)
+            out, err = await asyncio.wait_for(
+                proc.communicate(json.dumps(payload, ensure_ascii=False, default=str).encode()), TIMEOUT_S
+            )
+        except TimeoutError:
+            with contextlib.suppress(ProcessLookupError):
+                proc.kill()
+            return 124, "", f"Hook {hook.command} nach {TIMEOUT_S:.0f} s abgebrochen"
+        return (
+            proc.returncode or 0,
+            out.decode(errors="replace").strip(),
+            err.decode(errors="replace").strip(),
+        )
+
+    async def before_tool(self, payload: dict[str, Any]) -> HookVerdict:
+        verdict = HookVerdict("continue")
+        for hook in self.before:
+            if not fnmatch.fnmatchcase(payload["tool"], hook.tool):
+                continue
+            try:
+                code, out, err = await self._run(hook, {"event": "before_tool", **payload})
+            except OSError as e:
+                return HookVerdict("deny", f"Hook {hook.command} ließ sich nicht starten: {e}")
+            if code == 2:
+                return HookVerdict("deny", err or f"Hook {hook.command} hat die Aktion gesperrt")
+            if code != 0:
+                return HookVerdict("deny", f"Hook {hook.command} ist fehlgeschlagen ({code}): {err[:200]}")
+            try:
+                decision = (json.loads(out) or {}).get("decision") if out.startswith("{") else None
+            except json.JSONDecodeError:
+                decision = None
+            if decision == "deny":
+                return HookVerdict("deny", f"Hook {hook.command} hat die Aktion gesperrt")
+            if decision == "ask":
+                verdict = HookVerdict("ask", f"Hook {hook.command} verlangt eine Rückfrage")
+        return verdict
+
+    async def after_tool(self, payload: dict[str, Any]) -> None:
+        for hook in self.after:
+            if fnmatch.fnmatchcase(payload["tool"], hook.tool):
+                try:
+                    await self._run(hook, {"event": "after_tool", **payload})
+                except OSError as e:
+                    log.warning("after-Hook %s: %s", hook.command, e)

@@ -20,39 +20,57 @@ IFACE = "org.aura.Bridge"
 
 
 def is_wayland() -> bool:
-  return os.environ.get("XDG_SESSION_TYPE") == "wayland" or (bool(os.environ.get("WAYLAND_DISPLAY")) and not os.environ.get("DISPLAY"))
+    return os.environ.get("XDG_SESSION_TYPE") == "wayland" or (
+        bool(os.environ.get("WAYLAND_DISPLAY")) and not os.environ.get("DISPLAY")
+    )
 
 
 async def _call(member: str, sig: str = "", body: list | None = None):
-  bus = await MessageBus(bus_type=BusType.SESSION).connect()
-  try:
-    reply = await bus.call(Message(destination=NAME, path=PATH, interface=IFACE, member=member, signature=sig, body=body or []))
-  finally:
-    bus.disconnect()
-  if reply is None or reply.message_type == MessageType.ERROR:
-    raise RuntimeError(str(reply.body[0]) if reply and reply.body else f"{member} fehlgeschlagen")
-  return reply.body[0]
+    bus = await MessageBus(bus_type=BusType.SESSION).connect()
+    try:
+        reply = await bus.call(
+            Message(
+                destination=NAME, path=PATH, interface=IFACE, member=member, signature=sig, body=body or []
+            )
+        )
+    finally:
+        bus.disconnect()
+    if reply is None or reply.message_type == MessageType.ERROR:
+        raise RuntimeError(str(reply.body[0]) if reply and reply.body else f"{member} fehlgeschlagen")
+    return reply.body[0]
 
 
 async def available() -> bool:
-  try:
-    await _call("ListWindows")
-    return True
-  except Exception:  # noqa: BLE001 - nicht installiert oder nicht aktiviert
-    return False
+    try:
+        await _call("ListWindows")
+        return True
+    except Exception:  # noqa: BLE001 - nicht installiert oder nicht aktiviert
+        return False
 
 
 async def windows() -> list[WindowInfo]:
-  items = json.loads(await _call("ListWindows"))
-  return [WindowInfo(id=f"w{w['id']}", title=w.get("title", ""), app=w.get("app", ""), instance=w.get("instance", ""),
-                     pid=w.get("pid"), desktop=None, active=bool(w.get("active")), minimized=bool(w.get("minimized")))
-          for w in items]
+    items = json.loads(await _call("ListWindows"))
+    return [
+        WindowInfo(
+            id=f"w{w['id']}",
+            title=w.get("title", ""),
+            app=w.get("app", ""),
+            instance=w.get("instance", ""),
+            pid=w.get("pid"),
+            desktop=None,
+            active=bool(w.get("active")),
+            minimized=bool(w.get("minimized")),
+        )
+        for w in items
+    ]
 
 
 async def act(window_id: str, action: str) -> bool:
-  member = {"focus": "Activate", "minimize": "Minimize", "maximize": "Maximize", "close": "Close"}[action]
-  return bool(await _call(member, "t", [int(window_id.lstrip("w"))]))
+    member = {"focus": "Activate", "minimize": "Minimize", "maximize": "Maximize", "close": "Close"}[action]
+    return bool(await _call(member, "t", [int(window_id.lstrip("w"))]))
 
 
-NOT_INSTALLED = ("Unter Wayland braucht Aura für Fenster die GNOME-Erweiterung „Aura Bridge“. "
-                 "Aura Zentrale → Systemprüfung → „Erweiterung installieren“, danach einmal ab- und anmelden.")
+NOT_INSTALLED = (
+    "Unter Wayland braucht Aura für Fenster die GNOME-Erweiterung „Aura Bridge“. "
+    "Aura Zentrale → Systemprüfung → „Erweiterung installieren“, danach einmal ab- und anmelden."
+)

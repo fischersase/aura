@@ -12,4 +12,6 @@ async def main():
         out = await window_action(wid, action)
         print(action.upper(), out.get("verified"), out.get("error", ""))
     print("AFTER", (await list_windows())["count"])
+
+
 asyncio.run(main())
