@@ -12,6 +12,11 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 
 const HINT = 'Sandbox nicht verfügbar: bubblewrap installieren (sudo apt install bubblewrap) und Aura neu starten.';
+// Ubuntu 24.04+: user namespaces need an AppArmor profile that allows them. The Aura package installs one
+// (/etc/apparmor.d/aura); a development start (npm start) has none.
+const HINT_BLOCKED =
+  'Sandbox nicht verfügbar: bubblewrap ist installiert, darf hier aber keine abgeschottete Umgebung anlegen ' +
+  '(AppArmor). Aura aus dem installierten Paket starten.';
 
 /**
  * @typedef {{ command?: string, args?: string[], env?: Record<string, string>, cwd?: string, url?: string,
@@ -157,7 +162,10 @@ function wrap(name, cfg, deps = {}) {
   const platform = deps.platform || process.platform;
   if (platform !== 'linux') return { ...cfg, sandboxed: 'unsupported' };
   const bwrap = (deps.bwrap || findBwrap)();
-  if (!bwrap) throw new Error(HINT);
+  if (!bwrap)
+    throw new Error(
+      ['/usr/bin/bwrap', '/bin/bwrap'].some((p) => fs.existsSync(p)) && !deps.bwrap ? HINT_BLOCKED : HINT
+    );
   const home = deps.home || os.homedir();
   const auraDir = deps.auraDir || path.join(home, '.aura');
   const program = (deps.which || which)(String(cfg.command));
@@ -175,4 +183,4 @@ function wrap(name, cfg, deps = {}) {
   };
 }
 
-module.exports = { wanted, wrap, bwrapArgs, programDirs, serverDir, findBwrap, HINT };
+module.exports = { wanted, wrap, bwrapArgs, programDirs, serverDir, findBwrap, HINT, HINT_BLOCKED };
