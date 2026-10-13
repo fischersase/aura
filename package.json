@@ -158,6 +158,7 @@
       "packageCategory": "utils"
     },
     "nsis": {
+      "include": "packaging/windows/installer.nsh",
       "oneClick": true,
       "perMachine": false,
       "createDesktopShortcut": true,
