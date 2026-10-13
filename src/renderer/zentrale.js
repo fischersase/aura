@@ -817,7 +817,13 @@ async function renderSecrets() {
       renderSecrets();
     };
   }
-  const KIND = { api_key: 'API-Key', oauth: 'Anmeldung (OAuth)', password: 'Passwort', basic: 'Benutzer + Passwort' };
+  const KIND = {
+    api_key: 'API-Key',
+    oauth: 'Anmeldung (OAuth)',
+    password: 'Passwort',
+    basic: 'Benutzer + Passwort',
+    login: 'Website-Login'
+  };
   $('secretList').innerHTML = r.list
     .map((k) => {
       const status = k.builtin
@@ -831,13 +837,14 @@ async function renderSecrets() {
       const meta = [
         KIND[k.kind] || '',
         k.provider ? esc(k.provider) : '',
+        k.origin ? 'nur für ' + esc(k.origin) : '',
         k.scopes && k.scopes.length ? 'Rechte: ' + esc(k.scopes.join(', ')) : '',
         k.lastUsed ? 'zuletzt genutzt ' + esc(fmtDate(k.lastUsed)) : '',
         k.expiresAt ? (k.expiresAt < Date.now() ? 'abgelaufen ' : 'läuft ab ') + esc(fmtDate(k.expiresAt)) : ''
       ].filter(Boolean);
       return `<div class="item"><div class="name">${esc(k.name)} ${status}${k.hint ? ` <span class="badge">${esc(k.hint)}</span>` : ''}</div>
       <div class="desc">${meta.length ? meta.join(' · ') + '<br>' : ''}${k.note ? esc(k.note) + ' · ' : ''}${used}${k.updated ? ' · geändert ' + esc(fmtDate(k.updated)) : ''}</div>
-      <div class="side">${k.builtin ? '' : `<button class="small" data-copy="${esc(k.name)}" title="\${secret:${esc(k.name)}} kopieren">Verweis kopieren</button>`}
+      <div class="side">${k.builtin || k.kind === 'login' ? '' : `<button class="small" data-copy="${esc(k.name)}" title="\${secret:${esc(k.name)}} kopieren">Verweis kopieren</button>`}
       <button class="small" data-replace="${esc(k.name)}">${k.builtin && !k.set ? 'Festlegen' : 'Ersetzen'}</button>
       ${k.builtin && !k.set ? '' : `<button class="small danger" data-sdel2="${esc(k.name)}">Löschen</button>`}</div></div>`;
     })
@@ -900,6 +907,28 @@ function secretDialog(existing) {
   setTimeout(() => (existing ? $('kValue') : $('kName')).focus(), 30);
 }
 $('newSecret').onclick = () => secretDialog(null);
+// Website login (AURA-124): Aura fills it in its browser only on this website; the model never sees the password.
+$('newLogin').onclick = () =>
+  dialog(
+    'Website-Login hinzufügen',
+    `<p class="small muted">Aura trägt diese Zugangsdaten nur auf genau dieser Website ein, nach deiner Freigabe. Das Sprachmodell sieht das Passwort nie; es kennt nur den Namen.</p>
+    <label>Website</label><input type="text" id="lUrl" placeholder="https://www.bahn.de" spellcheck="false">
+    <label>Name</label><input type="text" id="lName" placeholder="z. B. BAHN_LOGIN" spellcheck="false">
+    <label>Benutzername oder E-Mail</label><input type="text" id="lUser" spellcheck="false" autocomplete="off">
+    <label>Passwort</label><input type="password" id="lPass" autocomplete="new-password">`,
+    async () => {
+      const r = await z.setLogin({
+        name: $('lName').value.trim(),
+        url: $('lUrl').value.trim(),
+        username: $('lUser').value.trim(),
+        password: $('lPass').value
+      });
+      if (r && r.error) return r.error;
+      renderSecrets();
+      return null;
+    },
+    'Speichern'
+  );
 
 // ---------- Profil ----------
 

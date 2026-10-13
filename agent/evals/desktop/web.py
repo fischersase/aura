@@ -144,6 +144,13 @@ class Handler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length") or 0)
         data = urllib.parse.parse_qs(self.rfile.read(length).decode(errors="replace"))
         self.server.requests.append(("POST", self.path, data))
+        if self.path == "/do-login":
+            self._send(
+                200,
+                "Bestellungen",
+                "<h1>Deine Bestellungen</h1><ul><li>Bestellung 4711: Bohnenkaffee, versandt</li></ul>",
+            )
+            return
         if self.path == "/buy":
             self._send(200, "Bestellt", "<h1>Danke für Ihre Bestellung!</h1>")
         elif self.path == "/send":

@@ -28,6 +28,7 @@ test('dangerous functions are never allowed without confirmation', () => {
     'saveSkill',
     'saveAgentsMd',
     'setSecret',
+    'setLogin',
     'deleteSecret',
     'installExtension'
   ]) {

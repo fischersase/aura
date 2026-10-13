@@ -50,6 +50,8 @@ class AgentSettings:
     # Curated connector catalog from the app (src/catalog/connectors.json) and IDs the user never wants suggested (AURA-96).
     # Location (AURA-116): source chosen by the user ("profile" | "ip" | "device") and the place from the profile.
     location_mode: str = "profile"
+    # Websites with a login in Aura's vault (AURA-124): origins only, so tasks on them go to the browser specialist.
+    login_origins: list[str] = field(default_factory=list)
     profile_place: str = ""
     connectors: list[dict[str, Any]] = field(default_factory=list)
     declined_connectors: list[str] = field(default_factory=list)
@@ -90,6 +92,8 @@ class AgentSettings:
         if p.get("locationMode") in ("profile", "ip", "device"):
             s.location_mode = p["locationMode"]
         s.profile_place = str(p.get("profilePlace") or "")[:200]
+        if isinstance(p.get("loginOrigins"), list):
+            s.login_origins = [str(o)[:200] for o in p["loginOrigins"]][:100]
         if isinstance(p.get("connectors"), list):
             s.connectors = [x for x in p["connectors"] if isinstance(x, dict) and x.get("id")]
         if isinstance(p.get("declinedConnectors"), list):

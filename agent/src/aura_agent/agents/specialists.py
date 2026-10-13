@@ -11,7 +11,7 @@ from google.adk.models.base_llm import BaseLlm
 from google.adk.tools.agent_tool import AgentTool
 from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 
-from ..tools.browser import BROWSER_INSTRUCTION, request_takeover
+from ..tools.browser import BROWSER_INSTRUCTION, make_login_tools, request_takeover
 
 
 def browser_agent(model: BaseLlm, toolset: McpToolset) -> AgentTool:
@@ -24,7 +24,7 @@ def browser_agent(model: BaseLlm, toolset: McpToolset) -> AgentTool:
             "Aufgabe als request mit, z. B. „Öffne YouTube Music, suche nach Bad Bunny und starte den ersten Song.“"
         ),
         instruction=BROWSER_INSTRUCTION,
-        tools=[toolset, request_takeover],
+        tools=[toolset, request_takeover, *make_login_tools(toolset)],
     )
     return AgentTool(agent=agent)
 

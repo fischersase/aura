@@ -45,6 +45,7 @@ contextBridge.exposeInMainWorld('api', {
       'secrets',
       'setSecret',
       'setSecretNote',
+      'setLogin',
       'deleteSecret',
       'setWeakStorage',
       'profile',

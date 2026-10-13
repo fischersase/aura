@@ -23,6 +23,7 @@ class FakeHost:
         self.registry: list[dict[str, Any]] = []  # host.searchRegistry results (AURA-96)
         self.registry_queries: list[str] = []
         self.proposals: list[dict[str, Any]] = []
+        self.logins: dict[str, dict[str, str]] = {}  # name → {origin, username, password} (AURA-124)
         self.scheduled: list[dict[str, Any]] = []  # host.scheduleTask requests (AURA-121)
         self.takeovers: list[dict[str, Any]] = []  # host.takeover requests (AURA-118)
         self.takeover_decisions: list[str] = []
@@ -43,6 +44,21 @@ class FakeHost:
         if server not in self.auth_headers:
             raise RuntimeError("Nicht verbunden – in der Aura Zentrale anmelden.")
         return {"Authorization": self.auth_headers[server]}
+
+    async def logins_for(self, origin: str) -> dict[str, Any]:
+        return {
+            "logins": [
+                {"name": n, "username": v["username"]}
+                for n, v in self.logins.items()
+                if v["origin"] == origin
+            ]
+        }
+
+    async def login_fill(self, name: str, origin: str) -> dict[str, Any]:
+        v = self.logins.get(name)
+        if not v or v["origin"] != origin:
+            return {"error": f"„{name}“ gehört nicht zu {origin}."}
+        return {"username": v["username"], "password": v["password"]}
 
     async def schedule_task(self, request: dict[str, Any]) -> dict[str, Any]:
         self.scheduled.append(request)

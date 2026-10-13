@@ -151,6 +151,22 @@ def _clip_text(text: str) -> str:
     return clip(text)
 
 
+def mask(value: Any, secrets: set[str]) -> Any:
+    """Replaces values that must never reach the model (e.g. a filled-in password) in a tool result (AURA-124)."""
+    if not secrets:
+        return value
+    if isinstance(value, str):
+        for s in secrets:
+            if s:
+                value = value.replace(s, "••••")
+        return value
+    if isinstance(value, list):
+        return [mask(v, secrets) for v in cast("list[Any]", value)]
+    if (d := _as_dict(value)) is not None:
+        return {k: mask(v, secrets) for k, v in d.items()}
+    return value
+
+
 def _clip_result(result: Any) -> Any:
     if (d := _as_dict(result)) is not None:
         return {k: _clip_result(v) for k, v in d.items()}
@@ -389,7 +405,9 @@ class GuardPlugin(BasePlugin):
                     "args": tool_args,
                     "label": label,
                     "task": task.task_id,
-                    "result": _clip_result(result) if result_dict is not None else str(result)[:4000],
+                    "result": mask(
+                        _clip_result(result) if result_dict is not None else str(result)[:4000], task.masked
+                    ),
                 }
             )
         if tool.name == "ask_user" and result_dict is not None and BULK_REQUEST.search(task.request or ""):
@@ -398,7 +416,7 @@ class GuardPlugin(BasePlugin):
                 task.plan_confirmed = True
             elif answer:
                 task.plan_cancelled = True
-        out = _clip_result(result)
+        out = mask(_clip_result(result), task.masked)
         notes: list[str] = []
         if not failed and (tool.name in TAINT_TOOLS or tool.name.startswith(TAINT_PREFIXES)):
             if tool.name not in task.tainted_by:
