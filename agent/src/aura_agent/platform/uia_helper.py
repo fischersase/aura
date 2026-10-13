@@ -271,7 +271,12 @@ def snapshot(p: dict) -> dict:
 
     for w, app in wins:
         walk(w, 0, f"{app}: {_get(w, 'name')}")
-    return {"count": len(items), "truncated": len(items) >= limit, "elements": items}
+    return {
+        "count": len(items),
+        "truncated": len(items) >= limit,
+        "elements": items,
+        "apps": sorted({app for _, app in wins}),  # lets the caller recognise browsers (AURA-92)
+    }
 
 
 def _node(p: dict) -> Any:

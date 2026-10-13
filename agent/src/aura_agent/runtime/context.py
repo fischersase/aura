@@ -64,6 +64,8 @@ class TaskContext:
     plan_cancelled: bool = False
     # Hat der Auftrag lokale Daten gelesen (Dateien, Befehlsausgaben, Bildschirm, Gedächtnis)?
     local_data_from: list[str] = field(default_factory=list)
+    # Has the task met a web app whose content Aura cannot read (AURA-92)? Then blind clicks and keys ask first.
+    web_content_unavailable: bool = False
 
     @property
     def tainted(self) -> bool:

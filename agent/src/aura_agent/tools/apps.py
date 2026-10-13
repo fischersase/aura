@@ -14,6 +14,13 @@ from pathlib import Path
 
 from ..platform.base import IS_WINDOWS
 
+# Shown to the model when a web app is involved (AURA-92): say so honestly instead of clicking around on screenshots.
+WEB_APP_NOTE = (
+    "Das ist eine Web-App in Chrome. Ihren Inhalt (z. B. Mails, Termine) kann Aura nicht lesen und nicht zuverlässig "
+    "bedienen. Sag das dem Nutzer ehrlich und klicke nicht nach Bildschirmfotos herum: Für Mails, Kalender usw. "
+    "braucht Aura eine Verbindung zu dem Dienst (Aura Zentrale → Erweiterungen)."
+)
+
 
 @dataclass
 class App:
@@ -25,6 +32,18 @@ class App:
     wm_class: str  # StartupWMClass, falls angegeben
     exe: str = ""  # Windows: Programmdatei, falls bekannt (z. B. "notepad.exe")
     entry: dict[str, str] = field(default_factory=dict)  # Windows: Startmenü-Eintrag zum Starten
+
+    @property
+    def is_web_app(self) -> bool:
+        """Installed web app of Chrome/Edge (Gmail, Kalender …): a browser window whose content Aura cannot read."""
+        # Linux: chrome-<id>-Default.desktop with --app-id; Windows: AppID "…_crx_<id>" or a shortcut in "Chrome Apps".
+        text = f"{self.id} {self.exec} {self.entry.get('app_id', '')} {self.entry.get('lnk', '')}".lower()
+        return (
+            self.id.startswith("chrome-")
+            or "--app-id" in text
+            or "_crx_" in text
+            or any(f"{sep}{d} apps{sep}" in text for d in ("chrome", "edge") for sep in ("\\", "/"))
+        )
 
     @property
     def binary(self) -> str:
@@ -200,9 +219,7 @@ def best_matches(apps: list[App], query: str) -> list[App]:
         s = max(_score(a, x) for x in queries)
         if not s:
             continue
-        if (
-            a.id.startswith("chrome-") or "--app-id" in a.exec or "_crx_" in a.id.lower()
-        ):  # Web-App-Verknüpfungen nur, wenn genau gemeint
+        if a.is_web_app:  # Web-App-Verknüpfungen nur, wenn genau gemeint
             s -= 40
         scored.append((s - len(a.name) / 100, a))
     return [a for _, a in sorted(scored, key=lambda x: -x[0])]

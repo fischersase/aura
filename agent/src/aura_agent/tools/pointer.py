@@ -32,9 +32,22 @@ SAFE_KEYS = {
 }
 
 
+# After a web app turned out to be unreadable (AURA-92), clicks and keys on screenshots are guesswork: ask first.
+BLIND_IN_WEB_APP = (
+    "Inhalt der Web-App ist für Aura nicht lesbar; Klicks und Tasten nach Bildschirmfoto sind unzuverlässig"
+)
+
+
+def _blind_in_web_app() -> bool:
+    task = current()
+    return task is not None and task.web_content_unavailable
+
+
 def _click_tier(a: dict[str, Any]) -> tuple[Tier, str]:
     if CONSEQUENTIAL.search(str(a.get("element", ""))):
         return Tier.T2, "Klick auf etwas Folgenreiches"
+    if _blind_in_web_app():
+        return Tier.T2, BLIND_IN_WEB_APP
     return Tier.T1, ""
 
 
@@ -98,7 +111,9 @@ async def type_text(text: str) -> dict[str, Any]:
 
 def _keys_tier(a: dict[str, Any]) -> tuple[Tier, str]:
     keys = str(a.get("keys", "")).lower().replace(" ", "")
-    return (Tier.T1, "") if keys in SAFE_KEYS else (Tier.T2, "Tastenkombination im aktiven Fenster")
+    if keys in SAFE_KEYS and not _blind_in_web_app():
+        return Tier.T1, ""
+    return Tier.T2, BLIND_IN_WEB_APP if _blind_in_web_app() else "Tastenkombination im aktiven Fenster"
 
 
 @aura_tool(_keys_tier, label=lambda a: str(a.get("keys", "")))
