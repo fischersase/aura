@@ -23,6 +23,7 @@
     "src/oauth.js",
     "src/connectors.js",
     "src/sandbox.js",
+    "src/drift.js",
     "src/win-autostart.js",
     "src/store.js",
     "src/agent2/rpc.js",

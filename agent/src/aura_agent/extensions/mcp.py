@@ -19,6 +19,8 @@ Lokale Server bekommen die Umgebung ohne Zugangsdaten (platform.proc.child_env) 
 from __future__ import annotations
 
 import fnmatch
+import hashlib
+import json
 import logging
 import re
 from collections.abc import Awaitable, Callable
@@ -56,6 +58,7 @@ class ServerConfig:
     description: str = ""
     auth: str = ""  # "oauth": sign-in through the app, header per request (AURA-95)
     catalog_id: str = ""  # entry in the Aura connector catalog (AURA-96)
+    tools_hash: str = ""  # SHA-256 of the tools the user approved (AURA-97); empty = not checked
     source: str = ""  # "registry": installed from the public MCP registry, not reviewed
 
     @property
@@ -76,6 +79,7 @@ class ServerConfig:
             description=str(d.get("description") or ""),
             auth=str(d.get("auth") or ""),
             catalog_id=str(d.get("catalogId") or ""),
+            tools_hash=str(d.get("toolsHash") or ""),
             source=str(d.get("source") or ""),
         )
 
@@ -146,6 +150,48 @@ def _mcp_meta(tool: Any) -> ToolMeta | None:
 RESOLVERS.append(_mcp_meta)
 
 
+def tools_hash(tools: list[Any]) -> str:
+    """SHA-256 of name, description and input schema of each tool, in the same canonical form as src/drift.js."""
+    snap = sorted(
+        (
+            {
+                "name": str(getattr(t, "name", "")),
+                "description": str(getattr(t, "description", None) or ""),
+                "inputSchema": getattr(t, "inputSchema", None) or {},
+            }
+            for t in tools
+        ),
+        key=lambda x: x["name"],
+    )
+    text = json.dumps(snap, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+class DriftCheckedToolset(McpToolset):
+    """McpToolset that offers no tools if they differ from what the user approved (drift protection, AURA-97).
+
+    A changed tool description could tell the model to do something else than the user agreed to; the app shows the
+    diff in the Zentrale and the user approves it there.
+    """
+
+    def __init__(self, *args: Any, approved_hash: str = "", server: str = "", **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._approved_hash = approved_hash
+        self._server = server
+
+    async def get_tools(self, readonly_context: ReadonlyContext | None = None) -> list[Any]:
+        tools = await super().get_tools(readonly_context)
+        if not self._approved_hash:
+            return tools
+        current = tools_hash([getattr(t, "_mcp_tool", t) for t in tools])
+        if current != self._approved_hash:
+            log.warning(
+                "MCP-Server %s: Werkzeuge haben sich geändert; erst in der Zentrale freigeben.", self._server
+            )
+            return []
+        return tools
+
+
 def oauth_header_provider(server: str) -> Callable[[ReadonlyContext], Awaitable[dict[str, str]]]:
     """Fresh Authorization header per request from the app (host.authHeader); the agent never holds a refresh token."""
 
@@ -192,8 +238,12 @@ def build_toolsets(
             out.append(
                 (
                     cfg,
-                    McpToolset(
-                        connection_params=params, tool_name_prefix=cfg.prefix, header_provider=header_provider
+                    DriftCheckedToolset(
+                        connection_params=params,
+                        tool_name_prefix=cfg.prefix,
+                        header_provider=header_provider,
+                        approved_hash=cfg.tools_hash,
+                        server=cfg.name,
                     ),
                 )
             )

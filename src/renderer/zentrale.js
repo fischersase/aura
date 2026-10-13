@@ -164,6 +164,44 @@ function renderTools() {
 
 // ---------- MCP-Server ----------
 
+async function driftDialog(name) {
+  const d = await z.driftInfo(name);
+  if (d.error) return alert(d.error);
+  const tool = (t) => `<b>${esc(t.name)}</b>: ${esc(t.description || '(ohne Beschreibung)')}`;
+  const list = (title, items) => (items.length ? `<h3>${title}</h3><ul class="drift">${items.join('')}</ul>` : '');
+  dialog(
+    `„${name}“: Werkzeuge geändert`,
+    `<p class="small">Seit deiner Freigabe hat der Server seine Werkzeuge geändert. Prüfe, ob das zu dem passt, was der Dienst tun soll. Eine Beschreibung, die etwas anderes verlangt (z. B. Daten woandershin zu schicken), ist ein Warnzeichen.</p>
+    ${list(
+      'Neu',
+      d.added.map((t) => `<li>${tool(t)}</li>`)
+    )}
+    ${list(
+      'Entfernt',
+      d.removed.map((n) => `<li><b>${esc(n)}</b></li>`)
+    )}
+    ${list(
+      'Geändert',
+      d.changed.map(
+        (c) =>
+          `<li><b>${esc(c.name)}</b><div class="before">vorher: ${esc(c.before.description)}</div><div class="after">jetzt: ${esc(c.after.description)}</div>${
+            JSON.stringify(c.before.inputSchema) !== JSON.stringify(c.after.inputSchema)
+              ? '<div class="small muted">Eingaben geändert</div>'
+              : ''
+          }</li>`
+      )
+    )}
+    <div class="hint">Bis zur Freigabe nutzt Aura diesen Server nicht.</div>`,
+    async () => {
+      const r = await z.approveTools(name);
+      if (r && r.error) return r.error;
+      await load();
+      return null;
+    },
+    'Freigeben'
+  );
+}
+
 // Sandbox of local catalog/registry servers (AURA-97).
 const SANDBOX_BADGE = {
   on: '<span class="badge ok" title="Läuft abgeschottet: sieht nur seinen eigenen Ordner, nicht deine Dateien">Sandbox</span>',
@@ -212,9 +250,15 @@ function renderServers() {
         <span class="grow"></span>${s.auth === 'oauth' ? (s.signedIn ? `<button class="small" data-signout="${esc(s.name)}">Abmelden</button>` : `<button class="small primary" data-signin="${esc(s.name)}">Anmelden</button>`) : ''}<button class="small" data-edit="${esc(s.name)}">Bearbeiten</button><button class="small danger" data-remove="${esc(s.name)}">Entfernen</button></div>
       <div class="cmd">${esc(s.command)}${s.env.length ? ' · Variablen: ' + esc(s.env.join(', ')) : ''}${s.secretRefs.length ? ' · Schlüssel: ' + esc(s.secretRefs.join(', ')) : ''}</div>
       ${s.plainSecrets.length ? `<div class="warnbox"><span>${esc(s.plainSecrets.join(', '))} steht im Klartext in mcp.json.</span><button class="small" data-protect="${esc(s.name)}">Verschlüsselt speichern</button></div>` : ''}
-      ${s.error && !s.disabled ? `<div class="err">${esc(s.error)}</div>` : ''}${tools}</div>`;
+      ${s.error && !s.disabled ? `<div class="err">${esc(s.error)}${s.drift ? ` <button class="small primary" data-drift="${esc(s.name)}">Änderung prüfen</button>` : ''}</div>` : ''}${tools}</div>`;
     })
     .join('');
+  // Drift protection (AURA-97): show what changed, approve or keep paused.
+  $('serverList')
+    .querySelectorAll('[data-drift]')
+    .forEach((b) => {
+      b.onclick = () => driftDialog(b.dataset.drift);
+    });
   // OAuth sign-in (AURA-95): opens the browser; the Zentrale waits until the user is back.
   $('serverList')
     .querySelectorAll('[data-signin]')
@@ -466,6 +510,20 @@ function connectDialog(id) {
       }
       await load(true);
       renderConnectors();
+      // Test call (AURA-97): the first listing of the tools; its result is shown right away.
+      const s = S.servers.find((x) => x.name === r.name);
+      setTimeout(
+        () =>
+          dialog(
+            s && !s.error ? `${c.title} ist verbunden` : `${c.title}: Verbindung nicht geklappt`,
+            s && !s.error
+              ? `<p>Test erfolgreich: ${s.tools.length} Werkzeuge.</p><p class="small muted">${esc(s.tools.map((t) => t.title).join(', '))}</p><div class="hint">Diese Werkzeuge hast du damit freigegeben. Ändert der Server sie später, fragt Aura dich erneut.</div>`
+              : `<p class="bad">${esc((s && s.error) || 'Server nicht gefunden.')}</p>`,
+            async () => null,
+            'OK'
+          ),
+        0
+      );
       return null;
     },
     c.oauth ? 'Anmelden' : 'Verbinden'

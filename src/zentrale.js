@@ -12,6 +12,7 @@ const loop = require('./agent/loop');
 const secrets = require('./secrets');
 const connectors = require('./connectors');
 const sandbox = require('./sandbox');
+const drift = require('./drift');
 
 const REGISTRY = 'https://registry.modelcontextprotocol.io/v0.1/servers';
 let win = null;
@@ -72,9 +73,37 @@ const validName = (n) => /^[A-Za-z0-9_.-]{1,40}$/.test(String(n || ''));
 
 // ---------- Zustand für die Oberfläche ----------
 
+// Approved tools of a server: snapshot file next to its sandbox directory, hash in mcp.json (AURA-97).
+const snapshotFile = (name) => path.join(sandbox.serverDir(skills.auraDir(), name), 'tools.json');
+
+function approveTools(name, tools) {
+  const all = readMcpConfig();
+  if (!all[name]) return false;
+  const file = snapshotFile(name);
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+  fs.writeFileSync(file, JSON.stringify(drift.snapshot(tools), null, 2) + '\n');
+  all[name] = { ...all[name], toolsHash: drift.hash(tools) };
+  writeMcpConfig(all);
+  return true;
+}
+
+// Connectors (catalog/registry) are approved by the user's "Verbinden"; the first successful listing is the test
+// call, and its tools become the approved snapshot.
+async function approveNewConnectors() {
+  let changed = false;
+  for (const [name, c] of Object.entries(readMcpConfig())) {
+    const connector = c.catalogId || c.source === 'registry' || connectors.forUrl(c.url);
+    const st = mcp.status().find((x) => x.name === name);
+    if (!connector || c.toolsHash || c.disabled || !st || st.error || !st.tools) continue;
+    changed = approveTools(name, mcp.listedTools(name)) || changed;
+  }
+  if (changed) await mcp.sync(true);
+}
+
 async function state(force) {
   try {
     await mcp.sync(!!force);
+    await approveNewConnectors();
   } catch {}
   const s = store.load();
   const policy = s.toolPolicy || {};
@@ -121,6 +150,8 @@ async function state(force) {
     signedIn: c.auth === 'oauth' ? !!secrets.get(require('./oauth').vaultName(name)) : false,
     error: clashes[name] || (waitsForSignIn(name, c) ? null : status[name] ? status[name].error : null),
     running: !!(status[name] && !status[name].error),
+    drift: !!(status[name] && status[name].drift),
+    approved: !!c.toolsHash,
     tools: mcpTools
       .filter((t) => t.server === name)
       .map((t) => ({
@@ -403,6 +434,22 @@ const API = {
     all[n] = { ...cfg, source: 'registry' }; // unreviewed: every tool asks (FR-CON-008)
     writeMcpConfig(all);
     return { name: n, state: await state(true) };
+  },
+
+  // Drift protection (AURA-97): what changed since the approval, and approving the new tools.
+  driftInfo(name) {
+    const tools = mcp.listedTools(String(name || ''));
+    if (!tools) return { error: 'Server nicht gefunden.' };
+    let before = [];
+    try {
+      before = JSON.parse(fs.readFileSync(snapshotFile(String(name)), 'utf8'));
+    } catch {}
+    return drift.diff(before, tools);
+  },
+  async approveTools(name) {
+    const tools = mcp.listedTools(String(name || ''));
+    if (!tools || !approveTools(String(name), tools)) return { error: 'Server nicht gefunden.' };
+    return state(true);
   },
 
   // Aura connector catalog (AURA-96): reviewed entries with ready settings; "installed" if a server uses it.

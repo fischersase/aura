@@ -145,7 +145,8 @@ class HttpConn {
 
 // ---------- Verwaltung ----------
 
-let servers = new Map(); // name → { conn, tools, error, cfgKey }
+let servers = new Map(); // name → { conn, tools, error, cfgKey, drift?, pending? }
+const DRIFT_ERROR = 'Die Werkzeuge dieses Servers haben sich geändert. Aura nutzt ihn erst wieder, wenn du die Änderung prüfst und freigibst.';
 let loadedMtime = 0;
 
 function readConfig() {
@@ -171,6 +172,10 @@ async function connect(name, raw) {
   const conn = cfg.url ? new HttpConn(name, cfg) : new StdioConn(name, cfg);
   await conn.request('initialize', { protocolVersion: PROTOCOL, capabilities: {}, clientInfo: CLIENT }, 30000);
   conn.notify('notifications/initialized');
+  return { conn, tools: await listTools(conn) };
+}
+
+async function listTools(conn) {
   const tools = [];
   let cursor;
   do {
@@ -178,7 +183,16 @@ async function connect(name, raw) {
     tools.push(...(r.tools || []));
     cursor = r.nextCursor;
   } while (cursor);
-  return { conn, tools };
+  return tools;
+}
+
+// Drift protection (AURA-97): tools differ from what the user approved → paused until approved again.
+function checked(name, c, conn, tools, key) {
+  if (c.toolsHash && require('../drift').hash(tools) !== c.toolsHash) {
+    conn.close();
+    return { tools: [], pending: tools, drift: true, cfgKey: key, error: DRIFT_ERROR };
+  }
+  return { conn, tools, cfgKey: key, autoApprove: c.autoApprove || [] };
 }
 
 // Startet/aktualisiert die Server aus mcp.json (nur wenn sich die Datei geändert hat).
@@ -198,10 +212,24 @@ async function sync(force = false) {
     let key = JSON.stringify(c);
     try { key = JSON.stringify(resolveConfig(c, name)); } catch {}
     const old = servers.get(name);
-    if (old && old.cfgKey === key && !old.error) { next.set(name, old); servers.delete(name); return; }
+    if (old && old.cfgKey === key && !old.error) {
+      servers.delete(name);
+      // A forced sync lists the tools again: a server can change them while connected.
+      if (force) {
+        try {
+          next.set(name, checked(name, c, old.conn, await listTools(old.conn), key));
+          return;
+        } catch {
+          old.conn.close();
+        }
+      } else {
+        next.set(name, old);
+        return;
+      }
+    }
     try {
       const { conn, tools } = await connect(name, c);
-      next.set(name, { conn, tools, cfgKey: key, autoApprove: c.autoApprove || [] });
+      next.set(name, checked(name, c, conn, tools, key));
     } catch (err) {
       next.set(name, { tools: [], error: String(err.message || err), cfgKey: key });
     }
@@ -256,7 +284,13 @@ function tools() {
 }
 
 function status() {
-  return [...servers].map(([name, s]) => ({ name, tools: s.tools.length, toolNames: s.tools.map((t) => t.name), error: s.error || null }));
+  return [...servers].map(([name, s]) => ({ name, tools: s.tools.length, toolNames: s.tools.map((t) => t.name), error: s.error || null, drift: !!s.drift }));
+}
+
+// Tools as the server lists them (also the pending ones of a drifted server), for snapshots and diffs.
+function listedTools(name) {
+  const s = servers.get(name);
+  return s ? s.pending || s.tools : null;
 }
 
 function closeAll() {
@@ -265,4 +299,4 @@ function closeAll() {
   loadedMtime = 0;
 }
 
-module.exports = { sync, tools, status, closeAll, configFile, setResolver, setAuthProvider };
+module.exports = { sync, tools, status, closeAll, configFile, setResolver, setAuthProvider, listedTools };
