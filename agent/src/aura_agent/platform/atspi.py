@@ -26,60 +26,75 @@ CALL_TIMEOUT_S = 8.0
 
 @functools.cache
 def available() -> bool:
-  try:
-    r = subprocess.run([SYSTEM_PYTHON, "-c", "import gi; gi.require_version('Atspi', '2.0'); from gi.repository import Atspi"],
-                       capture_output=True, timeout=10, check=False)
-  except (OSError, subprocess.TimeoutExpired):
-    return False
-  return r.returncode == 0
+    try:
+        r = subprocess.run(
+            [
+                SYSTEM_PYTHON,
+                "-c",
+                "import gi; gi.require_version('Atspi', '2.0'); from gi.repository import Atspi",
+            ],
+            capture_output=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return r.returncode == 0
 
 
 class HelperClient:
-  """Ein Helfer-Prozess mit JSON-Zeilen über stdin/stdout (AT-SPI unter Linux, UI Automation unter Windows)."""
+    """Ein Helfer-Prozess mit JSON-Zeilen über stdin/stdout (AT-SPI unter Linux, UI Automation unter Windows)."""
 
-  def __init__(self, argv: list[str]) -> None:
-    self.argv = argv
-    self._proc: asyncio.subprocess.Process | None = None
-    self._ids = itertools.count(1)
-    self._lock = asyncio.Lock()
+    def __init__(self, argv: list[str]) -> None:
+        self.argv = argv
+        self._proc: asyncio.subprocess.Process | None = None
+        self._ids = itertools.count(1)
+        self._lock = asyncio.Lock()
 
-  async def _start(self) -> asyncio.subprocess.Process:
-    if self._proc is None or self._proc.returncode is not None:
-      self._proc = await asyncio.create_subprocess_exec(
-          *self.argv, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
-          stderr=asyncio.subprocess.DEVNULL, env={**os.environ, "PYTHONWARNINGS": "ignore", "PYTHONUTF8": "1"},
-          limit=16 * 1024 * 1024, **spawn_kwargs(new_group=False))
-    return self._proc
+    async def _start(self) -> asyncio.subprocess.Process:
+        if self._proc is None or self._proc.returncode is not None:
+            self._proc = await asyncio.create_subprocess_exec(
+                *self.argv,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL,
+                env={**os.environ, "PYTHONWARNINGS": "ignore", "PYTHONUTF8": "1"},
+                limit=16 * 1024 * 1024,
+                **spawn_kwargs(new_group=False),
+            )
+        return self._proc
 
-  def kill(self) -> None:
-    if self._proc and self._proc.returncode is None:
-      with contextlib.suppress(ProcessLookupError):
-        self._proc.kill()
-    self._proc = None
+    def kill(self) -> None:
+        if self._proc and self._proc.returncode is None:
+            with contextlib.suppress(ProcessLookupError):
+                self._proc.kill()
+        self._proc = None
 
-  async def call(self, method: str, **params: Any) -> dict[str, Any]:
-    async with self._lock:
-      proc = await self._start()
-      if proc.stdin is None or proc.stdout is None:
-        raise RuntimeError("AT-SPI helper has no pipes")
-      rid = next(self._ids)
-      proc.stdin.write((json.dumps({"id": rid, "method": method, "params": params}) + "\n").encode())
-      try:
-        await proc.stdin.drain()
-        while True:
-          line = await asyncio.wait_for(proc.stdout.readline(), CALL_TIMEOUT_S)
-          if not line:
-            self.kill()
-            return {"error": "Barrierefreiheits-Helfer ist beendet."}
-          msg = json.loads(line)
-          if msg.get("id") == rid:
-            break
-      except TimeoutError:
-        self.kill()
-        return {"error": f"Das Programm antwortet nicht über die Barrierefreiheit (nach {CALL_TIMEOUT_S:.0f} s abgebrochen)."}
-      if msg.get("error"):
-        return {"error": msg["error"]}
-      return msg.get("result") or {}
+    async def call(self, method: str, **params: Any) -> dict[str, Any]:
+        async with self._lock:
+            proc = await self._start()
+            if proc.stdin is None or proc.stdout is None:
+                raise RuntimeError("AT-SPI helper has no pipes")
+            rid = next(self._ids)
+            proc.stdin.write((json.dumps({"id": rid, "method": method, "params": params}) + "\n").encode())
+            try:
+                await proc.stdin.drain()
+                while True:
+                    line = await asyncio.wait_for(proc.stdout.readline(), CALL_TIMEOUT_S)
+                    if not line:
+                        self.kill()
+                        return {"error": "Barrierefreiheits-Helfer ist beendet."}
+                    msg = json.loads(line)
+                    if msg.get("id") == rid:
+                        break
+            except TimeoutError:
+                self.kill()
+                return {
+                    "error": f"Das Programm antwortet nicht über die Barrierefreiheit (nach {CALL_TIMEOUT_S:.0f} s abgebrochen)."
+                }
+            if msg.get("error"):
+                return {"error": msg["error"]}
+            return msg.get("result") or {}
 
 
 AtspiClient = HelperClient

@@ -15,18 +15,18 @@ from ..tools.browser import BROWSER_INSTRUCTION
 
 
 def browser_agent(model: BaseLlm, toolset: McpToolset) -> AgentTool:
-  agent = LlmAgent(
-      name="browser",
-      model=model,
-      description=(
-          "Bedient Webseiten in einem eigenen Chrome-Fenster: suchen, klicken, Formulare ausfüllen, Musik oder Videos "
-          "auf Webseiten starten (z. B. YouTube Music), Informationen von Seiten lesen. Gib eine klare, vollständige "
-          "Aufgabe als request mit, z. B. „Öffne YouTube Music, suche nach Bad Bunny und starte den ersten Song.“"
-      ),
-      instruction=BROWSER_INSTRUCTION,
-      tools=[toolset],
-  )
-  return AgentTool(agent=agent)
+    agent = LlmAgent(
+        name="browser",
+        model=model,
+        description=(
+            "Bedient Webseiten in einem eigenen Chrome-Fenster: suchen, klicken, Formulare ausfüllen, Musik oder Videos "
+            "auf Webseiten starten (z. B. YouTube Music), Informationen von Seiten lesen. Gib eine klare, vollständige "
+            "Aufgabe als request mit, z. B. „Öffne YouTube Music, suche nach Bad Bunny und starte den ersten Song.“"
+        ),
+        instruction=BROWSER_INSTRUCTION,
+        tools=[toolset],
+    )
+    return AgentTool(agent=agent)
 
 
 APPS_INSTRUCTION = """Du bist der Spezialist von Aura für Desktop-Programme. Du bedienst sie über ihre Bedienelemente (Barrierefreiheit), nicht über Pixel.
@@ -50,19 +50,30 @@ Regeln:
 
 
 def apps_agent(model: BaseLlm) -> AgentTool:
-  from ..tools.desktop import launch_app, list_windows, window_action
-  from ..tools.pointer import click_at, press_keys, type_text
-  from ..tools.screen import screenshot
-  from ..tools.ui import ui_act, ui_set_text, ui_snapshot
+    from ..tools.desktop import launch_app, list_windows, window_action
+    from ..tools.pointer import click_at, press_keys, type_text
+    from ..tools.screen import screenshot
+    from ..tools.ui import ui_act, ui_set_text, ui_snapshot
 
-  agent = LlmAgent(
-      name="apps",
-      model=model,
-      description=(
-          "Bedient Desktop-Programme über Knöpfe, Menüs und Felder (z. B. Texteditor, Dateien, Rechner, Einstellungen, "
-          "Dialoge wie „Speichern unter“). Nicht für Webseiten (dafür browser). Gib eine klare, vollständige Aufgabe als request mit."
-      ),
-      instruction=APPS_INSTRUCTION,
-      tools=[launch_app, list_windows, window_action, ui_snapshot, ui_act, ui_set_text, screenshot, click_at, type_text, press_keys],
-  )
-  return AgentTool(agent=agent)
+    agent = LlmAgent(
+        name="apps",
+        model=model,
+        description=(
+            "Bedient Desktop-Programme über Knöpfe, Menüs und Felder (z. B. Texteditor, Dateien, Rechner, Einstellungen, "
+            "Dialoge wie „Speichern unter“). Nicht für Webseiten (dafür browser). Gib eine klare, vollständige Aufgabe als request mit."
+        ),
+        instruction=APPS_INSTRUCTION,
+        tools=[
+            launch_app,
+            list_windows,
+            window_action,
+            ui_snapshot,
+            ui_act,
+            ui_set_text,
+            screenshot,
+            click_at,
+            type_text,
+            press_keys,
+        ],
+    )
+    return AgentTool(agent=agent)

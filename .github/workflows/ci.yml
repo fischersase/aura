@@ -32,6 +32,7 @@ jobs:
       - run: sudo apt-get update -q && sudo apt-get install -y -q xvfb dbus gsettings-desktop-schemas libglib2.0-bin at-spi2-core python3-gi gir1.2-gtk-3.0 gir1.2-atspi-2.0
         working-directory: .
       - run: uv sync --locked
+      - run: uv run ruff format --check src tests spikes evals
       - run: uv run ruff check src tests spikes evals
       - run: uv run pytest -q -rs  # -rs: übersprungene Tests mit Grund anzeigen
 

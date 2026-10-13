@@ -25,13 +25,24 @@ from ..policy.exfil import url_tier
 from ..runtime.settings import AgentSettings
 
 PLAYWRIGHT_MCP = "@playwright/mcp@0.0.80"
-HEADLESS_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64)" if IS_WINDOWS else "Mozilla/5.0 (X11; Linux x86_64)") + \
-    " AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36"
+HEADLESS_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" if IS_WINDOWS else "Mozilla/5.0 (X11; Linux x86_64)"
+) + " AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36"
 
 BROWSER_TOOLS = [
-    "browser_navigate", "browser_navigate_back", "browser_snapshot", "browser_find", "browser_click", "browser_type",
-    "browser_fill_form", "browser_select_option", "browser_press_key", "browser_wait_for", "browser_tabs",
-    "browser_handle_dialog", "browser_take_screenshot",
+    "browser_navigate",
+    "browser_navigate_back",
+    "browser_snapshot",
+    "browser_find",
+    "browser_click",
+    "browser_type",
+    "browser_fill_form",
+    "browser_select_option",
+    "browser_press_key",
+    "browser_wait_for",
+    "browser_tabs",
+    "browser_handle_dialog",
+    "browser_take_screenshot",
 ]
 
 # Wörter, bei denen ein Klick Folgen hat (Geld, Nachrichten, Löschen, Verträge).
@@ -45,37 +56,37 @@ CONSEQUENTIAL = re.compile(
 
 
 def _target_text(a: dict[str, Any]) -> str:
-  return " ".join(str(a.get(k, "")) for k in ("element", "text", "key", "values", "fields", "promptText"))
+    return " ".join(str(a.get(k, "")) for k in ("element", "text", "key", "values", "fields", "promptText"))
 
 
 def _act_tier(a: dict[str, Any]) -> tuple[Tier, str]:
-  if CONSEQUENTIAL.search(_target_text(a)):
-    return Tier.T2, "kann etwas kaufen, senden, löschen oder bestätigen"
-  return Tier.T1, ""
+    if CONSEQUENTIAL.search(_target_text(a)):
+        return Tier.T2, "kann etwas kaufen, senden, löschen oder bestätigen"
+    return Tier.T1, ""
 
 
 def _nav_tier(a: dict[str, Any]) -> tuple[Tier, str]:
-  url = str(a.get("url", ""))
-  if url.startswith("file:"):
-    return Tier.T2, "öffnet eine lokale Datei im Browser"
-  return url_tier(url) or (Tier.T1, "")
+    url = str(a.get("url", ""))
+    if url.startswith("file:"):
+        return Tier.T2, "öffnet eine lokale Datei im Browser"
+    return url_tier(url) or (Tier.T1, "")
 
 
 def _dialog_tier(a: dict[str, Any]) -> tuple[Tier, str]:
-  return (Tier.T2, "bestätigt einen Dialog der Webseite") if a.get("accept") else (Tier.T1, "")
+    return (Tier.T2, "bestätigt einen Dialog der Webseite") if a.get("accept") else (Tier.T1, "")
 
 
 def _key_tier(a: dict[str, Any]) -> tuple[Tier, str]:
-  return _act_tier(a) if a.get("element") else (Tier.T1, "")
+    return _act_tier(a) if a.get("element") else (Tier.T1, "")
 
 
 def _label(a: dict[str, Any]) -> str:
-  for k in ("url", "element", "text", "key"):
-    if a.get(k):
-      return str(a[k])[:160]
-  if a.get("fields"):
-    return f"{len(a['fields'])} Felder"
-  return ""
+    for k in ("url", "element", "text", "key"):
+        if a.get(k):
+            return str(a[k])[:160]
+    if a.get("fields"):
+        return f"{len(a['fields'])} Felder"
+    return ""
 
 
 METAS = {
@@ -84,67 +95,93 @@ METAS = {
     "browser_snapshot": ToolMeta(Tier.T0, label=lambda a: "Seite lesen"),
     "browser_find": ToolMeta(Tier.T0, label=_label),
     "browser_click": ToolMeta(_act_tier, label=_label, required=("element",)),
-    "browser_type": ToolMeta(_act_tier, label=lambda a: f"{a.get('element', '')}: {str(a.get('text', ''))[:80]}", required=("element",)),
+    "browser_type": ToolMeta(
+        _act_tier,
+        label=lambda a: f"{a.get('element', '')}: {str(a.get('text', ''))[:80]}",
+        required=("element",),
+    ),
     "browser_fill_form": ToolMeta(_act_tier, label=_label),
     "browser_select_option": ToolMeta(_act_tier, label=_label, required=("element",)),
     "browser_press_key": ToolMeta(_key_tier, label=_label),
     "browser_wait_for": ToolMeta(Tier.T0, label=lambda a: str(a.get("text") or a.get("time") or "")),
-    "browser_tabs": ToolMeta(lambda a: Tier.T0 if a.get("action") == "list" else Tier.T1, label=lambda a: str(a.get("action", ""))),
-    "browser_handle_dialog": ToolMeta(_dialog_tier, label=lambda a: "Dialog " + ("bestätigen" if a.get("accept") else "abbrechen")),
+    "browser_tabs": ToolMeta(
+        lambda a: Tier.T0 if a.get("action") == "list" else Tier.T1, label=lambda a: str(a.get("action", ""))
+    ),
+    "browser_handle_dialog": ToolMeta(
+        _dialog_tier, label=lambda a: "Dialog " + ("bestätigen" if a.get("accept") else "abbrechen")
+    ),
     "browser_take_screenshot": ToolMeta(Tier.T0, label=lambda a: "Bildschirmfoto der Seite"),
 }
 EXTERNAL.update(METAS)
 
 
 def _windows_browser(*parts: str) -> bool:
-  for var in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"):
-    base = os.environ.get(var)
-    if base and Path(base, *parts).is_file():
-      return True
-  return False
+    for var in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"):
+        base = os.environ.get(var)
+        if base and Path(base, *parts).is_file():
+            return True
+    return False
 
 
 def browser_channel() -> str | None:
-  """Welcher Browser für Playwright: Chrome; unter Windows notfalls Edge (ist immer installiert)."""
-  if IS_WINDOWS:
-    if _windows_browser("Google", "Chrome", "Application", "chrome.exe"):
-      return "chrome"
-    if _windows_browser("Microsoft", "Edge", "Application", "msedge.exe"):
-      return "msedge"
-    return None
-  return "chrome" if shutil.which("google-chrome") or shutil.which("google-chrome-stable") else None
+    """Welcher Browser für Playwright: Chrome; unter Windows notfalls Edge (ist immer installiert)."""
+    if IS_WINDOWS:
+        if _windows_browser("Google", "Chrome", "Application", "chrome.exe"):
+            return "chrome"
+        if _windows_browser("Microsoft", "Edge", "Application", "msedge.exe"):
+            return "msedge"
+        return None
+    return "chrome" if shutil.which("google-chrome") or shutil.which("google-chrome-stable") else None
 
 
 def browser_available(settings: AgentSettings | None = None) -> bool:
-  launcher = bool(settings and settings.browser_command and Path(settings.browser_command[0]).exists()) or bool(shutil.which("npx"))
-  return launcher and browser_channel() is not None
+    launcher = bool(
+        settings and settings.browser_command and Path(settings.browser_command[0]).exists()
+    ) or bool(shutil.which("npx"))
+    return launcher and browser_channel() is not None
 
 
 def server_params(settings: AgentSettings, mcp_args: list[str]) -> StdioServerParameters:
-  """Mitgeliefert (Electron als Node) oder in der Entwicklung über npx."""
-  if settings.browser_command:
-    return StdioServerParameters(command=settings.browser_command[0], args=[*settings.browser_command[1:], *mcp_args],
-                                 env=child_env(settings.browser_env))
-  return StdioServerParameters(command="npx", args=["-y", PLAYWRIGHT_MCP, *mcp_args])
+    """Mitgeliefert (Electron als Node) oder in der Entwicklung über npx."""
+    if settings.browser_command:
+        return StdioServerParameters(
+            command=settings.browser_command[0],
+            args=[*settings.browser_command[1:], *mcp_args],
+            env=child_env(settings.browser_env),
+        )
+    return StdioServerParameters(command="npx", args=["-y", PLAYWRIGHT_MCP, *mcp_args])
 
 
 def build_browser_toolset(settings: AgentSettings, headless: bool = False) -> McpToolset | None:
-  if not browser_available(settings):
-    return None
-  # QUIC (HTTP/3 über UDP) scheitert in manchen Netzen (beobachtet: ERR_QUIC_PROTOCOL_ERROR); TCP ist verlässlich.
-  config = settings.data_dir / "browser-config.json"
-  config.parent.mkdir(parents=True, exist_ok=True)
-  config.write_text(json.dumps({"browser": {"launchOptions": {"args": ["--disable-quic"]}}}), encoding="utf-8")
-  args = ["--config", str(config), "--browser", browser_channel() or "chrome", "--snapshot-mode", "none",
-          "--user-data-dir", str(settings.aura_dir / "browser-profile"), "--output-dir", str(settings.data_dir / "browser"),
-          "--timeout-navigation", "30000"]
-  if headless:
-    # Ohne echte Kennung sperren sich manche Seiten (YouTube Music: „Browser nicht unterstützt“).
-    args += ["--headless", "--user-agent", HEADLESS_UA]
-  return McpToolset(
-      connection_params=StdioConnectionParams(server_params=server_params(settings, args), timeout=90),
-      tool_filter=BROWSER_TOOLS,
-  )
+    if not browser_available(settings):
+        return None
+    # QUIC (HTTP/3 über UDP) scheitert in manchen Netzen (beobachtet: ERR_QUIC_PROTOCOL_ERROR); TCP ist verlässlich.
+    config = settings.data_dir / "browser-config.json"
+    config.parent.mkdir(parents=True, exist_ok=True)
+    config.write_text(
+        json.dumps({"browser": {"launchOptions": {"args": ["--disable-quic"]}}}), encoding="utf-8"
+    )
+    args = [
+        "--config",
+        str(config),
+        "--browser",
+        browser_channel() or "chrome",
+        "--snapshot-mode",
+        "none",
+        "--user-data-dir",
+        str(settings.aura_dir / "browser-profile"),
+        "--output-dir",
+        str(settings.data_dir / "browser"),
+        "--timeout-navigation",
+        "30000",
+    ]
+    if headless:
+        # Ohne echte Kennung sperren sich manche Seiten (YouTube Music: „Browser nicht unterstützt“).
+        args += ["--headless", "--user-agent", HEADLESS_UA]
+    return McpToolset(
+        connection_params=StdioConnectionParams(server_params=server_params(settings, args), timeout=90),
+        tool_filter=BROWSER_TOOLS,
+    )
 
 
 BROWSER_INSTRUCTION = """Du bist der Browser-Spezialist von Aura. Du bedienst Webseiten in einem eigenen Browserfenster.

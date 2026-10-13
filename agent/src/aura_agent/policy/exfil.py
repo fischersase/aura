@@ -15,11 +15,13 @@ from ..runtime.context import current
 
 
 def url_tier(url: str) -> tuple[Tier, str] | None:
-  task = current()
-  if task is None or not task.tainted or not task.local_data_from:
+    task = current()
+    if task is None or not task.tainted or not task.local_data_from:
+        return None
+    u = urlparse(str(url or ""))
+    if u.scheme in ("http", "https") and (u.query or len(u.path) > 60):
+        return Tier.T2, (
+            f"Webadresse kann Daten tragen; der Auftrag hat fremde Inhalte ({', '.join(task.tainted_by[:2])}) "
+            f"und lokale Daten ({', '.join(task.local_data_from[:2])}) gelesen"
+        )
     return None
-  u = urlparse(str(url or ""))
-  if u.scheme in ("http", "https") and (u.query or len(u.path) > 60):
-    return Tier.T2, (f"Webadresse kann Daten tragen; der Auftrag hat fremde Inhalte ({', '.join(task.tainted_by[:2])}) "
-                     f"und lokale Daten ({', '.join(task.local_data_from[:2])}) gelesen")
-  return None

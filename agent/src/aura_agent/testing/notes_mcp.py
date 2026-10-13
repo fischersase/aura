@@ -12,23 +12,23 @@ mcp = MCPServer("notes")
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
 def read_notes() -> str:
-  """Liest alle Notizen."""
-  return NOTES.read_text(encoding="utf-8") if NOTES.exists() else ""
+    """Liest alle Notizen."""
+    return NOTES.read_text(encoding="utf-8") if NOTES.exists() else ""
 
 
 @mcp.tool()
 def add_note(text: str) -> str:
-  """Legt eine Notiz an."""
-  with NOTES.open("a", encoding="utf-8") as f:
-    f.write(text + "\n")
-  return "ok"
+    """Legt eine Notiz an."""
+    with NOTES.open("a", encoding="utf-8") as f:
+        f.write(text + "\n")
+    return "ok"
 
 
 @mcp.tool()
 def ping() -> str:
-  """Antwortet mit pong."""
-  return "pong"
+    """Antwortet mit pong."""
+    return "pong"
 
 
 if __name__ == "__main__":
-  mcp.run()
+    mcp.run()

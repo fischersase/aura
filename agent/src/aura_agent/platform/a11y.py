@@ -14,19 +14,19 @@ from . import atspi
 from .base import IS_WINDOWS
 
 if IS_WINDOWS:
-  CLIENT = atspi.HelperClient([sys.executable, "-I", "-m", "aura_agent.platform.uia_helper"])
-  MISSING = "Barrierefreiheit (UI Automation) ist hier nicht verfügbar."
+    CLIENT = atspi.HelperClient([sys.executable, "-I", "-m", "aura_agent.platform.uia_helper"])
+    MISSING = "Barrierefreiheit (UI Automation) ist hier nicht verfügbar."
 else:
-  CLIENT = atspi.CLIENT
-  MISSING = "Barrierefreiheit ist hier nicht verfügbar (Pakete python3-gi und gir1.2-atspi-2.0 fehlen)."
+    CLIENT = atspi.CLIENT
+    MISSING = "Barrierefreiheit ist hier nicht verfügbar (Pakete python3-gi und gir1.2-atspi-2.0 fehlen)."
 
 
 @functools.cache
 def available() -> bool:
-  if IS_WINDOWS:
-    try:
-      import comtypes  # noqa: F401
-    except ImportError:
-      return False
-    return True
-  return atspi.available()
+    if IS_WINDOWS:
+        try:
+            import comtypes  # noqa: F401
+        except ImportError:
+            return False
+        return True
+    return atspi.available()
