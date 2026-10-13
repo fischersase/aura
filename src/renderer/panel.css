@@ -88,6 +88,8 @@ button svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke
   font: inherit; font-size: 15px; line-height: 22px; padding: 8px 8px; max-height: 140px; overflow-y: hidden;
 }
 .card.compact #input { padding: 10px 6px; }
+.card.compact.typing #composer { flex-direction: column; align-items: stretch; }
+.card.compact.typing #input { padding: 8px 6px; }
 #input::placeholder { color: var(--muted); }
 .tools { display: flex; align-items: center; gap: 6px; }
 .chip { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 16px; color: var(--muted); font-size: 13px; background: var(--bg-2); }

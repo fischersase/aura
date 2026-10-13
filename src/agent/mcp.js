@@ -85,11 +85,14 @@ class HttpConn {
     this.name = name;
     this.url = cfg.url;
     this.headers = cfg.headers || {};
+    this.oauth = cfg.auth === 'oauth';
     this.nextId = 1;
     this.session = null;
   }
 
   async post(body, timeoutMs = 60000) {
+    // OAuth servers (AURA-95): a fresh Authorization header from the app's OAuth client per request.
+    const auth = this.oauth ? await authHeader(this.name) : {};
     const res = await fetch(this.url, {
       method: 'POST',
       headers: {
@@ -97,7 +100,8 @@ class HttpConn {
         Accept: 'application/json, text/event-stream',
         'MCP-Protocol-Version': PROTOCOL,
         ...(this.session ? { 'Mcp-Session-Id': this.session } : {}),
-        ...this.headers
+        ...this.headers,
+        ...auth
       },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(timeoutMs)
@@ -153,6 +157,9 @@ function readConfig() {
 // Ersetzt ${secret:NAME} (wird von main.js gesetzt; ohne Electron bleibt die Konfiguration unverändert).
 let resolveConfig = (cfg) => cfg;
 const setResolver = (fn) => { resolveConfig = fn; };
+// Authorization header for OAuth servers (set by main.js); without sign-in it throws "Nicht verbunden …".
+let authHeader = async (_name) => { throw new Error('Nicht angemeldet.'); };
+const setAuthProvider = (fn) => { authHeader = fn; };
 
 async function connect(name, raw) {
   const cfg = resolveConfig(raw);
@@ -253,4 +260,4 @@ function closeAll() {
   loadedMtime = 0;
 }
 
-module.exports = { sync, tools, status, closeAll, configFile, setResolver };
+module.exports = { sync, tools, status, closeAll, configFile, setResolver, setAuthProvider };

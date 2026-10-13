@@ -96,11 +96,67 @@ def _as_dict(value: Any) -> dict[str, Any] | None:
     return cast("dict[str, Any]", value) if isinstance(value, dict) else None
 
 
+def _shorten_strings(value: Any, limit: int) -> Any:
+    if isinstance(value, str):
+        return value if len(value) <= limit else value[:limit] + " …"
+    if isinstance(value, list):
+        return [_shorten_strings(v, limit) for v in cast("list[Any]", value)]
+    if (d := _as_dict(value)) is not None:
+        return {k: _shorten_strings(v, limit) for k, v in d.items()}
+    return value
+
+
+def _drop_list_items(value: Any, keep: int) -> Any:
+    if isinstance(value, list):
+        items = cast("list[Any]", value)
+        head = [_drop_list_items(v, keep) for v in items[:keep]]
+        return head + ([f"… {len(items) - keep} weitere Einträge ausgelassen"] if len(items) > keep else [])
+    if (d := _as_dict(value)) is not None:
+        return {k: _drop_list_items(v, keep) for k, v in d.items()}
+    return value
+
+
+def compact_json(text: str, limit: int = MAX_RESULT_CHARS) -> str | None:
+    """Shortens a JSON text structurally (long texts first, then long lists) so every entry keeps its key fields.
+
+    Cutting the middle out of JSON (clip) leaves broken JSON with one or two entries, e.g. 50 Jira tickets with long
+    descriptions. Returns None if the text is not JSON or cannot be made small enough.
+    """
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return None
+    if not isinstance(data, (dict, list)):
+        return None
+    for strings in (2000, 600, 200, 80):
+        out = json.dumps(_shorten_strings(data, strings), ensure_ascii=False, separators=(",", ":"))
+        if len(out) <= limit:
+            return out
+    short = _shorten_strings(data, 80)
+    for keep in (50, 20, 10, 5):
+        out = json.dumps(_drop_list_items(short, keep), ensure_ascii=False, separators=(",", ":"))
+        if len(out) <= limit:
+            return out
+    return None
+
+
+def _clip_text(text: str) -> str:
+    if len(text) <= MAX_RESULT_CHARS:
+        return text
+    stripped = text.strip()
+    if stripped[:1] in "[{" and (compact := compact_json(stripped)) is not None:
+        return compact
+    return clip(text)
+
+
 def _clip_result(result: Any) -> Any:
     if (d := _as_dict(result)) is not None:
         return {k: _clip_result(v) for k, v in d.items()}
+    if isinstance(result, list):
+        # MCP results are {"content": [{"type": "text", "text": …}]}: the texts sit inside a list.
+        return [_clip_result(v) for v in cast("list[Any]", result)]
     if isinstance(result, str):
-        return clip(result)
+        return _clip_text(result)
     return result
 
 
@@ -108,7 +164,7 @@ def _failed(result: Any) -> bool:
     d = _as_dict(result)
     if d is None:
         return False
-    if d.get("error"):
+    if d.get("error") or d.get("isError") is True:  # isError: MCP tool error
         return True
     code = d.get("exit_code")
     return code not in (None, 0)
