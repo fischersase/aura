@@ -87,17 +87,44 @@ async def test_approved_command_runs(tmp_path):
     assert states(host, "run_command") == ["ask", "run", "ok"]
 
 
-async def test_allow_for_task_skips_later_questions(tmp_path):
+async def test_allow_for_task_covers_the_same_action_only(tmp_path):
+    """ "Für diesen Auftrag" is bound to the approved action (AURA-119), not a blanket allow for the whole task."""
     steps = [
         [Call("run_command", {"command": touch("a"), "cwd": str(tmp_path)})],
+        [Call("run_command", {"command": touch("a"), "cwd": str(tmp_path)})],
         [Call("run_command", {"command": touch("b"), "cwd": str(tmp_path)})],
-        "Beide angelegt.",
+        "Fertig.",
     ]
-    ctl, host, _, _ = make(tmp_path, steps, ["task"])
-    ctl.start("t1", "c1", "leg a und b an")
+    ctl, host, _, _ = make(tmp_path, steps, ["task", "deny"])
+    ctl.start("t1", "c1", "leg a zweimal und dann b an")
+    await finish(ctl)
+    # The repeated command ran without a question; the different one asked again (and was denied).
+    assert len(host.approvals) == 2
+    assert touch("b") in host.approvals[1]["label"]
+    assert (tmp_path / "a").exists() and not (tmp_path / "b").exists()
+
+
+async def test_session_grant_covers_later_tasks_and_hours_survive_a_restart(tmp_path):
+    """ "Bis Aura neu startet" and "8 Stunden" (AURA-119): same action in a later task runs without a question."""
+    cmd = touch(tmp_path / "a")
+    steps = [[Call("run_command", {"command": cmd})], "ok", [Call("run_command", {"command": cmd})], "ok"]
+    ctl, host, _, settings = make(tmp_path, steps, ["session"])
+    ctl.start("t1", "c1", "leg a an")
+    await finish(ctl)
+    ctl.start("t2", "c1", "leg a nochmal an")
     await finish(ctl)
     assert len(host.approvals) == 1
-    assert (tmp_path / "a").exists() and (tmp_path / "b").exists()
+
+    # A timed grant is stored with its expiry and applies after an agent restart.
+    ctl2, host2, _, _ = make(tmp_path, [[Call("run_command", {"command": cmd})], "ok"], ["hours:8"])
+    ctl2.start("t3", "c2", "leg a an")
+    await finish(ctl2)
+    ctl3, host3, _, _ = make(tmp_path, [[Call("run_command", {"command": cmd})], "ok"], [])
+    ctl3.start("t4", "c3", "leg a an")
+    await finish(ctl3)
+    assert len(host2.approvals) == 1
+    assert host3.approvals == []
+    assert (settings.data_dir / "grants.json").exists()
 
 
 async def test_forbidden_command_is_blocked_without_asking(tmp_path):

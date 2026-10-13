@@ -21,6 +21,7 @@ from google.adk.tools.tool_context import ToolContext
 
 from ..policy.engine import PolicyEngine
 from ..runtime.context import current
+from .grants import GrantStore, page_origin, parse_hours, subject
 from .hooks import Hooks
 from .tiers import Tier, meta_of
 
@@ -172,10 +173,13 @@ def _failed(result: Any) -> bool:
 
 
 class GuardPlugin(BasePlugin):
-    def __init__(self, policy: PolicyEngine | None = None, hooks: Hooks | None = None) -> None:
+    def __init__(
+        self, policy: PolicyEngine | None = None, hooks: Hooks | None = None, grants: GrantStore | None = None
+    ) -> None:
         super().__init__(name="aura_guard")
         self.policy = policy or PolicyEngine()
         self.hooks = hooks or Hooks(None)
+        self.grants = grants or GrantStore()
         self._started: dict[str, float] = {}
         # Aufrufe, die die Hülle selbst beantwortet hat (abgelehnt, gesperrt, unbekannt).
         # ADK ruft danach trotzdem after_tool_callback auf; dort werden sie übersprungen.
@@ -279,7 +283,12 @@ class GuardPlugin(BasePlugin):
             reason = hook.reason
 
         decision = "auto" if not verdict.rule else f"auto ({verdict.rule.describe()})"
-        if must_ask and not (task.allow_all or tool.name in task.allowed_tools):
+        # Scoped grants (AURA-119): bound to this tool and its website, connector tool or exact action.
+        key = (tool.name, subject(tool.name, tool_args, label, task.origin))
+        granted = key in task.grants or self.grants.allows(key)
+        if must_ask and granted:
+            decision = f"auto (Freigabe für {key[1]})"
+        if must_ask and not granted:
             task.step(step_id, tool.name, label, "ask", tier=int(tier))
             effect = meta.effect(tool_args) if meta.effect else label
             task.audit.write("approval_requested", **common, reason=reason)
@@ -299,8 +308,16 @@ class GuardPlugin(BasePlugin):
                 task.audit.write("approval_failed", **common, error=str(e))
                 decision = "deny"
             task.audit.write("approval", **common, decision=decision)
+            hours = parse_hours(decision)
             if decision == "task":
-                task.allow_all = True
+                task.grants.add(key)
+                task.audit.write("grant", **common, scope="task", subject=key[1])
+            elif decision == "session":
+                self.grants.add_session(key)
+                task.audit.write("grant", **common, scope="session", subject=key[1])
+            elif hours:
+                self.grants.add_timed(key, hours)
+                task.audit.write("grant", **common, scope=f"{hours}h", subject=key[1])
             elif decision == "always":
                 rule = self.policy.allow_always(tool.name, label)
                 task.audit.write("rule_added", **common, rule=rule.describe())
@@ -335,6 +352,9 @@ class GuardPlugin(BasePlugin):
             else meta_of(tool).describe(tool.name, tool_args)
         )
         tier = self._tiers.pop(step_id, Tier.T0)
+        # The browser's current website, for grants bound to an origin (AURA-119).
+        if tool.name.startswith("browser_") and (origin := page_origin(result)):
+            task.origin = origin
         result_dict = _as_dict(result)
         verified = result_dict.get("verified") if result_dict is not None else None
         if tier >= Tier.T1 and not isinstance(tool, AgentTool):

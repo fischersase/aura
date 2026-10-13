@@ -63,8 +63,9 @@ class TaskContext:
     audit: AuditLog
     home: str
     abort: asyncio.Event = field(default_factory=asyncio.Event)
-    allow_all: bool = False
-    allowed_tools: set[str] = field(default_factory=set)
+    # Approvals "für diesen Auftrag" (AURA-119): (tool, subject) pairs, never a blanket allow.
+    grants: set[tuple[str, str]] = field(default_factory=set)
+    origin: str = ""  # website the browser is on (from the last browser result)
     processes: set[asyncio.subprocess.Process] = field(default_factory=set)
     tool_errors_in_row: int = 0
     steps: int = 0

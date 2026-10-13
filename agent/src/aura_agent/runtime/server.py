@@ -20,6 +20,7 @@ from ..agents.root import build_root, tool_catalog
 from ..extensions.mcp import build_toolsets, integrations_agent
 from ..harness.audit import AuditLog
 from ..harness.context_manager import ContextManagerPlugin
+from ..harness.grants import GrantStore, parse_hours
 from ..harness.guard import GuardPlugin
 from ..harness.hooks import Hooks
 from ..memory.store import FactStore
@@ -55,8 +56,9 @@ class RpcHost:
 
     async def approve(self, request: dict[str, Any]) -> str:
         res = await self.peer.request("host.approve", request, timeout=APPROVAL_TIMEOUT_S)
-        decision = (res or {}).get("decision", "deny")
-        return decision if decision in ("once", "task", "always", "deny") else "deny"
+        decision = str((res or {}).get("decision", "deny"))
+        ok = decision in ("once", "task", "session", "always", "deny") or parse_hours(decision) > 0
+        return decision if ok else "deny"
 
     async def ask(self, request: dict[str, Any]) -> dict[str, Any]:
         return await self.peer.request("host.ask", request, timeout=APPROVAL_TIMEOUT_S)
@@ -137,7 +139,9 @@ def build_runner(
         memory_service=episodes,
         session_service=SqliteSessionService(str(settings.data_dir / "sessions.db")),
         plugins=[
-            GuardPlugin(policy, Hooks(settings.aura_dir / "hooks.json")),
+            GuardPlugin(
+                policy, Hooks(settings.aura_dir / "hooks.json"), GrantStore(settings.data_dir / "grants.json")
+            ),
             ContextManagerPlugin(settings.num_ctx),
         ],
     )
