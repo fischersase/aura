@@ -6,7 +6,7 @@ const input = $('input');
 const sendBtn = $('sendBtn');
 const SPRING = 'cubic-bezier(.34, 1.56, .64, 1)';
 
-let history = [];
+let chatHistory = [];
 let streaming = null; // { id, el, text }
 const newChatId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 let chatId = newChatId(); // unter dieser ID wird der Chat im Verlauf gespeichert
@@ -16,7 +16,7 @@ let live = null;
 // ---------- Öffnen / Schließen (Kreis → Pille → Fenster) ----------
 
 function setCompact() {
-  card.classList.toggle('compact', history.length === 0 && !live && !streaming);
+  card.classList.toggle('compact', chatHistory.length === 0 && !live && !streaming);
 }
 
 function openAnim() {
@@ -46,7 +46,7 @@ function closeAnim() {
 // Jedes Öffnen startet einen neuen Chat (außer Gemini Live läuft gerade).
 function resetChat() {
   if (streaming) window.api.abortChat(streaming.id);
-  history = [];
+  chatHistory = [];
   streaming = null;
   chatId = newChatId();
   messages.innerHTML = '';
@@ -206,18 +206,18 @@ function send() {
   input.value = '';
   autosize();
   const userEl = addUser(text);
-  history.push({ role: 'user', parts: [{ text }] });
+  chatHistory.push({ role: 'user', parts: [{ text }] });
   const id = Date.now() + '-' + Math.random().toString(36).slice(2);
-  streaming = { id, el: addModel(), text: '', userEl, userIndex: history.length - 1 };
+  streaming = { id, el: addModel(), text: '', userEl, userIndex: chatHistory.length - 1 };
   setCompact();
   setBusy(true);
   scrollDown(true);
-  window.api.sendChat({ id, chatId, history, includeScreen });
+  window.api.sendChat({ id, chatId, history: chatHistory, includeScreen });
 }
 
 window.api.onChatScreen(({ id, jpeg }) => {
   if (!streaming || streaming.id !== id) return;
-  history[streaming.userIndex].parts.unshift({ inlineData: { mimeType: 'image/jpeg', data: jpeg } });
+  chatHistory[streaming.userIndex].parts.unshift({ inlineData: { mimeType: 'image/jpeg', data: jpeg } });
   const img = document.createElement('img');
   img.src = 'data:image/jpeg;base64,' + jpeg;
   streaming.userEl.prepend(img);
@@ -233,13 +233,13 @@ window.api.onChatChunk(({ id, text }) => {
 
 window.api.onChatDone(({ id }) => {
   if (!streaming || streaming.id !== id) return;
-  if (streaming.text) history.push({ role: 'model', parts: [{ text: streaming.text }] });
+  if (streaming.text) chatHistory.push({ role: 'model', parts: [{ text: streaming.text }] });
   else if (!streaming.el.querySelector('.step')) streaming.el.remove();
   else streaming.el.classList.remove('thinking');
   streaming.el.querySelectorAll('.step .approve').forEach((a) => a.remove());
   streaming = null;
   setBusy(false);
-  window.api.saveChat({ id: chatId, history }).catch(() => {});
+  window.api.saveChat({ id: chatId, history: chatHistory }).catch(() => {});
 });
 
 window.api.onChatError(({ id, message }) => {
@@ -247,7 +247,7 @@ window.api.onChatError(({ id, message }) => {
   streaming.el.classList.remove('thinking');
   streaming.el.classList.add('error');
   streaming.el.querySelector('.body').textContent = 'Fehler: ' + message;
-  history.pop(); // fehlgeschlagene Frage nicht im Verlauf behalten
+  chatHistory.pop(); // fehlgeschlagene Frage nicht im Verlauf behalten
   streaming = null;
   setBusy(false);
 });
@@ -315,9 +315,9 @@ async function loadChat(id) {
   streaming = null;
   setBusy(false);
   chatId = c.id;
-  history = c.history;
+  chatHistory = c.history;
   messages.innerHTML = '';
-  for (const m of history) {
+  for (const m of chatHistory) {
     const text = m.parts.map((p) => p.text).filter(Boolean).join('\n');
     if (m.role === 'user') addUser(text);
     else {

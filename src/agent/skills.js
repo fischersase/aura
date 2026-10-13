@@ -10,7 +10,7 @@ const skillDirs = () => [path.join(auraDir(), 'skills'), path.join(os.homedir(),
 const agentsFile = () => path.join(auraDir(), 'AGENTS.md');
 
 function frontmatter(text) {
-  const m = text.match(/^﻿?---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
+  const m = text.match(/^\uFEFF?---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
   if (!m) return { meta: {}, body: text };
   const meta = {};
   let key = null;
@@ -29,7 +29,7 @@ function frontmatter(text) {
 function list() {
   const seen = new Map();
   for (const dir of skillDirs()) {
-    let entries = [];
+    let entries;
     try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { continue; }
     for (const e of entries) {
       if (!e.isDirectory() && !e.isSymbolicLink()) continue;
@@ -45,7 +45,7 @@ function list() {
 }
 
 function filesIn(dir, base = dir, depth = 0, out = []) {
-  let es = [];
+  let es;
   try { es = fs.readdirSync(dir, { withFileTypes: true }); } catch { return out; }
   for (const e of es) {
     if (out.length >= 50) break;

@@ -37,7 +37,7 @@ function save({ id, history }) {
 }
 
 function list() {
-  let files = [];
+  let files;
   try { files = fs.readdirSync(dir()).filter((f) => f.endsWith('.json')); } catch { return []; }
   const out = [];
   for (const f of files) {

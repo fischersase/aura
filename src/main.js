@@ -484,6 +484,7 @@ ipcMain.handle('settings:get', () => store.publicSettings());
 
 ipcMain.handle('settings:save', (_e, patch) => {
   const { apiKey, ...rest } = patch || {};
+  // eslint-disable-next-line security/detect-possible-timing-attacks -- presence check, not a secret comparison
   if (apiKey !== undefined) store.setApiKey(apiKey);
   store.save(rest);
   ollama.setContextSize(store.load().ollamaContext);
@@ -692,7 +693,7 @@ ipcMain.on('agent:answer', (_e, { id, answer }) => {
 // Eigene MCP-Server aus ~/.aura/mcp.json für Agent v2, mit eingesetzten Schlüsseln (${secret:NAME}).
 // Ein Server mit fehlendem Schlüssel wird mit Fehler übergeben und vom Agenten übersprungen.
 function mcpServersForAgent() {
-  let cfg = {};
+  let cfg;
   try { cfg = JSON.parse(fs.readFileSync(agentMcp.configFile(), 'utf8')); } catch { return []; }
   const servers = cfg.mcpServers || cfg.servers || {};
   return Object.entries(servers).filter(([, c]) => c && !c.disabled).map(([name, c]) => {

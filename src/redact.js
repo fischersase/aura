@@ -1,6 +1,7 @@
 // Zugangsdaten in Texten schwärzen, bevor sie in ein Protokoll geschrieben werden (AURA-17).
 // Gleiche Regeln wie agent/src/aura_agent/harness/audit.py (scrub).
 const PATTERNS = [
+  // eslint-disable-next-line security/detect-unsafe-regex -- linear: one optional prefix, then a negated class
   [/\b((?:proxy-)?authorization\s*[:=]\s*)(?:(?:bearer|basic|token|digest)\s+)?[^\s'"]+/gi, '$1***'],
   [/\b(bearer|basic)\s+[A-Za-z0-9._~+/=-]{8,}/gi, '$1 ***'],
   [/\bAIza[0-9A-Za-z_-]{20,}/g, '***'],
