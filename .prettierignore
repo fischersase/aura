@@ -1,0 +1,12 @@
+src/vendor/
+dist/
+build/
+node_modules/
+agent/
+gnome-extension/
+*.html
+*.css
+*.md
+*.json
+*.yml
+*.yaml

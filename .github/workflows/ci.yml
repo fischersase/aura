@@ -71,6 +71,7 @@ jobs:
       # Abhängigkeiten aus dem Lockfile (ohne Install-Skripte); Tests laden Module, die electron importieren.
       - run: npm ci --ignore-scripts
       - run: npm run check
+      - run: npm run lint
       # Für den Ende-zu-Ende-Test der Brücke (startet den echten Python-Agenten mit Drehbuch-Modell).
       - run: uv sync --locked
         working-directory: agent

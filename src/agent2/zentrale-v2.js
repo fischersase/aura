@@ -60,7 +60,7 @@ const KINDS = {
   empty_answer_nudge: 'Leere Antwort', task_cancel: 'Not-Aus', missing_args: 'Ziel fehlte'
 };
 function readAudit(limit = 400) {
-  let files = [];
+  let files;
   try { files = fs.readdirSync(auditDir()).filter((f) => f.endsWith('.jsonl')).sort().slice(-3); } catch { return []; }
   const rows = [];
   for (const f of files) {

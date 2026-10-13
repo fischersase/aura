@@ -137,6 +137,7 @@ function toMatcher(name) {
   const q = String(name || '').trim().toLowerCase();
   if (!q) return () => true;
   if (/[*?]/.test(q)) {
+    // eslint-disable-next-line security/detect-non-literal-regexp -- glob from the user, all metacharacters escaped
     const re = new RegExp('^' + q.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.') + '$', 'i');
     return (n) => re.test(n);
   }
@@ -256,12 +257,13 @@ function desktopEntries() {
   ];
   const apps = [];
   for (const d of dirs) {
-    let files = [];
+    let files;
     try { files = fs.readdirSync(d).filter((f) => f.endsWith('.desktop')); } catch { continue; }
     for (const f of files) {
       try {
         const txt = fs.readFileSync(path.join(d, f), 'utf8');
         const sec = txt.split(/^\[/m).find((s) => s.startsWith('Desktop Entry]')) || '';
+        // eslint-disable-next-line security/detect-non-literal-regexp -- k is one of our constant .desktop keys
         const get = (k) => { const m = sec.match(new RegExp('^' + k + '=(.*)$', 'm')); return m ? m[1].trim() : ''; };
         if (/true/i.test(get('NoDisplay')) || /true/i.test(get('Hidden'))) continue;
         const names = [get('Name'), get('Name\\[de\\]'), get('GenericName'), get('GenericName\\[de\\]'), get('Keywords'), f.replace(/\.desktop$/, '')];
@@ -279,7 +281,7 @@ function startMenuLinks() {
   ];
   const out = [];
   const walk = (d, depth) => {
-    let es = [];
+    let es;
     try { es = fs.readdirSync(d, { withFileTypes: true }); } catch { return; }
     for (const e of es) {
       const full = path.join(d, e.name);

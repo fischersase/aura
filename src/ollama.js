@@ -221,6 +221,7 @@ async function liveTurn({ url, model, language, history, question, jpeg, signal 
 function isLocalUrl(url) {
   let host;
   try { host = new URL(String(url || DEFAULT_URL)).hostname.toLowerCase(); } catch { return false; }
+  // eslint-disable-next-line security/detect-unsafe-regex -- bounded: at most 3 groups of at most 3 digits
   return host === 'localhost' || host === '[::1]' || host === '::1' || /^127(\.\d{1,3}){3}$/.test(host);
 }
 

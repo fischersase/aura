@@ -118,7 +118,6 @@ function guardIpc(ipcMain, { rendererDir = RENDERER_DIR, log = console.warn } = 
   const reject = (channel, e) => log(`IPC ${channel} from ${e && e.senderFrame ? e.senderFrame.url : 'unknown frame'} rejected`);
   const handle = ipcMain.handle.bind(ipcMain);
   const on = ipcMain.on.bind(ipcMain);
-  const once = ipcMain.once.bind(ipcMain);
   ipcMain.handle = (channel, fn) => {
     known(channel);
     return handle(channel, (e, ...args) => {

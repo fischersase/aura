@@ -47,7 +47,7 @@ window.api.onSttRequest(async ({ id, wavBase64, model, language }) => {
     try {
       asr = await load(model);
     } catch (err) {
-      throw new Error(`Whisper-Modell ${model} konnte nicht geladen werden (beim ersten Mal ist Internet nötig): ${err && err.message || err}`);
+      throw new Error(`Whisper-Modell ${model} konnte nicht geladen werden (beim ersten Mal ist Internet nötig): ${err && err.message || err}`, { cause: err });
     }
     const audio = wavToFloat32(wavBase64);
     const out = await asr(audio, {

@@ -17,12 +17,21 @@
     "dist": "bash scripts/build-agent.sh && electron-builder --win nsis",
     "dist:win": "bash scripts/build-agent.sh && electron-builder --win nsis",
     "dist:linux": "umask 022 && bash scripts/build-agent.sh && electron-builder --linux AppImage deb",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "lint": "eslint .",
+    "format": "prettier --write \"src/**/*.js\" \"scripts/**/*.js\" \"test/**/*.js\" eslint.config.js",
+    "format:check": "prettier --check \"src/**/*.js\" \"scripts/**/*.js\" \"test/**/*.js\" eslint.config.js"
   },
   "devDependencies": {
+    "@eslint/js": "10.0.1",
     "@huggingface/transformers": "4.3.1",
     "electron": "44.7.0",
-    "electron-builder": "26.15.3"
+    "electron-builder": "26.15.3",
+    "eslint": "10.12.0",
+    "eslint-plugin-n": "18.4.1",
+    "eslint-plugin-security": "4.2.0",
+    "globals": "17.13.0",
+    "prettier": "3.9.10"
   },
   "build": {
     "appId": "io.github.fischersase.aura",
@@ -162,5 +171,8 @@
   },
   "bugs": {
     "url": "https://github.com/fischersase/aura/issues"
+  },
+  "engines": {
+    "node": ">=22.4"
   }
 }
