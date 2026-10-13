@@ -193,6 +193,10 @@
                   }
                 }
               }
+            },
+            "incognito": {
+              "type": "boolean",
+              "description": "Incognito chat: no memory read or written, conversation not kept for recall (AURA-108)."
             }
           }
         },
@@ -365,6 +369,147 @@
               "minimum": 0
             },
             "episodes": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      },
+      "memory.list": {
+        "description": "All facts with provenance, and whether memory is paused (AURA-108).",
+        "params": {
+          "type": "object"
+        },
+        "result": {
+          "type": "object",
+          "required": [
+            "facts",
+            "paused"
+          ],
+          "properties": {
+            "facts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "text",
+                  "topic",
+                  "source",
+                  "created"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "text": {
+                    "type": "string"
+                  },
+                  "topic": {
+                    "type": "string"
+                  },
+                  "source": {
+                    "enum": [
+                      "explicit",
+                      "learned",
+                      "imported",
+                      "edited"
+                    ]
+                  },
+                  "chat_id": {
+                    "type": "string"
+                  },
+                  "task_id": {
+                    "type": "string"
+                  },
+                  "created": {
+                    "type": "number"
+                  },
+                  "last_used": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "confidence": {
+                    "type": "number"
+                  }
+                }
+              }
+            },
+            "paused": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "memory.update": {
+        "description": "The user corrected a fact; its source becomes 'edited'.",
+        "params": {
+          "type": "object",
+          "required": [
+            "id",
+            "text"
+          ],
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            }
+          }
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "ok": {
+              "type": "boolean"
+            },
+            "error": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "memory.delete": {
+        "description": "Deletes one fact.",
+        "params": {
+          "type": "object",
+          "required": [
+            "id"
+          ],
+          "properties": {
+            "id": {
+              "type": "string"
+            }
+          }
+        },
+        "result": {
+          "type": "object",
+          "required": [
+            "removed"
+          ],
+          "properties": {
+            "removed": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      },
+      "memory.deleteAll": {
+        "description": "Deletes all facts.",
+        "params": {
+          "type": "object"
+        },
+        "result": {
+          "type": "object",
+          "required": [
+            "removed"
+          ],
+          "properties": {
+            "removed": {
               "type": "integer",
               "minimum": 0
             }

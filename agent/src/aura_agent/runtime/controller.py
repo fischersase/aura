@@ -26,6 +26,7 @@ from google.adk.runners import Runner
 from google.genai import types
 
 from ..harness.audit import AuditLog
+from ..models.unconfigured import ModelNotConfiguredError
 from .context import CURRENT, Host, TaskContext
 
 log = logging.getLogger(__name__)
@@ -69,6 +70,7 @@ class TaskController:
     ) -> None:
         self.runner = runner
         self.episodes_db = episodes_db  # memory.db of the runner's memory service (for forget_chat)
+        self.memory_paused = False  # set by the server from the settings (AURA-108)
         self.host = host
         self.audit = audit
         self.home = home
@@ -84,12 +86,23 @@ class TaskController:
         return s.id
 
     def start(
-        self, task_id: str, chat_id: str, text: str, images: list[dict[str, str]] | None = None
+        self,
+        task_id: str,
+        chat_id: str,
+        text: str,
+        images: list[dict[str, str]] | None = None,
+        incognito: bool = False,
     ) -> None:
         if task_id in self.tasks:
             raise ValueError(f"Auftrag {task_id} läuft schon")
         ctx = TaskContext(
-            task_id=task_id, chat_id=chat_id, host=self.host, audit=self.audit, home=self.home, request=text
+            task_id=task_id,
+            chat_id=chat_id,
+            host=self.host,
+            audit=self.audit,
+            home=self.home,
+            request=text,
+            incognito=incognito,
         )
         parts = [types.Part(text=text)]
         for img in images or []:
@@ -207,12 +220,15 @@ class TaskController:
                 )
         except asyncio.CancelledError:
             error = None
+        except ModelNotConfiguredError as e:
+            error = str(e)  # a setup problem, not a crash: the plain message for the user
         except Exception as e:
             log.exception("Auftrag %s fehlgeschlagen", ctx.task_id)
             error = f"{type(e).__name__}: {e}"
         finally:
             ctx.kill_processes()
-        await self._remember_conversation(ctx, t0)
+        if not ctx.incognito and not self.memory_paused:
+            await self._remember_conversation(ctx, t0)
         cancelled = ctx.abort.is_set()
         ms = round((time.monotonic() - t0) * 1000)
         self.audit.write(

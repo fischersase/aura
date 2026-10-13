@@ -132,11 +132,13 @@
 
   <!-- Gedächtnis (Agent v2) -->
   <section id="memory" class="page hidden">
-    <div class="head"><h1>Gedächtnis</h1><span class="grow"></span><span id="memStatus" class="muted small"></span><button id="saveMem" class="primary">Speichern</button></div>
-    <p class="lead">Was sich Aura (Agent v2) über dich und deinen Rechner gemerkt hat. Steht bei jedem Auftrag in seiner Anweisung.
-      Du kannst Einträge ändern oder löschen. Passwörter und Kontodaten speichert Aura nie.</p>
-    <p class="muted small" id="memFile"></p>
-    <textarea id="memText" class="editor" spellcheck="false"></textarea>
+    <div class="head"><h1>Gedächtnis</h1><span class="grow"></span><span id="memStatus" class="muted small"></span>
+      <label class="check"><input type="checkbox" id="memPause"> Pausieren</label>
+      <button id="memClear" class="danger">Alles löschen</button></div>
+    <p class="lead">Was sich Aura über dich und deinen Rechner gemerkt hat, mit Herkunft: selbst gesagt, gelernt, übernommen oder von dir bearbeitet.
+      Zu jeder Anfrage nutzt Aura nur die passenden Einträge. Passwörter und Kontodaten speichert Aura nie.
+      Im Chat kannst du „Inkognito“ einschalten, dann merkt sich Aura aus diesem Chat nichts.</p>
+    <div id="memList" class="list"></div>
   </section>
 
   <!-- Protokoll -->

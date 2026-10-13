@@ -165,7 +165,8 @@ def instruction(
         )
         # Only facts relevant to this request (AURA-107); the whole memory is reachable through recall.
         task = current()
-        known = memory.select_for_prompt(task.request if task else "") if memory else ""
+        memory_on = memory is not None and not settings.memory_paused and not (task and task.incognito)
+        known = memory.select_for_prompt(task.request if task else "") if memory_on and memory else ""
         if known:
             parts.append(
                 "## Was du dir gemerkt hast (Auszug; mehr mit recall)\n"
@@ -193,7 +194,7 @@ def build_root(
     episodes: BaseMemoryService | None = None,
 ) -> LlmAgent:
     memory = FactStore(settings.aura_dir)
-    tools: list = list(TOOLS) + make_memory_tools(memory, episodes)
+    tools: list = list(TOOLS) + make_memory_tools(memory, episodes, settings.memory_paused)
     if browser is not None:
         tools.append(browser_agent(model, browser))
     if integrations is not None:

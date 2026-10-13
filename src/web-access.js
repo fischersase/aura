@@ -11,7 +11,6 @@ const ALLOW = new Set([
   'deleteChat',
   'policy',
   'memory',
-  'saveMemory',
   'audit',
   'doctor',
   'getServer',
@@ -46,6 +45,10 @@ const CONFIRM = {
   deleteSecret: (a) => `Schlüssel „${a}“ löschen`,
   setWeakStorage: (a) =>
     a ? 'Schlüssel ohne Schlüsselbund schwach geschützt speichern' : 'Schwache Speicherung ausschalten',
+  memoryUpdate: (a) => `Gedächtnis-Eintrag ändern in „${String(a.text || '').slice(0, 120)}“`,
+  memoryDelete: () => 'Einen Gedächtnis-Eintrag löschen',
+  memoryDeleteAll: () => 'Das gesamte Gedächtnis löschen',
+  memoryPause: (a) => (a ? 'Gedächtnis pausieren' : 'Gedächtnis wieder einschalten'),
   setAgentVersion: (a) => `Agent-Version auf „${a}“ umstellen`,
   installExtension: () => 'GNOME-Erweiterung installieren'
 };

@@ -717,15 +717,73 @@ $('saveRules').onclick = async () => {
   $('ruleStatus').className = r.ok ? 'muted small' : 'bad small';
 };
 
+// Memory page (AURA-108): facts with provenance; edit, delete, pause.
+const MEM_SOURCE = { explicit: 'gesagt', learned: 'gelernt', imported: 'übernommen', edited: 'bearbeitet' };
 async function loadMemory() {
-  const r = await z.memory();
-  $('memFile').textContent = r.file;
-  $('memText').value = r.text;
   $('memStatus').textContent = '';
+  const r = await z.memory();
+  $('memPause').checked = !!r.paused;
+  if (r.unavailable) {
+    $('memList').innerHTML =
+      '<div class="empty">Das Gedächtnis gehört zu Agent v2, der hier nicht installiert ist.</div>';
+    return;
+  }
+  if (!r.facts.length) {
+    $('memList').innerHTML = '<div class="empty">Noch nichts gemerkt.</div>';
+    return;
+  }
+  const topics = new Map();
+  for (const f of r.facts) topics.set(f.topic, [...(topics.get(f.topic) || []), f]);
+  $('memList').innerHTML = [...topics]
+    .map(
+      ([topic, facts]) =>
+        `<h3>${esc(topic)}</h3>${facts
+          .map(
+            (f) => `<div class="item"><div class="name">${esc(f.text)}</div>
+      <div class="desc"><span class="badge">${esc(MEM_SOURCE[f.source] || f.source)}</span> ${esc(fmtDate(f.created * 1000))}${f.last_used ? ' · zuletzt genutzt ' + esc(fmtDate(f.last_used * 1000)) : ''}</div>
+      <div class="side"><button class="small" data-medit="${esc(f.id)}">Ändern</button><button class="small danger" data-mdel="${esc(f.id)}">Löschen</button></div></div>`
+          )
+          .join('')}`
+    )
+    .join('');
+  const byId = new Map(r.facts.map((f) => [f.id, f]));
+  $('memList')
+    .querySelectorAll('[data-medit]')
+    .forEach((b) => {
+      b.onclick = () => {
+        const f = byId.get(b.dataset.medit);
+        dialog(
+          'Eintrag ändern',
+          `<label>Eintrag</label><input type="text" id="memEdit" value="${esc(f.text)}" maxlength="500">`,
+          async () => {
+            const res = await z.memoryUpdate({ id: f.id, text: $('memEdit').value });
+            if (res && res.error) return res.error;
+            loadMemory();
+            return null;
+          }
+        );
+      };
+    });
+  $('memList')
+    .querySelectorAll('[data-mdel]')
+    .forEach((b) => {
+      b.onclick = async () => {
+        await z.memoryDelete(b.dataset.mdel);
+        loadMemory();
+      };
+    });
 }
-$('saveMem').onclick = async () => {
-  await z.saveMemory($('memText').value);
-  $('memStatus').textContent = 'Gespeichert';
+$('memPause').onchange = async (e) => {
+  await z.memoryPause(e.target.checked);
+  $('memStatus').textContent = e.target.checked
+    ? 'Pausiert: gilt ab dem nächsten Auftrag'
+    : 'Eingeschaltet: gilt ab dem nächsten Auftrag';
+};
+$('memClear').onclick = async () => {
+  if (!confirm('Wirklich alles löschen, was Aura sich gemerkt hat? Das lässt sich nicht rückgängig machen.')) return;
+  const r = await z.memoryDeleteAll();
+  $('memStatus').textContent = `${r.removed} Einträge gelöscht`;
+  loadMemory();
 };
 
 const DOC_ICON = { ok: '✓', warn: '!', bad: '✗' };

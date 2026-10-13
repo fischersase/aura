@@ -10,6 +10,8 @@ let chatHistory = [];
 let streaming = null; // { id, el, text }
 const newChatId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 let chatId = newChatId(); // unter dieser ID wird der Chat im Verlauf gespeichert
+// Incognito (AURA-108): no chat history, no memory; the agent's traces of the chat are deleted when it ends.
+let incognito = false;
 let includeScreen = false;
 let live = null;
 
@@ -78,6 +80,8 @@ function closeAnim() {
 // Jedes Öffnen startet einen neuen Chat (außer Gemini Live läuft gerade).
 function resetChat() {
   if (streaming) window.api.abortChat(streaming.id);
+  // Deleting the (unsaved) incognito chat makes the agent forget its session (chat.forget, AURA-106).
+  if (incognito && chatHistory.length) window.api.deleteChat(chatId).catch(() => {});
   chatHistory = [];
   streaming = null;
   chatId = newChatId();
@@ -263,7 +267,7 @@ function send() {
   setCompact();
   setBusy(true);
   scrollDown(true);
-  window.api.sendChat({ id, chatId, history: chatHistory, includeScreen });
+  window.api.sendChat({ id, chatId, history: chatHistory, includeScreen, incognito });
 }
 
 window.api.onChatScreen(({ id, jpeg }) => {
@@ -290,7 +294,7 @@ window.api.onChatDone(({ id }) => {
   streaming.el.querySelectorAll('.step .approve').forEach((a) => a.remove());
   streaming = null;
   setBusy(false);
-  window.api.saveChat({ id: chatId, history: chatHistory }).catch(() => {});
+  if (!incognito) window.api.saveChat({ id: chatId, history: chatHistory }).catch(() => {});
 });
 
 window.api.onChatError(({ id, message }) => {
@@ -745,6 +749,14 @@ window.api.onSttProgress((p) => {
   if (micBtn.classList.contains('wait') && p.total)
     recInfo.textContent = `Lade Spracherkennung … ${Math.round((p.loaded / p.total) * 100)} %`;
 });
+
+$('incognitoBtn').onclick = () => {
+  // A chat is either incognito or not: switching starts a new chat.
+  if (chatHistory.length) resetChat();
+  incognito = !incognito;
+  $('incognitoBtn').classList.toggle('on', incognito);
+  document.body.classList.toggle('incognito', incognito);
+};
 
 $('screenToggle').onclick = () => {
   includeScreen = !includeScreen;

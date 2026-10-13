@@ -280,6 +280,41 @@ class FactStore:
                     self._render(db)
             return {"removed": len(hits), "texts": [str(r["text"]) for r in hits]}
 
+    def update(self, fid: str, text: str) -> dict[str, Any]:
+        """The user corrected a fact (Zentrale): new text, source becomes "edited"."""
+        text = " ".join(text.split()).strip()
+        if not text:
+            return {"error": "Leerer Eintrag."}
+        if SECRET.search(text):
+            return {
+                "error": "Passwörter, PINs, Schlüssel oder Kontodaten speichert Aura nicht im Gedächtnis."
+            }
+        with self._session() as db:
+            self._prepare()
+            n = db.execute("UPDATE facts SET text = ?, source = 'edited' WHERE id = ?", (text, fid)).rowcount
+            db.commit()
+            if not n:
+                return {"error": "Eintrag nicht gefunden."}
+            self._render(db)
+        return {"ok": True}
+
+    def delete(self, fid: str) -> int:
+        with self._session() as db:
+            self._prepare()
+            n = db.execute("DELETE FROM facts WHERE id = ?", (fid,)).rowcount
+            db.commit()
+            if n:
+                self._render(db)
+        return n
+
+    def delete_all(self) -> int:
+        with self._session() as db:
+            self._prepare()
+            n = db.execute("DELETE FROM facts").rowcount
+            db.commit()
+            self._render(db)
+        return n
+
     def delete_where(self, chat_id: str, source: str = "learned") -> int:
         """Facts of one chat and source (deleting a chat removes what was learned from it, FR-MEM-008)."""
         with self._session() as db:
