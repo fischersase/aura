@@ -232,6 +232,13 @@ function protectConfig(serverName, cfg) {
   return out;
 }
 
+// Files are shown in the file manager instead of being handed to the default app for their type: on Ubuntu
+// that is often the Firefox snap for .json, which may not read hidden folders like ~/.aura (AURA-111).
+function revealOrOpen(p, isFile, sh) {
+  if (isFile) sh.showItemInFolder(p);
+  else sh.openPath(p);
+}
+
 const API = {
   state: (force) => state(force),
   log: () => readLog(),
@@ -480,7 +487,7 @@ const API = {
             : skills.auraDir();
     if (which === 'mcp' && !fs.existsSync(p)) writeMcpConfig({});
     if (which === 'log' && !fs.existsSync(p)) fs.writeFileSync(p, '');
-    shell.openPath(p);
+    revealOrOpen(p, which === 'mcp' || which === 'log', shell);
     return true;
   },
   openUrl(url) {
@@ -496,4 +503,4 @@ function register() {
   for (const name of Object.keys(API)) ipcMain.handle('z:' + name, (_e, arg) => API[name](arg));
 }
 
-module.exports = { open, register, configFromRegistry, API };
+module.exports = { open, register, configFromRegistry, API, revealOrOpen };
