@@ -1,6 +1,6 @@
 # Specification: Personal agent (memory, connectors, capability discovery, credential vault)
 
-Status: **draft for review** (AURA-91) · Owner: maintainer · Last updated: 2026-10-13
+Status: **accepted** (AURA-91; decisions D1–D5 in §8) · Owner: maintainer · Last updated: 2026-10-13
 Related: [vision](../product/vision.md) · [needs](../product/needs.md) · [threat model](../security/threat-model.md) ·
 [privacy](../security/privacy.md) · epic M9 "Any model provider" (AURA-65)
 
@@ -194,15 +194,15 @@ Priorities use MoSCoW. Verification methods: T = automated test, E = eval, U = u
 | **OAuth phishing / redirect hijack** | PKCE, `state`, loopback-only listener, exact redirect, issuer from metadata, refuse plain `http` issuers | FR-CON-001, NFR-PA-007 |
 | **Over-collection** (privacy) | Learning is visible and capped per task; incognito; delete cascades; retention | FR-MEM-003/007/008, NFR-PA-004 |
 
-## 8. Decisions needed (before the stories are "Ready")
+## 8. Decisions (decided by the maintainer on 2026-10-13)
 
-| ID | Question | Options | Recommendation |
+| ID | Question | Options | Decision |
 |---|---|---|---|
-| D1 | Learn from conversations: default on or off? | (a) on, visible and undoable; (b) off, opt-in; (c) only explicit "remember" | **(a) on for local models, with the "learned … (undo)" note.** With a cloud model, ask once (NFR-PA-002). |
-| D2 | How does Aura access Gmail/Calendar/Drive? | (a) **Google Workspace MCP servers** (official; in public preview since 2026-05; the user needs their own Google Cloud project and OAuth client; Gmail scopes are read and draft only); (b) **Aura's own Google OAuth app**, which requires Google's verification and an annual security assessment (CASA) for restricted Gmail scopes, with real cost; (c) **IMAP/SMTP with an app password** (works for Gmail and every other provider; mail only, no calendar); (d) the open-source Workspace server from the Gemini CLI extensions with the user's own client | **(c) for mail right away**, because it is simple, local and works for every provider. **(a) as "advanced"**, with a guided Cloud project setup. Revisit (b) when the user base justifies the assessment. |
-| D3 | Curated Aura catalog: who maintains it, and how strict is it? | (a) maintainer-reviewed list in the repo, with a PR for each connector; (b) registry only | **(a)**, starting with about 10 connectors (§5.1 FR-CON-003 plus Slack, Notion, Todoist, Spotify, Home Assistant) |
-| D4 | Embeddings for episodes | (a) local Ollama embedding model (e.g. `embeddinggemma`, `nomic-embed-text`); (b) the provider's API | **(a)** by default, (b) only with a cloud provider and the user's consent |
-| D5 | Sandbox for local connectors | (a) bubblewrap on Linux now, other platforms later; (b) no sandbox, rely on review | **(a)**. Windows and macOS document the gap. |
+| D1 | Learn from conversations: default on or off? | (a) on, visible and undoable; (b) off, opt-in; (c) only explicit "remember" | **Decided: (a)**, on with the "learned … (undo)" note. With a cloud model, Aura asks once (NFR-PA-002). |
+| D2 | How does Aura access Gmail/Calendar/Drive? | (a) **Google Workspace MCP servers** (official; in public preview since 2026-05; the user needs their own Google Cloud project and OAuth client; Gmail scopes are read and draft only); (b) **Aura's own Google OAuth app**, which requires Google's verification and an annual security assessment (CASA) for restricted Gmail scopes, with real cost; (c) **IMAP/SMTP with an app password** (works for Gmail and every other provider; mail only, no calendar); (d) the open-source Workspace server from the Gemini CLI extensions with the user's own client | **Decided: (c) for mail right away, (a) as "advanced"** with a guided Cloud project setup. Revisit (b) when the user base justifies the assessment. |
+| D3 | Curated Aura catalog: who maintains it, and how strict is it? | (a) maintainer-reviewed list in the repo, with a PR for each connector; (b) registry only | **Decided: (a), with the registry as a second source** (marked unreviewed). The catalog starts with about 10 connectors (FR-CON-003 plus Slack, Notion, Todoist, Spotify, Home Assistant). |
+| D4 | Embeddings for episodes | (a) local Ollama embedding model (e.g. `embeddinggemma`, `nomic-embed-text`); (b) the provider's API | **(a)** by default; (b) only with a cloud provider and the user's consent. Default taken; the maintainer did not object. |
+| D5 | Sandbox for local connectors | (a) bubblewrap on Linux now, other platforms later; (b) no sandbox, rely on review | **Decided: (a)**, bubblewrap on Linux now. Windows and macOS document the gap. |
 
 ## 9. Delivery plan (proposed stories under AURA-91)
 
