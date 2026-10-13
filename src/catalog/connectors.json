@@ -6,7 +6,21 @@
       "id": "atlassian",
       "title": "Jira und Confluence (Atlassian)",
       "description": "Jira-Tickets suchen, lesen, anlegen und bearbeiten; Confluence-Seiten lesen und schreiben.",
-      "keywords": ["jira", "ticket", "tickets", "issue", "issues", "vorgang", "vorgänge", "sprint", "board", "confluence", "wiki", "atlassian", "rovo"],
+      "keywords": [
+        "jira",
+        "ticket",
+        "tickets",
+        "issue",
+        "issues",
+        "vorgang",
+        "vorgänge",
+        "sprint",
+        "board",
+        "confluence",
+        "wiki",
+        "atlassian",
+        "rovo"
+      ],
       "publisher": "Atlassian",
       "verified": "aura",
       "status": "available",
@@ -16,7 +30,10 @@
         "source": "Official Atlassian Rovo MCP Server (remote, OAuth 2.1, run by Atlassian)",
         "tools": "get*/search*/lookup*/fetch/atlassianUserInfo read; create*/edit*/update*/transition*/add* write"
       },
-      "config": { "url": "https://mcp.atlassian.com/v1/mcp", "auth": "oauth" },
+      "config": {
+        "url": "https://mcp.atlassian.com/v1/mcp",
+        "auth": "oauth"
+      },
       "credentials": [],
       "setup": [
         "Auf „Anmelden“ klicken: der Browser öffnet die Anmeldeseite von Atlassian.",
@@ -36,7 +53,17 @@
       "id": "github",
       "title": "GitHub",
       "description": "Repositories, Issues und Pull Requests auf GitHub lesen, kommentieren und bearbeiten.",
-      "keywords": ["github", "git", "repository", "repo", "pull request", "pr", "issue", "issues", "code"],
+      "keywords": [
+        "github",
+        "git",
+        "repository",
+        "repo",
+        "pull request",
+        "pr",
+        "issue",
+        "issues",
+        "code"
+      ],
       "publisher": "GitHub",
       "verified": "aura",
       "status": "available",
@@ -48,7 +75,9 @@
       },
       "config": {
         "url": "https://api.githubcopilot.com/mcp/",
-        "headers": { "Authorization": "Bearer ${credential:GITHUB_TOKEN}" }
+        "headers": {
+          "Authorization": "Bearer ${credential:GITHUB_TOKEN}"
+        }
       },
       "credentials": [
         {
@@ -78,19 +107,85 @@
     {
       "id": "mail",
       "title": "E-Mail (IMAP/SMTP)",
-      "description": "Mails lesen, suchen und mit Rückfrage senden, über IMAP und SMTP mit einem App-Passwort (Gmail, GMX, Web.de, Outlook …).",
-      "keywords": ["mail", "mails", "e-mail", "email", "gmail", "postfach", "posteingang", "inbox", "imap", "smtp", "nachricht", "nachrichten"],
+      "description": "Mails lesen, suchen und mit Rückfrage senden, über IMAP und SMTP mit einem App-Passwort (Gmail, GMX, Web.de, Posteo, iCloud, T-Online).",
+      "keywords": [
+        "mail",
+        "mails",
+        "e-mail",
+        "email",
+        "gmail",
+        "postfach",
+        "posteingang",
+        "inbox",
+        "imap",
+        "smtp",
+        "nachricht",
+        "nachrichten"
+      ],
       "publisher": "Aura",
       "verified": "aura",
-      "status": "coming",
-      "homepage": "https://github.com/fischersase/aura/blob/main/docs/specs/personal-agent.md",
-      "credentials": []
+      "status": "available",
+      "homepage": "https://github.com/fischersase/aura/blob/main/agent/src/aura_agent/connectors/mail.py",
+      "credentials": [
+        {
+          "name": "MAIL_ADDRESS",
+          "label": "E-Mail-Adresse",
+          "kind": "email",
+          "secret": false,
+          "help": [
+            "Die Adresse deines Postfachs, z. B. name@gmail.com."
+          ]
+        },
+        {
+          "name": "MAIL_PASSWORD",
+          "label": "App-Passwort",
+          "kind": "app-password",
+          "secret": true,
+          "tokenUrl": "https://myaccount.google.com/apppasswords",
+          "help": [
+            "Gmail: Die Zwei-Faktor-Bestätigung muss im Google-Konto eingeschaltet sein.",
+            "Den Link öffnen, einen Namen wie „Aura“ eingeben und „Erstellen“ klicken.",
+            "Das angezeigte 16-stellige Passwort kopieren und hier einfügen (Leerzeichen sind egal).",
+            "GMX, Web.de, Posteo, iCloud: dort unter Sicherheit ein App-Passwort anlegen und in den Einstellungen IMAP/POP3 erlauben."
+          ]
+        }
+      ],
+      "review": {
+        "date": "2026-10-14",
+        "source": "Built into Aura (agent/src/aura_agent/connectors/mail.py), standard library imaplib/smtplib, runs in the sandbox",
+        "tools": "mail_search/mail_read read (BODY.PEEK, never marks read; one-time codes and login links removed); mail_send sends"
+      },
+      "config": {
+        "builtin": "mail",
+        "env": {
+          "MAIL_ADDRESS": "${credential:MAIL_ADDRESS}",
+          "MAIL_PASSWORD": "${credential:MAIL_PASSWORD}"
+        }
+      },
+      "setup": [
+        "E-Mail-Adresse und App-Passwort eintragen, dann „Verbinden“. Aura testet die Verbindung sofort."
+      ],
+      "tiers": {
+        "mail_search": "T0",
+        "mail_read": "T0",
+        "*": "T2"
+      }
     },
     {
       "id": "google-workspace",
       "title": "Google Workspace (Gmail, Kalender, Drive)",
       "description": "Gmail, Google Kalender und Drive über ein eigenes Google-Cloud-Projekt. Für Fortgeschrittene; für Mails reicht meist der Eintrag „E-Mail (IMAP/SMTP)“.",
-      "keywords": ["google", "gmail", "kalender", "calendar", "termin", "termine", "drive", "docs", "workspace"],
+      "keywords": [
+        "google",
+        "gmail",
+        "kalender",
+        "calendar",
+        "termin",
+        "termine",
+        "drive",
+        "docs",
+        "workspace"
+      ],
       "publisher": "Google",
       "verified": "aura",
       "status": "advanced",

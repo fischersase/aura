@@ -30,7 +30,9 @@ test('credentials go to the vault; the config only holds a reference', () => {
 test('missing credentials and unavailable entries are refused', () => {
   const noop = () => {};
   assert.throws(() => c.configFor(c.byId('github'), {}, (k) => k, noop), /Persönlicher Zugriffstoken/);
-  assert.throws(() => c.configFor(c.byId('mail'), {}, (k) => k, noop), /noch nicht verfügbar/);
+  assert.throws(() => c.configFor(c.byId('mail'), { MAIL_ADDRESS: 'a@gmail.com' }, (k) => k, noop), /App-Passwort/);
+  const soon = { id: 'soon', title: 'Bald', status: 'coming', credentials: [] };
+  assert.throws(() => c.configFor(soon, {}, (k) => k, noop), /noch nicht verfügbar/);
   const oauth = c.configFor(c.byId('atlassian'), {}, (k) => k, noop);
   assert.deepStrictEqual(Object.keys(oauth).sort(), ['auth', 'catalogId', 'description', 'url']);
 });

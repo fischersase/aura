@@ -95,6 +95,8 @@ the Electron main process:
   `api.open-meteo.com` and `geocoding-api.open-meteo.com` (weather and place lookup when the user asks about the
   weather; sends the place or rounded coordinates, AURA-116), `ipapi.co` (only if the user chose "Ungefähr über meine
   IP-Adresse" as location source; the service sees the IP address),
+  the user's own mail provider via IMAP/SMTP (only when the user connected "E-Mail" in the Zentrale, AURA-98; the
+  app password stays in the vault, one-time codes and login links are removed before the model reads a mail),
   Hugging Face (Whisper model download, [src/renderer/stt.html](../../src/renderer/stt.html) CSP).
 - **Cost tracking is local only**: [src/usage.js](../../src/usage.js) estimates cost from token counts returned by
   Gemini and stores the monthly sum in `userData/usage.json`. Nothing is reported anywhere.
