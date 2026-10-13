@@ -87,10 +87,18 @@ function get(id) {
   }
 }
 
+// Called for every removed chat, including automatic pruning, so the agent can forget it too (AURA-106).
+let onRemove = (_id) => {};
+function setOnRemove(fn) {
+  onRemove = fn;
+}
+
 function remove(id) {
+  const sid = safeId(id);
   try {
-    fs.rmSync(path.join(dir(), safeId(id) + '.json'), { force: true });
+    fs.rmSync(path.join(dir(), sid + '.json'), { force: true });
   } catch {}
+  if (sid) onRemove(sid);
 }
 
 function prune() {
@@ -98,4 +106,4 @@ function prune() {
   for (const c of all.slice(MAX_CHATS)) remove(c.id);
 }
 
-module.exports = { save, list, get, remove };
+module.exports = { save, list, get, remove, setOnRemove };

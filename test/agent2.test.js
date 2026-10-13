@@ -104,3 +104,56 @@ test(
     }
   }
 );
+
+test(
+  'bridge: deleted chats are forgotten by the agent, queued while it is not running (AURA-106)',
+  { skip: !HAS_PYTHON && 'agent/.venv fehlt (cd agent && uv sync)' },
+  async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'aura-forget-'));
+    const script = path.join(tmp, 'script.json');
+    fs.writeFileSync(script, JSON.stringify(['erledigt', 'erledigt', 'erledigt']));
+    process.env.AURA_AGENT_TEST_SCRIPT = script;
+    const dataDir = path.join(tmp, 'agent');
+    const make = (chatIds) =>
+      new AgentBridge({
+        app: { isPackaged: false, getAppPath: () => ROOT, getPath: () => tmp },
+        settings: () => ({ model: 'scripted', dataDir, auraDir: path.join(tmp, 'aura') }),
+        host: {
+          approve: async () => ({ decision: 'deny' }),
+          screenshot: async () => ({ mime: 'image/jpeg', data: '' })
+        },
+        chatIds
+      });
+    const sessionCount = async (bridge, chatId) => {
+      // ask the agent itself: retain with every known id but this one would remove it; count via forget instead
+      const r = await bridge.peer.request('chat.forget', { chatId });
+      return r.sessions;
+    };
+    let bridge = make(() => ['kept', 'gone', 'queued']);
+    try {
+      await bridge.runTask({ taskId: 't1', chatId: 'gone', text: 'eins' });
+      await bridge.runTask({ taskId: 't2', chatId: 'queued', text: 'zwei' });
+      await bridge.runTask({ taskId: 't3', chatId: 'orphan', text: 'drei' });
+      // While running: forget goes straight to the agent.
+      const gone = await bridge.forgetChat('gone');
+      assert.strictEqual(gone.sessions, 1);
+      assert.ok(gone.episodes > 0, 'request and answer were searchable episodes');
+      bridge.stop();
+      // Agent stopped: the deletion is queued instead of starting the agent.
+      assert.deepStrictEqual(await bridge.forgetChat('queued'), { queued: true });
+      assert.deepStrictEqual(bridge.readForgetQueue(), ['queued']);
+      // Next start: the queue is sent and orphans (not in chatIds, here "orphan") are forgotten.
+      bridge = make(() => ['kept', 'queued']);
+      await bridge.runTask({ taskId: 't4', chatId: 'kept', text: 'vier' });
+      for (let i = 0; i < 50 && bridge.readForgetQueue().length; i++) await new Promise((r) => setTimeout(r, 100));
+      assert.deepStrictEqual(bridge.readForgetQueue(), []);
+      await new Promise((r) => setTimeout(r, 300)); // chat.retain runs after the queue
+      assert.strictEqual(await sessionCount(bridge, 'queued'), 0);
+      assert.strictEqual(await sessionCount(bridge, 'orphan'), 0);
+      assert.strictEqual(await sessionCount(bridge, 'kept'), 1);
+    } finally {
+      bridge.stop();
+      delete process.env.AURA_AGENT_TEST_SCRIPT;
+    }
+  }
+);

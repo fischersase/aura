@@ -792,7 +792,13 @@ const agentV2 = new AgentBridge({
       if (req.action === 'keys') return agentInput.pressKeys(String(req.keys || ''));
       return { error: 'Unbekannte Eingabe' };
     }
-  }
+  },
+  // Chats the app still has; the agent forgets sessions of all others at start (AURA-106).
+  chatIds: () => chats.list().map((c) => c.id)
+});
+// Deleting a chat (by the user or by pruning) also deletes the agent's session and episodes (NFR-PRIV-007).
+chats.setOnRemove((id) => {
+  agentV2.forgetChat(id).catch(() => {});
 });
 
 ipcMain.on('agent:answer', (_e, { id, answer }) => {

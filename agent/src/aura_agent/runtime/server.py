@@ -7,7 +7,7 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import httpx
 from google.adk.memory import SqliteMemoryService
@@ -122,6 +122,8 @@ class AgentServer:
         peer.on("task.start", self.task_start)
         peer.on("task.cancel", self.task_cancel)
         peer.on("task.cancelAll", self.task_cancel_all)
+        peer.on("chat.forget", self.chat_forget)
+        peer.on("chat.retain", self.chat_retain)
         peer.on("catalog.list", self.catalog)
         peer.on("policy.list", self.policy_list)
         peer.on("ping", self.ping)
@@ -143,6 +145,7 @@ class AgentServer:
             AuditLog(self.settings.data_dir / "audit"),
             self.settings.home,
             self.settings.max_llm_calls,
+            episodes_db=self.settings.data_dir / "memory.db",
         )
         if self._model is None and p.get("warmUp", True) and self.settings.provider == "ollama":
             self._warm_task = asyncio.create_task(
@@ -177,6 +180,18 @@ class AgentServer:
 
     async def task_cancel_all(self, _p: dict[str, Any]) -> dict[str, Any]:
         return {"cancelled": await self._require().cancel_all()}
+
+    async def chat_forget(self, p: dict[str, Any]) -> dict[str, Any]:
+        chat_id = p.get("chatId")
+        if not isinstance(chat_id, str) or not chat_id:
+            raise RpcError(INVALID_PARAMS, "chatId fehlt")
+        return await self._require().forget_chat(chat_id)
+
+    async def chat_retain(self, p: dict[str, Any]) -> dict[str, Any]:
+        ids = p.get("chatIds")
+        if not isinstance(ids, list) or not all(isinstance(i, str) for i in cast("list[Any]", ids)):
+            raise RpcError(INVALID_PARAMS, "chatIds muss eine Liste von Texten sein")
+        return await self._require().retain_chats(set(cast("list[str]", ids)))
 
     async def catalog(self, _p: dict[str, Any]) -> dict[str, Any]:
         return {"tools": tool_catalog()}
