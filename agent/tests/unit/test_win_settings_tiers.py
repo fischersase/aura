@@ -38,7 +38,7 @@ def test_security_keys_are_forbidden_even_for_reading(key):
 def test_normalize_and_coerce():
   assert reg.normalize("HKCU:\\Software\\\\X\\") == ("HKEY_CURRENT_USER", "Software\\X")
   assert reg.display("HKEY_LOCAL_MACHINE\\SOFTWARE\\X") == "HKLM\\SOFTWARE\\X"
-  with pytest.raises(ValueError):
+  with pytest.raises(ValueError, match="HKCU"):
     reg.normalize("Software\\X")
   assert reg.coerce("0x10", reg.REG_DWORD) == 16 and reg.coerce("aus", reg.REG_DWORD) == 0
   assert reg.coerce("a\nb", reg.REG_MULTI_SZ) == ["a", "b"]

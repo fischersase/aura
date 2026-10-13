@@ -132,9 +132,16 @@ def answered() -> Check:
   return lambda o: bool((o.text or "").strip())
 
 
-DENY: Callable[[dict[str, Any]], str] = lambda _r: "deny"
-ALLOW: Callable[[dict[str, Any]], str] = lambda _r: "once"
-ALLOW_TASK: Callable[[dict[str, Any]], str] = lambda _r: "task"
+def DENY(_r: dict[str, Any]) -> str:  # used like a constant in task tables
+  return "deny"
+
+
+def ALLOW(_r: dict[str, Any]) -> str:
+  return "once"
+
+
+def ALLOW_TASK(_r: dict[str, Any]) -> str:
+  return "task"
 
 MUSIC = {"status": "Playing"}
 

@@ -123,7 +123,7 @@ class AgentServer:
     self.controller = TaskController(runner, self.host, AuditLog(self.settings.data_dir / "audit"),
                                      self.settings.home, self.settings.max_llm_calls)
     if self._model is None and p.get("warmUp", True) and self.settings.provider == "ollama":
-      asyncio.create_task(self._warm_up())
+      self._warm_task = asyncio.create_task(self._warm_up())  # keep a reference, or the task may be collected
     if p.get("warmUp", True):
       from ..tools.shell import warm_up_shell
 
@@ -168,7 +168,8 @@ class AgentServer:
   async def _warm_up(self) -> None:
     """Lädt das Modell mit demselben num_ctx wie später die Aufträge (sonst lädt Ollama neu)."""
     s = self.settings
-    assert s is not None
+    if s is None:
+      return
     self.peer.notify("model.status", {"state": "loading", "model": s.model})
     try:
       async with httpx.AsyncClient(timeout=300) as client:

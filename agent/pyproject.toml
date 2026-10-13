@@ -41,9 +41,28 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 110
 target-version = "py312"
+indent-width = 4
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "S", "BLE", "RUF", "SIM", "PT", "ASYNC"]
+ignore = [
+  "E501",  # line length: the formatter wraps code; long strings and comments are fine
+  "RUF001", "RUF002", "RUF003",  # German typography („“, –) in strings and comments is intended
+  "S603", "S606", "S607",  # starting processes is the agent's job; the policy classifies every command
+  "ASYNC109",  # timeout parameters are part of our tool API; implementations use asyncio.wait_for
+]
 
 [tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106", "PT018", "ASYNC110"]  # plain asserts, fake credentials and polling are fine in tests
+"evals/**" = ["S101", "ASYNC110"]
+"spikes/**" = ["S101", "ASYNC240"]
+# Helpers that must configure gi/COM before importing the bindings.
+"src/aura_agent/platform/uia_helper.py" = ["E402"]
+"src/aura_agent/testing/gtk_app.py" = ["E402"]
 # dbus-fast liest D-Bus-Signaturen aus den String-Annotationen ("s", "a{sv}").
-"src/aura_agent/testing/fake_mpris.py" = ["UP037", "F821", "RUF100"]
+"src/aura_agent/testing/fake_mpris.py" = ["UP037", "F821", "F722", "RUF100"]
 # AT-SPI-Helfer: einzelne kaputte Elemente fremder Programme werden bewusst übersprungen; läuft als Skript mit dem System-Python.
-"src/aura_agent/platform/atspi_helper.py" = ["S110", "S112", "EXE001", "BLE001", "RUF100"]
+"src/aura_agent/platform/atspi_helper.py" = ["S110", "S112", "EXE001", "BLE001", "RUF100", "E402"]

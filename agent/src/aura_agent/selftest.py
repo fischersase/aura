@@ -31,7 +31,7 @@ async def run() -> int:
     host = FakeHost(["deny"])
     ctl = TaskController(build_runner(settings, llm), host, AuditLog(settings.data_dir / "audit"), settings.home)
     ctl.start("t1", "selftest", "Selbsttest")
-    while ctl.tasks:
+    while ctl.tasks:  # noqa: ASYNC110 - the controller has no completion event; polling is fine for a selftest
       await asyncio.sleep(0.02)
     done = host.done()
     steps = [(p["tool"], p["state"]) for p in host.of("task.step")]

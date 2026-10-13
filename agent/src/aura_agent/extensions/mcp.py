@@ -71,7 +71,9 @@ def _mcp_meta(tool: Any) -> ToolMeta | None:
     return None
   raw = name[len(server.prefix) + 1:]
   annotations = getattr(getattr(tool, "_mcp_tool", None), "annotations", None)
-  label = lambda a: f"[{server.name}] {raw}"
+  def label(a: dict[str, Any]) -> str:
+    return f"[{server.name}] {raw}"
+
   def hint(name: str) -> bool:  # MCP-SDK 1.x: camelCase, 2.x: snake_case
     snake = re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
     return bool(getattr(annotations, name, None) or getattr(annotations, snake, None))

@@ -66,7 +66,9 @@ def test_move_and_copy(fake_home):
 def test_credential_paths_are_t3_for_every_file_tool(fake_home):
   (fake_home / ".ssh").mkdir()
   (fake_home / ".ssh/id_ed25519").write_text("KEY")
-  meta = lambda fn: fn.__aura__
+  def meta(fn):
+    return fn.__aura__
+
   assert meta(files.read_file).classify({"path": "~/.ssh/id_ed25519"})[0] == Tier.T3
   assert meta(files.list_dir).classify({"path": "~/.ssh"})[0] == Tier.T3
   assert meta(files.find_files).classify({"folder": "~/.ssh"})[0] == Tier.T3
