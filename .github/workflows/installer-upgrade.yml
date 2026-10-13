@@ -92,7 +92,7 @@ jobs:
             Copy-Item "old\Aura.exe" "$dl\Aura.exe"
             $run = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
             if (-not (Test-Path $run)) { New-Item $run | Out-Null }
-            Set-ItemProperty $run 'electron.app.Aura' "`"$dl\Aura.exe`"
+            Set-ItemProperty $run 'electron.app.Aura' "`"$dl\Aura.exe`""
             $exe = Get-Item "$dl\Aura.exe"
           } else {
             $t = Measure-Command { Start-Process "old\$env:ASSET" -ArgumentList '/S' -Wait }
