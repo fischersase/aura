@@ -4,9 +4,20 @@ const assert = require('node:assert');
 const { isReadOnly } = require('../src/agent/tools');
 
 test('v1: Starter, Systemumstellungen und Umgebungsvariablen sind nicht lesend', () => {
-  for (const c of ['env', 'env rm x', 'printenv', 'echo $GEMINI_API_KEY', 'cat /proc/self/environ', 'ip link set eth0 down',
-    'ifconfig eth0 down', 'hostnamectl set-hostname x', 'nvidia-smi -pl 100', 'Get-ChildItem env:', 'echo $env:GITHUB_TOKEN',
-    'ps auxe']) {
+  for (const c of [
+    'env',
+    'env rm x',
+    'printenv',
+    'echo $GEMINI_API_KEY',
+    'cat /proc/self/environ',
+    'ip link set eth0 down',
+    'ifconfig eth0 down',
+    'hostnamectl set-hostname x',
+    'nvidia-smi -pl 100',
+    'Get-ChildItem env:',
+    'echo $env:GITHUB_TOKEN',
+    'ps auxe'
+  ]) {
     assert.strictEqual(isReadOnly(c), false, c);
   }
 });

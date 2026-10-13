@@ -26,21 +26,53 @@ function openAnim() {
   const W = card.offsetWidth;
   const H = card.offsetHeight;
   const pillH = Math.min(H, 64);
-  card.animate([
-    { width: '56px', height: '56px', borderRadius: '28px', opacity: 0, transform: 'translateY(20px) scale(.5)', easing: 'cubic-bezier(.2,.8,.2,1)' },
-    { width: '56px', height: '56px', borderRadius: '28px', opacity: 1, transform: 'none', offset: 0.32, easing: SPRING },
-    { width: W + 'px', height: pillH + 'px', borderRadius: pillH / 2 + 'px', opacity: 1, transform: 'none', offset: H > pillH ? 0.72 : 1, easing: SPRING },
-    ...(H > pillH ? [{ width: W + 'px', height: H + 'px', borderRadius: '28px', opacity: 1, transform: 'none' }] : [])
-  ], { duration: 560 });
+  card.animate(
+    [
+      {
+        width: '56px',
+        height: '56px',
+        borderRadius: '28px',
+        opacity: 0,
+        transform: 'translateY(20px) scale(.5)',
+        easing: 'cubic-bezier(.2,.8,.2,1)'
+      },
+      {
+        width: '56px',
+        height: '56px',
+        borderRadius: '28px',
+        opacity: 1,
+        transform: 'none',
+        offset: 0.32,
+        easing: SPRING
+      },
+      {
+        width: W + 'px',
+        height: pillH + 'px',
+        borderRadius: pillH / 2 + 'px',
+        opacity: 1,
+        transform: 'none',
+        offset: H > pillH ? 0.72 : 1,
+        easing: SPRING
+      },
+      ...(H > pillH ? [{ width: W + 'px', height: H + 'px', borderRadius: '28px', opacity: 1, transform: 'none' }] : [])
+    ],
+    { duration: 560 }
+  );
   setTimeout(() => input.focus(), 60);
 }
 
 function closeAnim() {
-  const a = card.animate([
-    { opacity: 1, transform: 'none' },
-    { opacity: 0, transform: 'translateY(12px) scale(.92)' }
-  ], { duration: 200, easing: 'cubic-bezier(.4,0,1,1)', fill: 'forwards' });
-  a.onfinish = () => { card.classList.add('hidden'); a.cancel(); };
+  const a = card.animate(
+    [
+      { opacity: 1, transform: 'none' },
+      { opacity: 0, transform: 'translateY(12px) scale(.92)' }
+    ],
+    { duration: 200, easing: 'cubic-bezier(.4,0,1,1)', fill: 'forwards' }
+  );
+  a.onfinish = () => {
+    card.classList.add('hidden');
+    a.cancel();
+  };
 }
 
 // Jedes Öffnen startet einen neuen Chat (außer Gemini Live läuft gerade).
@@ -103,7 +135,7 @@ $('newChat').onclick = () => {
 // ---------- Markdown (klein, sicher) ----------
 
 function esc(s) {
-  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 }
 
 function inline(s) {
@@ -128,7 +160,12 @@ function markdown(src) {
       if (para.length) out.push('<p>' + para.map(inline).join('<br>') + '</p>');
       para = [];
     };
-    const closeList = () => { if (list) { out.push(`</${list}>`); list = null; } };
+    const closeList = () => {
+      if (list) {
+        out.push(`</${list}>`);
+        list = null;
+      }
+    };
     for (const line of block.split('\n')) {
       const ul = line.match(/^\s*[-*•]\s+(.*)/);
       const ol = line.match(/^\s*\d+[.)]\s+(.*)/);
@@ -136,26 +173,36 @@ function markdown(src) {
       if (ul || ol) {
         flush();
         const t = ul ? 'ul' : 'ol';
-        if (list !== t) { closeList(); out.push(`<${t}>`); list = t; }
+        if (list !== t) {
+          closeList();
+          out.push(`<${t}>`);
+          list = t;
+        }
         out.push('<li>' + inline((ul || ol)[1]) + '</li>');
       } else if (h) {
-        flush(); closeList();
+        flush();
+        closeList();
         out.push('<p><strong>' + inline(h[1]) + '</strong></p>');
       } else if (!line.trim()) {
-        flush(); closeList();
+        flush();
+        closeList();
       } else {
         closeList();
         para.push(line);
       }
     }
-    flush(); closeList();
+    flush();
+    closeList();
   });
   return out.join('');
 }
 
 messages.addEventListener('click', (e) => {
   const a = e.target.closest('a');
-  if (a) { e.preventDefault(); window.api.openExternal(a.href); }
+  if (a) {
+    e.preventDefault();
+    window.api.openExternal(a.href);
+  }
 });
 
 // ---------- Chat ----------
@@ -171,7 +218,8 @@ function addUser(text) {
 function addModel() {
   const el = document.createElement('div');
   el.className = 'msg model thinking';
-  el.innerHTML = '<svg class="spark" viewBox="0 0 24 24"><use href="#spark"/></svg><div class="content"><div class="steps"></div><div class="body"></div></div>';
+  el.innerHTML =
+    '<svg class="spark" viewBox="0 0 24 24"><use href="#spark"/></svg><div class="content"><div class="steps"></div><div class="body"></div></div>';
   messages.appendChild(el);
   return el;
 }
@@ -200,7 +248,10 @@ function setBusy(on) {
 }
 
 function send() {
-  if (streaming) { window.api.abortChat(streaming.id); return; }
+  if (streaming) {
+    window.api.abortChat(streaming.id);
+    return;
+  }
   const text = input.value.trim();
   if (!text) return;
   input.value = '';
@@ -265,7 +316,8 @@ function showView(name) {
 
 function dayLabel(ts) {
   const d = new Date(ts);
-  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const diff = Math.round((today - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000);
   if (diff <= 0) return 'Heute';
   if (diff === 1) return 'Gestern';
@@ -294,9 +346,12 @@ async function showHistory() {
     }
     const el = document.createElement('div');
     el.className = 'hist-item' + (c.id === chatId ? ' current' : '');
-    el.innerHTML = '<div><div class="t"></div><div class="p"></div></div><button class="icon del" title="Löschen"><svg viewBox="0 0 24 24"><path d="M5 7h14M10 11v6M14 11v6M6 7l1 12h10l1-12M9 7V4h6v3"/></svg></button>';
+    el.innerHTML =
+      '<div><div class="t"></div><div class="p"></div></div><button class="icon del" title="Löschen"><svg viewBox="0 0 24 24"><path d="M5 7h14M10 11v6M14 11v6M6 7l1 12h10l1-12M9 7V4h6v3"/></svg></button>';
     el.querySelector('.t').textContent = c.title;
-    el.querySelector('.p').textContent = new Date(c.updated).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + (c.preview ? ' · ' + c.preview : '');
+    el.querySelector('.p').textContent =
+      new Date(c.updated).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) +
+      (c.preview ? ' · ' + c.preview : '');
     el.onclick = () => loadChat(c.id);
     el.querySelector('.del').onclick = async (e) => {
       e.stopPropagation();
@@ -318,7 +373,10 @@ async function loadChat(id) {
   chatHistory = c.history;
   messages.innerHTML = '';
   for (const m of chatHistory) {
-    const text = m.parts.map((p) => p.text).filter(Boolean).join('\n');
+    const text = m.parts
+      .map((p) => p.text)
+      .filter(Boolean)
+      .join('\n');
     if (m.role === 'user') addUser(text);
     else {
       const el = addModel();
@@ -337,30 +395,85 @@ $('historyClose').onclick = () => window.api.hidePanel();
 // ---------- Agent: Schritte und Freigaben ----------
 
 const TOOL_NAMES = {
-  run_command: 'Befehl', find_files: 'Suche', list_folder: 'Ordner', read_file: 'Lesen',
-  write_file: 'Schreiben', open: 'Öffnen', screenshot: 'Bildschirmfoto', activate_skill: 'Skill',
-  click: 'Klick', type_text: 'Tippen', press_keys: 'Tasten',
+  run_command: 'Befehl',
+  find_files: 'Suche',
+  list_folder: 'Ordner',
+  read_file: 'Lesen',
+  write_file: 'Schreiben',
+  open: 'Öffnen',
+  screenshot: 'Bildschirmfoto',
+  activate_skill: 'Skill',
+  click: 'Klick',
+  type_text: 'Tippen',
+  press_keys: 'Tasten',
   // Agent v2
-  launch_app: 'Programm', open_target: 'Öffnen', list_windows: 'Fenster', window_action: 'Fenster',
-  media_status: 'Medien', media_control: 'Medien', volume: 'Lautstärke', settings: 'Einstellung', system_info: 'System',
-  list_dir: 'Ordner', edit_file: 'Ändern', move_path: 'Verschieben', trash: 'Papierkorb', todo_write: 'Plan', ask_user: 'Frage'
+  launch_app: 'Programm',
+  open_target: 'Öffnen',
+  list_windows: 'Fenster',
+  window_action: 'Fenster',
+  media_status: 'Medien',
+  media_control: 'Medien',
+  volume: 'Lautstärke',
+  settings: 'Einstellung',
+  system_info: 'System',
+  list_dir: 'Ordner',
+  edit_file: 'Ändern',
+  move_path: 'Verschieben',
+  trash: 'Papierkorb',
+  todo_write: 'Plan',
+  ask_user: 'Frage'
 };
 // Frage auf der Freigabekarte je Werkzeug (Agent v1 und v2).
 const APPROVE_Q = {
-  write_file: 'Aura möchte diese Datei schreiben:', edit_file: 'Aura möchte diese Datei ändern:',
-  trash: 'Aura möchte das in den Papierkorb verschieben:', browser_click: 'Aura möchte auf der Webseite klicken:',
-  browser_type: 'Aura möchte auf der Webseite eingeben:', browser_fill_form: 'Aura möchte dieses Formular ausfüllen:',
-  browser_press_key: 'Aura möchte auf der Webseite eine Taste drücken:', browser_handle_dialog: 'Aura möchte einen Dialog der Webseite bestätigen:', move_path: 'Aura möchte das verschieben oder kopieren:',
-  open: 'Aura möchte dieses Programm starten:', open_target: 'Aura möchte das öffnen:', launch_app: 'Aura möchte dieses Programm starten:',
-  window_action: 'Aura möchte dieses Fenster schließen:', settings: 'Aura möchte diese Einstellung ändern:',
-  click: 'Aura möchte klicken:', type_text: 'Aura möchte tippen:', press_keys: 'Aura möchte Tasten drücken:'
+  write_file: 'Aura möchte diese Datei schreiben:',
+  edit_file: 'Aura möchte diese Datei ändern:',
+  trash: 'Aura möchte das in den Papierkorb verschieben:',
+  browser_click: 'Aura möchte auf der Webseite klicken:',
+  browser_type: 'Aura möchte auf der Webseite eingeben:',
+  browser_fill_form: 'Aura möchte dieses Formular ausfüllen:',
+  browser_press_key: 'Aura möchte auf der Webseite eine Taste drücken:',
+  browser_handle_dialog: 'Aura möchte einen Dialog der Webseite bestätigen:',
+  move_path: 'Aura möchte das verschieben oder kopieren:',
+  open: 'Aura möchte dieses Programm starten:',
+  open_target: 'Aura möchte das öffnen:',
+  launch_app: 'Aura möchte dieses Programm starten:',
+  window_action: 'Aura möchte dieses Fenster schließen:',
+  settings: 'Aura möchte diese Einstellung ändern:',
+  click: 'Aura möchte klicken:',
+  type_text: 'Aura möchte tippen:',
+  press_keys: 'Aura möchte Tasten drücken:'
 };
-const BROWSER_NAMES = { navigate: 'Seite öffnen', navigate_back: 'Zurück', snapshot: 'Seite lesen', find: 'Suchen', click: 'Klicken',
-  type: 'Tippen', fill_form: 'Formular', select_option: 'Auswählen', press_key: 'Taste', wait_for: 'Warten', tabs: 'Tabs',
-  handle_dialog: 'Dialog', take_screenshot: 'Bildschirmfoto' };
-const toolName = (t) => TOOL_NAMES[t] || (t === 'browser' ? 'Browser-Agent' : t.startsWith('browser_') ? 'Browser · ' + (BROWSER_NAMES[t.slice(8)] || t.slice(8))
-  : t.startsWith('mcp_') ? 'MCP' : t);
-const STEP_STATE = { ask: 'Wartet auf deine Freigabe', run: 'Läuft …', ok: 'Erledigt', error: 'Fehlgeschlagen', denied: 'Abgelehnt' };
+const BROWSER_NAMES = {
+  navigate: 'Seite öffnen',
+  navigate_back: 'Zurück',
+  snapshot: 'Seite lesen',
+  find: 'Suchen',
+  click: 'Klicken',
+  type: 'Tippen',
+  fill_form: 'Formular',
+  select_option: 'Auswählen',
+  press_key: 'Taste',
+  wait_for: 'Warten',
+  tabs: 'Tabs',
+  handle_dialog: 'Dialog',
+  take_screenshot: 'Bildschirmfoto'
+};
+const toolName = (t) =>
+  TOOL_NAMES[t] ||
+  (t === 'browser'
+    ? 'Browser-Agent'
+    : t.startsWith('browser_')
+      ? 'Browser · ' + (BROWSER_NAMES[t.slice(8)] || t.slice(8))
+      : t.startsWith('mcp_')
+        ? 'MCP'
+        : t);
+const STEP_STATE = {
+  ask: 'Wartet auf deine Freigabe',
+  run: 'Läuft …',
+  ok: 'Erledigt',
+  error: 'Fehlgeschlagen',
+  denied: 'Abgelehnt'
+};
 
 function stepEl(step) {
   let el = streaming.el.querySelector(`.step[data-id="${step.id}"]`);
@@ -383,19 +496,28 @@ window.api.onAgentStep((step) => {
   const el = stepEl(step);
   el.className = 'step ' + step.state;
   el.querySelector('i').title = STEP_STATE[step.state] || '';
-  if (step.state !== 'ask') { const a = el.querySelector('.approve'); if (a) a.remove(); }
+  if (step.state !== 'ask') {
+    const a = el.querySelector('.approve');
+    if (a) a.remove();
+  }
   scrollDown();
 });
 
 window.api.onAgentApprove((step) => {
-  if (!streaming || streaming.id !== step.chatId) { window.api.agentApproval(step.id, false); return; }
+  if (!streaming || streaming.id !== step.chatId) {
+    window.api.agentApproval(step.id, false);
+    return;
+  }
   streaming.el.classList.remove('thinking');
   const el = stepEl(step);
   el.className = 'step ask';
   const box = document.createElement('div');
   box.className = 'approve';
-  box.innerHTML = '<div class="q"></div><pre></pre><div class="btns"><button class="deny">Ablehnen</button><button class="all" title="Alle weiteren Schritte dieses Auftrags ohne Rückfrage">Alle erlauben</button><button class="allow">Ausführen</button></div>';
-  box.querySelector('.q').textContent = APPROVE_Q[step.tool] || (step.tool.startsWith('mcp_') ? 'Aura möchte dieses Werkzeug nutzen:' : 'Aura möchte diesen Befehl ausführen:');
+  box.innerHTML =
+    '<div class="q"></div><pre></pre><div class="btns"><button class="deny">Ablehnen</button><button class="all" title="Alle weiteren Schritte dieses Auftrags ohne Rückfrage">Alle erlauben</button><button class="allow">Ausführen</button></div>';
+  box.querySelector('.q').textContent =
+    APPROVE_Q[step.tool] ||
+    (step.tool.startsWith('mcp_') ? 'Aura möchte dieses Werkzeug nutzen:' : 'Aura möchte diesen Befehl ausführen:');
   box.querySelector('pre').textContent = step.label + (step.detail ? '\n\n' + step.detail : '');
   if (step.reason) {
     const why = document.createElement('div');
@@ -403,7 +525,10 @@ window.api.onAgentApprove((step) => {
     why.textContent = 'Warum Aura fragt: ' + step.reason;
     box.insertBefore(why, box.querySelector('.btns'));
   }
-  const answer = (ok) => { box.remove(); window.api.agentApproval(step.id, ok); };
+  const answer = (ok) => {
+    box.remove();
+    window.api.agentApproval(step.id, ok);
+  };
   if (step.tier !== undefined) {
     // Agent v2: dauerhaft erlauben legt eine Regel in ~/.aura/policy.toml an.
     const always = document.createElement('button');
@@ -450,11 +575,15 @@ window.api.onAgentPlan(({ chatId: cid, items }) => {
 });
 
 window.api.onAgentAsk(({ chatId: cid, id, question, options }) => {
-  if (!streaming || streaming.id !== cid) { window.api.agentAnswer(id, ''); return; }
+  if (!streaming || streaming.id !== cid) {
+    window.api.agentAnswer(id, '');
+    return;
+  }
   streaming.el.classList.remove('thinking');
   const box = document.createElement('div');
   box.className = 'ask';
-  box.innerHTML = '<div class="q"></div><div class="opts"></div><form class="free"><input type="text" placeholder="Eigene Antwort …"><button type="submit">Senden</button></form>';
+  box.innerHTML =
+    '<div class="q"></div><div class="opts"></div><form class="free"><input type="text" placeholder="Eigene Antwort …"><button type="submit">Senden</button></form>';
   box.querySelector('.q').textContent = question;
   const answer = (text) => {
     box.classList.add('answered');
@@ -474,7 +603,11 @@ window.api.onAgentAsk(({ chatId: cid, id, question, options }) => {
     box.querySelector('.opts').appendChild(b);
   }
   const form = box.querySelector('.free');
-  form.onsubmit = (ev) => { ev.preventDefault(); const v = form.querySelector('input').value.trim(); if (v) answer(v); };
+  form.onsubmit = (ev) => {
+    ev.preventDefault();
+    const v = form.querySelector('input').value.trim();
+    if (v) answer(v);
+  };
   streaming.el.querySelector('.steps').appendChild(box);
   scrollDown();
   (box.querySelector('.opts button') || form.querySelector('input')).focus({ preventScroll: true });
@@ -496,9 +629,15 @@ function autosize() {
 }
 input.addEventListener('input', autosize);
 input.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    send();
+  }
 });
-$('composer').addEventListener('submit', (e) => { e.preventDefault(); send(); });
+$('composer').addEventListener('submit', (e) => {
+  e.preventDefault();
+  send();
+});
 
 // ---------- Spracheingabe (Mikrofon-Knopf) ----------
 // Wie bei Gemini oder ChatGPT: drücken, so lange sprechen wie man will (Pausen sind egal), nochmal drücken:
@@ -513,15 +652,22 @@ const WAIT_SVG = '<svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9"/></svg>
 let dictation = null; // { chunks, start, ready, timer, stopping }
 let noteTimer = null;
 
-const clock = (ms) => { const s = Math.floor(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+const clock = (ms) => {
+  const s = Math.floor(ms / 1000);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+};
 
 function micState(state) {
   $('composer').classList.toggle('dictating', state !== 'idle');
   micBtn.classList.toggle('rec', state === 'rec');
   micBtn.classList.toggle('wait', state === 'wait');
   micBtn.innerHTML = state === 'rec' ? STOP_SVG : state === 'wait' ? WAIT_SVG : MIC_SVG;
-  micBtn.title = state === 'rec' ? 'Fertig: Text erkennen und senden (Esc bricht ab)'
-    : state === 'wait' ? 'Sprache wird erkannt …' : 'Spracheingabe: sprechen, dann nochmal drücken zum Senden';
+  micBtn.title =
+    state === 'rec'
+      ? 'Fertig: Text erkennen und senden (Esc bricht ab)'
+      : state === 'wait'
+        ? 'Sprache wird erkannt …'
+        : 'Spracheingabe: sprechen, dann nochmal drücken zum Senden';
   micBtn.style.setProperty('--lvl', 0);
   recInfo.className = 'rec-info' + (state === 'rec' ? ' rec' : '') + (state === 'idle' ? ' hidden' : '');
   if (state === 'wait') recInfo.textContent = 'Wird erkannt …';
@@ -531,7 +677,9 @@ function micNote(text) {
   clearTimeout(noteTimer);
   recInfo.className = 'rec-info err';
   recInfo.textContent = text;
-  noteTimer = setTimeout(() => { if (!dictation) recInfo.className = 'rec-info hidden'; }, 6000);
+  noteTimer = setTimeout(() => {
+    if (!dictation) recInfo.className = 'rec-info hidden';
+  }, 6000);
 }
 
 function startDictation() {
@@ -582,7 +730,7 @@ async function finishDictation(mode) {
   const r = await window.api.transcribe(Audio16.wavBase64(d.chunks));
   window.api.setBusy(!!streaming);
   micState('idle');
-  const text = (r && r.text || '').trim();
+  const text = ((r && r.text) || '').trim();
   if (r && r.error) return micNote(r.error);
   if (!text) return micNote('Nichts verstanden, bitte noch einmal.');
   input.value = input.value.trim() ? input.value.trim() + ' ' + text : text;
@@ -594,7 +742,8 @@ async function finishDictation(mode) {
 
 micBtn.onclick = () => (dictation ? finishDictation('send') : startDictation());
 window.api.onSttProgress((p) => {
-  if (micBtn.classList.contains('wait') && p.total) recInfo.textContent = `Lade Spracherkennung … ${Math.round((p.loaded / p.total) * 100)} %`;
+  if (micBtn.classList.contains('wait') && p.total)
+    recInfo.textContent = `Lade Spracherkennung … ${Math.round((p.loaded / p.total) * 100)} %`;
 });
 
 $('screenToggle').onclick = () => {
@@ -615,9 +764,14 @@ const liveTranscript = $('liveTranscript');
 let turnEls = { you: null, gem: null };
 
 const liveUi = {
-  status: (t) => { $('liveStatus').textContent = t; },
+  status: (t) => {
+    $('liveStatus').textContent = t;
+  },
   transcript: (role, text) => {
-    if (role === 'turn') { turnEls = { you: null, gem: null }; return; }
+    if (role === 'turn') {
+      turnEls = { you: null, gem: null };
+      return;
+    }
     if (!turnEls[role]) {
       if (role === 'you') turnEls.gem = null;
       const p = document.createElement('div');
@@ -629,7 +783,9 @@ const liveUi = {
     turnEls[role].textContent += text;
     liveTranscript.scrollTop = liveTranscript.scrollHeight;
   },
-  level: (v) => { $('orb').style.setProperty('--s', (1 + v * 0.45).toFixed(3)); },
+  level: (v) => {
+    $('orb').style.setProperty('--s', (1 + v * 0.45).toFixed(3));
+  },
   ended: (err) => {
     live = null;
     window.api.setLiveActive(false);
@@ -678,8 +834,12 @@ function stopLiveMode(reason) {
 
 $('liveBtn').onclick = startLiveMode;
 $('liveEnd').onclick = stopLiveMode;
-$('liveMute').onclick = () => { if (live) $('liveMute').classList.toggle('muted', live.toggleMute()); };
-$('liveScreen').onclick = async () => { if (live) $('liveScreen').classList.toggle('on', await live.toggleScreen()); };
+$('liveMute').onclick = () => {
+  if (live) $('liveMute').classList.toggle('muted', live.toggleMute());
+};
+$('liveScreen').onclick = async () => {
+  if (live) $('liveScreen').classList.toggle('on', await live.toggleScreen());
+};
 window.api.onLiveStart(() => startLiveMode());
 window.api.onLiveStop((reason) => stopLiveMode(reason));
 
@@ -697,7 +857,8 @@ function showUsage(u) {
     return;
   }
   const fmt = (v) => v.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  costEl.querySelector('span').textContent = u.budgetUsd > 0 ? `≈ ${fmt(u.costUsd)} $ / ${fmt(u.budgetUsd)} $` : `≈ ${fmt(u.costUsd)} $`;
+  costEl.querySelector('span').textContent =
+    u.budgetUsd > 0 ? `≈ ${fmt(u.costUsd)} $ / ${fmt(u.budgetUsd)} $` : `≈ ${fmt(u.costUsd)} $`;
   costEl.querySelector('i').style.width = Math.min(100, u.ratio * 100).toFixed(1) + '%';
   costEl.classList.toggle('warn', u.ratio >= 0.8 && !u.overBudget);
   costEl.classList.toggle('over', u.overBudget);

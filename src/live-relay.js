@@ -30,7 +30,8 @@ class LiveRelay {
       if (this.sessions.get(id) === session && !sender.isDestroyed()) sender.send(channel, { id, ...data });
     };
     ws.onopen = () => emit('live:opened', {});
-    ws.onmessage = (ev) => emit('live:message', { data: typeof ev.data === 'string' ? ev.data : Buffer.from(ev.data).toString('utf8') });
+    ws.onmessage = (ev) =>
+      emit('live:message', { data: typeof ev.data === 'string' ? ev.data : Buffer.from(ev.data).toString('utf8') });
     ws.onerror = () => {};
     ws.onclose = (ev) => {
       emit('live:closed', { code: ev.code, reason: String(ev.reason || '') });
@@ -53,7 +54,9 @@ class LiveRelay {
     const s = this.sessions.get(id);
     if (!s || (sender && s.sender !== sender)) return;
     this.sessions.delete(id);
-    try { s.ws.close(); } catch {}
+    try {
+      s.ws.close();
+    } catch {}
   }
 }
 

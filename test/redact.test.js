@@ -23,7 +23,12 @@ test('Zugangsdaten in Befehlen werden geschwärzt', () => {
 });
 
 test('harmlose Werte bleiben lesbar', () => {
-  for (const t of ['git show 3313787f0c2a9d4e5b6a7c8d9e0f1a2b3c4d5e6f', 'ls -la ~/Downloads', 'mkdir -p ~/neu', 'ssh -p 2222 host']) {
+  for (const t of [
+    'git show 3313787f0c2a9d4e5b6a7c8d9e0f1a2b3c4d5e6f',
+    'ls -la ~/Downloads',
+    'mkdir -p ~/neu',
+    'ssh -p 2222 host'
+  ]) {
     assert.strictEqual(scrub(t), t);
   }
 });

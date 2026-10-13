@@ -13,7 +13,9 @@ test('Regelprüfung erkennt fehlende und falsche Angaben', () => {
   assert.deepStrictEqual(z2.checkPolicy('[[rule]]\ntool = "run_command"\ndecision = "allow"\n'), []);
   assert.deepStrictEqual(z2.checkPolicy('# nur Kommentar\n'), []);
   assert.deepStrictEqual(z2.checkPolicy('[[rule]]\ndecision = "allow"\n'), ['Regel 1: tool fehlt']);
-  assert.deepStrictEqual(z2.checkPolicy('[[rule]]\ntool = "x"\ndecision = "maybe"\n'), ['Regel 1: decision muss allow, ask oder deny sein']);
+  assert.deepStrictEqual(z2.checkPolicy('[[rule]]\ntool = "x"\ndecision = "maybe"\n'), [
+    'Regel 1: decision muss allow, ask oder deny sein'
+  ]);
 });
 
 test('Protokoll liest Audit-Ereignisse lesbar, neueste zuerst', () => {
@@ -28,7 +30,10 @@ test('Protokoll liest Audit-Ereignisse lesbar, neueste zuerst', () => {
   ];
   fs.writeFileSync(path.join(dir, '2026-10.jsonl'), lines.map((l) => JSON.stringify(l)).join('\n') + '\n');
   const rows = z2.audit();
-  assert.deepStrictEqual(rows.map((r) => r.kind), ['Fertig', 'Freigabe', 'Ergebnis', 'Auftrag']);
+  assert.deepStrictEqual(
+    rows.map((r) => r.kind),
+    ['Fertig', 'Freigabe', 'Ergebnis', 'Auftrag']
+  );
   assert.strictEqual(rows[0].result, 'ok, 2 Schritte, 2.5 s');
   assert.strictEqual(rows[1].bad, true);
   assert.strictEqual(rows[3].detail, 'Pausiere die Musik');

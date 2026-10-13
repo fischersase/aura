@@ -2,7 +2,10 @@
 const WHISPER_MODELS = [
   { id: 'onnx-community/whisper-base', label: 'Whisper Base: klein und schnell' },
   { id: 'onnx-community/whisper-small', label: 'Whisper Small: guter Mittelweg (empfohlen)' },
-  { id: 'onnx-community/whisper-large-v3-turbo', label: 'Whisper Large v3 Turbo: am genauesten, groß, braucht starke Grafik' }
+  {
+    id: 'onnx-community/whisper-large-v3-turbo',
+    label: 'Whisper Large v3 Turbo: am genauesten, groß, braucht starke Grafik'
+  }
 ];
 
 function OllamaPanel(root, settings) {
@@ -30,7 +33,11 @@ function OllamaPanel(root, settings) {
     <div class="hint">Live wird lokal zum Wechselgespräch: du sprichst, das Modell sieht ein Bildschirmfoto, antwortet und liest vor.
       Kimi gibt es nur als Cloud-Modell, DeepSeek lokal nur ohne Bilderkennung.</div>`;
   const q = (c) => root.querySelector(c);
-  const st = (text, ok) => { const el = q('.ol-status'); el.textContent = text; el.className = 'ol-status status ' + (ok === undefined ? '' : ok ? 'ok' : 'bad'); };
+  const st = (text, ok) => {
+    const el = q('.ol-status');
+    el.textContent = text;
+    el.className = 'ol-status status ' + (ok === undefined ? '' : ok ? 'ok' : 'bad');
+  };
   let installed = [];
   let recommended = [];
   let pulling = false;
@@ -52,7 +59,10 @@ function OllamaPanel(root, settings) {
       if (!names.has(r.name)) opts.push(`<option value="${r.name}">${r.label} · laden (${r.ram})</option>`);
     }
     sel.innerHTML = opts.join('');
-    sel.value = selected && [...sel.options].some((o) => o.value === selected) ? selected : (installed[0] || recommended[0] || {}).name || '';
+    sel.value =
+      selected && [...sel.options].some((o) => o.value === selected)
+        ? selected
+        : (installed[0] || recommended[0] || {}).name || '';
     updateHint();
   }
 
@@ -61,7 +71,9 @@ function OllamaPanel(root, settings) {
     const isInstalled = installed.some((m) => m.name === name);
     const r = recommended.find((x) => x.name === name);
     q('.ol-pull').classList.toggle('hidden', isInstalled);
-    q('.ol-hint').textContent = r ? `${r.label}. Empfohlen: ${r.ram}.${r.vision ? '' : ' Versteht keine Bilder, Live und „Bildschirm“ gehen damit nicht.'}` : '';
+    q('.ol-hint').textContent = r
+      ? `${r.label}. Empfohlen: ${r.ram}.${r.vision ? '' : ' Versteht keine Bilder, Live und „Bildschirm“ gehen damit nicht.'}`
+      : '';
   }
 
   async function check() {
@@ -80,7 +92,10 @@ function OllamaPanel(root, settings) {
   q('.ol-check').onclick = check;
   q('.ol-model').onchange = updateHint;
   q('.ol-pull').onclick = async () => {
-    if (pulling) { window.api.abortPull(); return; }
+    if (pulling) {
+      window.api.abortPull();
+      return;
+    }
     const name = q('.ol-model').value;
     pulling = true;
     q('.ol-pull').textContent = 'Abbrechen';

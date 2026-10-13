@@ -9,7 +9,13 @@ const { pathToFileURL } = require('url');
 const sec = require('../src/security');
 
 const SRC = path.join(__dirname, '..', 'src');
-const DIR = path.join(path.sep === '\\' ? 'C:\\Program Files\\Aura' : '/opt/Aura', 'resources', 'app.asar', 'src', 'renderer');
+const DIR = path.join(
+  path.sep === '\\' ? 'C:\\Program Files\\Aura' : '/opt/Aura',
+  'resources',
+  'app.asar',
+  'src',
+  'renderer'
+);
 const page = (name) => pathToFileURL(path.join(DIR, name)).href;
 const read = (f) => fs.readFileSync(path.join(SRC, f), 'utf8');
 
@@ -51,7 +57,13 @@ test('sensitive channels only from their windows', () => {
 });
 
 test('foreign pages, subframes and destroyed frames are rejected', () => {
-  for (const url of ['https://example.com/panel.html', 'http://127.0.0.1:47800/zentrale.html', 'file:///tmp/zentrale.html', '', undefined]) {
+  for (const url of [
+    'https://example.com/panel.html',
+    'http://127.0.0.1:47800/zentrale.html',
+    'file:///tmp/zentrale.html',
+    '',
+    undefined
+  ]) {
     assert.strictEqual(sec.ipcAllowed(url, 'z:state', DIR), false, String(url));
   }
   assert.strictEqual(sec.senderAllowed(from('panel.html'), 'chat:send', DIR), true);
@@ -108,7 +120,10 @@ test('each preload only uses channels its windows may call', () => {
     if (/ipcRenderer\.invoke\('z:' \+ n/.test(src)) channels.push('z:state', 'z:saveServer', 'z:setSecret');
     assert.ok(channels.length > 0, preload);
     for (const ch of channels) {
-      assert.ok(pages.some((p) => sec.ipcAllowed(page(p), ch, DIR)), `${preload} uses ${ch}, which none of ${pages} may call`);
+      assert.ok(
+        pages.some((p) => sec.ipcAllowed(page(p), ch, DIR)),
+        `${preload} uses ${ch}, which none of ${pages} may call`
+      );
     }
   }
 });
@@ -118,7 +133,9 @@ test('each page finds every api function it uses in its preload', () => {
     const exposed = new Set([...read(preload).matchAll(/^ {2}(\w+):/gm)].map((m) => m[1]));
     for (const p of pages) {
       const html = read(path.join('renderer', p));
-      const scripts = [...html.matchAll(/<script[^>]*src="([^"]+)"/g)].map((m) => m[1]).filter((s) => s !== 'web-shim.js');
+      const scripts = [...html.matchAll(/<script[^>]*src="([^"]+)"/g)]
+        .map((m) => m[1])
+        .filter((s) => s !== 'web-shim.js');
       for (const s of scripts) {
         for (const m of read(path.join('renderer', s)).matchAll(/\bapi\.(\w+)/g)) {
           if (m[1] === 'web') continue; // only set by web-shim.js in the browser

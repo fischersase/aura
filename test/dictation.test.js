@@ -7,14 +7,24 @@ test('gemini.transcribe schickt WAV wörtlich zum Mitschreiben und liefert nur d
   let seen = null;
   const server = http.createServer((req, res) => {
     let body = '';
-    req.on('data', (d) => { body += d; });
+    req.on('data', (d) => {
+      body += d;
+    });
     req.on('end', () => {
       seen = { url: req.url, key: req.headers['x-goog-api-key'], body: JSON.parse(body) };
       res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({
-        candidates: [{ content: { parts: [{ text: 'überlege …', thought: true }, { text: ' Hallo Aura, wie wird das Wetter morgen? ' }] } }],
-        usageMetadata: { promptTokenCount: 320, candidatesTokenCount: 12 }
-      }));
+      res.end(
+        JSON.stringify({
+          candidates: [
+            {
+              content: {
+                parts: [{ text: 'überlege …', thought: true }, { text: ' Hallo Aura, wie wird das Wetter morgen? ' }]
+              }
+            }
+          ],
+          usageMetadata: { promptTokenCount: 320, candidatesTokenCount: 12 }
+        })
+      );
     });
   });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
@@ -22,7 +32,12 @@ test('gemini.transcribe schickt WAV wörtlich zum Mitschreiben und liefert nur d
   delete require.cache[require.resolve('../src/gemini')];
   const gemini = require('../src/gemini');
   try {
-    const out = await gemini.transcribe({ apiKey: 'k', model: 'gemini-3.5-flash-lite', wavBase64: 'UklGRg==', language: 'Deutsch' });
+    const out = await gemini.transcribe({
+      apiKey: 'k',
+      model: 'gemini-3.5-flash-lite',
+      wavBase64: 'UklGRg==',
+      language: 'Deutsch'
+    });
     assert.strictEqual(out.text, 'Hallo Aura, wie wird das Wetter morgen?');
     assert.strictEqual(out.usage.promptTokenCount, 320);
     assert.strictEqual(seen.url, '/models/gemini-3.5-flash-lite:generateContent');

@@ -6,7 +6,12 @@ const RECOMMENDED = [
   { name: 'gemma4:e4b', label: 'Gemma 4 E4B (Google)', ram: '16 GB RAM oder 8 GB Grafikspeicher', vision: true },
   { name: 'gemma4:e2b', label: 'Gemma 4 E2B (Google, klein)', ram: '8 GB RAM', vision: true },
   { name: 'qwen3.5:9b', label: 'Qwen 3.5 9B (Alibaba)', ram: '16 GB RAM oder 8 GB Grafikspeicher', vision: true },
-  { name: 'qwen3-vl:8b', label: 'Qwen3-VL 8B (Alibaba, stark beim Zeigen)', ram: '16 GB RAM oder 8 GB Grafikspeicher', vision: true },
+  {
+    name: 'qwen3-vl:8b',
+    label: 'Qwen3-VL 8B (Alibaba, stark beim Zeigen)',
+    ram: '16 GB RAM oder 8 GB Grafikspeicher',
+    vision: true
+  },
   { name: 'gemma4:26b', label: 'Gemma 4 26B (Google, groß)', ram: '24 GB Grafikspeicher oder 32 GB RAM', vision: true },
   { name: 'qwen3.6:27b', label: 'Qwen 3.6 27B (Alibaba, stark als Agent)', ram: '24 GB Grafikspeicher', vision: true },
   { name: 'gemma4:31b', label: 'Gemma 4 31B (Google, stark als Agent)', ram: '24 GB Grafikspeicher', vision: true },
@@ -16,7 +21,9 @@ const RECOMMENDED = [
 class OllamaError extends Error {}
 
 let contextSize = 16384;
-const setContextSize = (n) => { contextSize = Math.max(2048, Number(n) || 16384); };
+const setContextSize = (n) => {
+  contextSize = Math.max(2048, Number(n) || 16384);
+};
 
 const base = (url) => String(url || DEFAULT_URL).replace(/\/+$/, '');
 
@@ -36,7 +43,8 @@ async function request(url, path, opts = {}) {
     } catch {}
     const missing = String(msg).match(/model ['"]?([^'"\s]+)['"]? not found/i);
     if (missing) {
-      msg = `Das Modell ${missing[1]} ist noch nicht heruntergeladen. Einstellungen → Lokale Modelle → „Herunterladen“, ` +
+      msg =
+        `Das Modell ${missing[1]} ist noch nicht heruntergeladen. Einstellungen → Lokale Modelle → „Herunterladen“, ` +
         `oder im Terminal: ollama pull ${missing[1]}`;
     }
     throw new OllamaError(msg);
@@ -65,10 +73,16 @@ async function* ndjson(res) {
       const line = buf.slice(0, i).trim();
       buf = buf.slice(i + 1);
       if (!line) continue;
-      try { yield JSON.parse(line); } catch {}
+      try {
+        yield JSON.parse(line);
+      } catch {}
     }
   }
-  if (buf.trim()) { try { yield JSON.parse(buf); } catch {} }
+  if (buf.trim()) {
+    try {
+      yield JSON.parse(buf);
+    } catch {}
+  }
 }
 
 // Lädt ein Modell herunter; onProgress({ status, completed, total }).
@@ -118,11 +132,21 @@ async function chatFull({ url, model, messages, format, tools, numCtx, signal, o
   body.options = { num_ctx: numCtx || contextSize };
   let res;
   try {
-    res = await request(url, '/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal });
+    res = await request(url, '/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal
+    });
   } catch (err) {
     if (!(err instanceof OllamaError) || !/think/i.test(err.message)) throw err;
     delete body.think;
-    res = await request(url, '/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal });
+    res = await request(url, '/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal
+    });
   }
   let full = '';
   const toolCalls = [];
@@ -145,9 +169,15 @@ async function streamChat({ url, model, history, system, onText, signal }) {
 
 function parseJson(raw) {
   const s = String(raw || '').trim();
-  try { return JSON.parse(s); } catch {}
+  try {
+    return JSON.parse(s);
+  } catch {}
   const m = s.match(/\{[\s\S]*\}/);
-  if (m) { try { return JSON.parse(m[0]); } catch {} }
+  if (m) {
+    try {
+      return JSON.parse(m[0]);
+    } catch {}
+  }
   return null;
 }
 
@@ -168,8 +198,14 @@ const TEXT_SCHEMA = { type: 'object', properties: { text: { type: 'string' } }, 
 // Rambler: Transkript (von Whisper) bereinigen oder als Anweisung auf die Markierung anwenden.
 async function rambler({ url, model, transcript, selection, language }) {
   const messages = selection
-    ? [{ role: 'system', content: EDIT_PROMPT(selection) }, { role: 'user', content: transcript }]
-    : [{ role: 'system', content: CLEAN_PROMPT(language) }, { role: 'user', content: transcript }];
+    ? [
+        { role: 'system', content: EDIT_PROMPT(selection) },
+        { role: 'user', content: transcript }
+      ]
+    : [
+        { role: 'system', content: CLEAN_PROMPT(language) },
+        { role: 'user', content: transcript }
+      ];
   const raw = await chat({ url, model, messages, format: TEXT_SCHEMA });
   const j = parseJson(raw);
   const text = String((j && j.text) || '').trim();
@@ -190,7 +226,11 @@ const LIVE_SCHEMA = {
     point: {
       anyOf: [
         { type: 'null' },
-        { type: 'object', properties: { x: { type: 'number' }, y: { type: 'number' }, label: { type: 'string' } }, required: ['x', 'y'] }
+        {
+          type: 'object',
+          properties: { x: { type: 'number' }, y: { type: 'number' }, label: { type: 'string' } },
+          required: ['x', 'y']
+        }
       ]
     }
   },
@@ -220,9 +260,27 @@ async function liveTurn({ url, model, language, history, question, jpeg, signal 
 // Läuft Ollama auf diesem Rechner? Sonst gehen Chats, Bildschirmfotos und Diktate an einen anderen Rechner (AURA-62).
 function isLocalUrl(url) {
   let host;
-  try { host = new URL(String(url || DEFAULT_URL)).hostname.toLowerCase(); } catch { return false; }
+  try {
+    host = new URL(String(url || DEFAULT_URL)).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
   // eslint-disable-next-line security/detect-unsafe-regex -- bounded: at most 3 groups of at most 3 digits
   return host === 'localhost' || host === '[::1]' || host === '::1' || /^127(\.\d{1,3}){3}$/.test(host);
 }
 
-module.exports = { isLocalUrl, setContextSize, DEFAULT_URL, RECOMMENDED, OllamaError, version, listModels, pull, streamChat, chatFull, toMessages, rambler, liveTurn };
+module.exports = {
+  isLocalUrl,
+  setContextSize,
+  DEFAULT_URL,
+  RECOMMENDED,
+  OllamaError,
+  version,
+  listModels,
+  pull,
+  streamChat,
+  chatFull,
+  toMessages,
+  rambler,
+  liveTurn
+};

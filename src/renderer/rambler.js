@@ -10,7 +10,10 @@ let startedAt = 0;
 let maxTimer = null;
 
 function show(state, opts = {}) {
-  if (state === 'listening') { bar.classList.add('hidden'); void bar.offsetWidth; } // Einblend-Animation neu starten
+  if (state === 'listening') {
+    bar.classList.add('hidden');
+    void bar.offsetWidth;
+  } // Einblend-Animation neu starten
   bar.classList.remove('hidden', 'out');
   $('wave').classList.toggle('hidden', state !== 'listening');
   $('stop').classList.toggle('hidden', state !== 'listening');
@@ -77,7 +80,11 @@ window.api.onRamblerStop(stopRecording);
 window.api.onRamblerState((s) => show(s.state, s));
 
 $('stop').onclick = stopRecording;
-$('cancel').onclick = () => { closeMic(); chunks = []; window.api.ramblerCancel(); };
+$('cancel').onclick = () => {
+  closeMic();
+  chunks = [];
+  window.api.ramblerCancel();
+};
 $('undo').onclick = () => window.api.ramblerUndo();
 $('full').onclick = () => window.api.ramblerFull();
 

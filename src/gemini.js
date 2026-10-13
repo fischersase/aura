@@ -43,7 +43,8 @@ async function streamChat({ apiKey, model, history, system, onText, signal, tool
       try {
         const j = JSON.parse(line.slice(5));
         if (j.usageMetadata) usage = j.usageMetadata;
-        const parts = (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
+        const parts =
+          (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
         for (const p of parts) {
           if (p.functionCall || p.thoughtSignature || (p.text && !p.thought)) allParts.push(p);
           if (p.text && !p.thought) {
@@ -57,30 +58,33 @@ async function streamChat({ apiKey, model, history, system, onText, signal, tool
   return { text: full, usage, parts: allParts };
 }
 
-const RAMBLER_PROMPT = (language, selection) => selection
-  ? `Du bist Rambler, eine Schreibhilfe. Der Nutzer hat folgenden Text markiert:\n"""\n${selection}\n"""\n` +
-    'Die Audioaufnahme enthält eine gesprochene Anweisung, wie dieser Text verändert werden soll ' +
-    '(z. B. kürzen, förmlicher, übersetzen, als Liste). Wende die Anweisung an. ' +
-    'Gib in "transcript" die wörtliche Anweisung und in "text" nur den fertigen neuen Text zurück.'
-  : 'Du bist Rambler, eine Diktierhilfe. Transkribiere die Audioaufnahme und mache daraus sauberen, gut lesbaren Text: ' +
-    'entferne Füllwörter (ähm, also, halt), Versprecher und Wiederholungen, übernimm Selbstkorrekturen ' +
-    '("nein, ich meine ..."), setze Satzzeichen und Absätze. Wenn der Nutzer Aufzählungen oder To-dos nennt, ' +
-    'forme sie als Liste mit "- ". Behalte die Sprache(n) des Sprechers bei, auch wenn sie im Satz wechselt. ' +
-    `Bevorzugte Sprache: ${language}. Erfinde nichts dazu. ` +
-    'Gib in "transcript" das wörtliche Transkript und in "text" den bereinigten Text zurück.';
+const RAMBLER_PROMPT = (language, selection) =>
+  selection
+    ? `Du bist Rambler, eine Schreibhilfe. Der Nutzer hat folgenden Text markiert:\n"""\n${selection}\n"""\n` +
+      'Die Audioaufnahme enthält eine gesprochene Anweisung, wie dieser Text verändert werden soll ' +
+      '(z. B. kürzen, förmlicher, übersetzen, als Liste). Wende die Anweisung an. ' +
+      'Gib in "transcript" die wörtliche Anweisung und in "text" nur den fertigen neuen Text zurück.'
+    : 'Du bist Rambler, eine Diktierhilfe. Transkribiere die Audioaufnahme und mache daraus sauberen, gut lesbaren Text: ' +
+      'entferne Füllwörter (ähm, also, halt), Versprecher und Wiederholungen, übernimm Selbstkorrekturen ' +
+      '("nein, ich meine ..."), setze Satzzeichen und Absätze. Wenn der Nutzer Aufzählungen oder To-dos nennt, ' +
+      'forme sie als Liste mit "- ". Behalte die Sprache(n) des Sprechers bei, auch wenn sie im Satz wechselt. ' +
+      `Bevorzugte Sprache: ${language}. Erfinde nichts dazu. ` +
+      'Gib in "transcript" das wörtliche Transkript und in "text" den bereinigten Text zurück.';
 
 async function rambler({ apiKey, model, wavBase64, selection, language }) {
   const res = await fetch(`${BASE}/models/${model}:generateContent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
     body: JSON.stringify({
-      contents: [{
-        role: 'user',
-        parts: [
-          { text: RAMBLER_PROMPT(language, selection) },
-          { inlineData: { mimeType: 'audio/wav', data: wavBase64 } }
-        ]
-      }],
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            { text: RAMBLER_PROMPT(language, selection) },
+            { inlineData: { mimeType: 'audio/wav', data: wavBase64 } }
+          ]
+        }
+      ],
       generationConfig: {
         responseMimeType: 'application/json',
         responseSchema: {
@@ -94,7 +98,10 @@ async function rambler({ apiKey, model, wavBase64, selection, language }) {
   await check(res);
   const j = await res.json();
   const parts = (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
-  const raw = parts.filter((p) => p.text && !p.thought).map((p) => p.text).join('');
+  const raw = parts
+    .filter((p) => p.text && !p.thought)
+    .map((p) => p.text)
+    .join('');
   try {
     const out = JSON.parse(raw);
     return { transcript: out.transcript || '', text: (out.text || '').trim(), usage: j.usageMetadata };
@@ -115,14 +122,26 @@ async function transcribe({ apiKey, model, wavBase64, language }) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
     body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: TRANSCRIBE_PROMPT(language) }, { inlineData: { mimeType: 'audio/wav', data: wavBase64 } }] }],
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: TRANSCRIBE_PROMPT(language) }, { inlineData: { mimeType: 'audio/wav', data: wavBase64 } }]
+        }
+      ],
       generationConfig: { temperature: 0 }
     })
   });
   await check(res);
   const j = await res.json();
   const parts = (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
-  return { text: parts.filter((p) => p.text && !p.thought).map((p) => p.text).join('').trim(), usage: j.usageMetadata };
+  return {
+    text: parts
+      .filter((p) => p.text && !p.thought)
+      .map((p) => p.text)
+      .join('')
+      .trim(),
+    usage: j.usageMetadata
+  };
 }
 
 async function testKey(apiKey) {

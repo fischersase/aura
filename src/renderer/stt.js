@@ -29,15 +29,25 @@ async function load(model) {
     const adapter = navigator.gpu ? await navigator.gpu.requestAdapter().catch(() => null) : null;
     if (adapter) {
       try {
-        return await pipeline('automatic-speech-recognition', model, { device: 'webgpu', dtype: 'fp32', progress_callback: progress });
+        return await pipeline('automatic-speech-recognition', model, {
+          device: 'webgpu',
+          dtype: 'fp32',
+          progress_callback: progress
+        });
       } catch (err) {
         console.warn('WebGPU nicht nutzbar, nehme WASM:', err);
       }
     }
-    return pipeline('automatic-speech-recognition', model, { device: 'wasm', dtype: 'q8', progress_callback: progress });
+    return pipeline('automatic-speech-recognition', model, {
+      device: 'wasm',
+      dtype: 'q8',
+      progress_callback: progress
+    });
   };
   current = { model, pipe: make() };
-  current.pipe.catch(() => { current = null; });
+  current.pipe.catch(() => {
+    current = null;
+  });
   return current.pipe;
 }
 
@@ -47,7 +57,10 @@ window.api.onSttRequest(async ({ id, wavBase64, model, language }) => {
     try {
       asr = await load(model);
     } catch (err) {
-      throw new Error(`Whisper-Modell ${model} konnte nicht geladen werden (beim ersten Mal ist Internet nötig): ${err && err.message || err}`, { cause: err });
+      throw new Error(
+        `Whisper-Modell ${model} konnte nicht geladen werden (beim ersten Mal ist Internet nötig): ${(err && err.message) || err}`,
+        { cause: err }
+      );
     }
     const audio = wavToFloat32(wavBase64);
     const out = await asr(audio, {
@@ -58,9 +71,11 @@ window.api.onSttRequest(async ({ id, wavBase64, model, language }) => {
     });
     window.api.sttResult({ id, text: String(out.text || '').trim() });
   } catch (err) {
-    window.api.sttResult({ id, error: String(err && err.message || err) });
+    window.api.sttResult({ id, error: String((err && err.message) || err) });
   }
 });
 
-window.api.onSttPreload(({ model }) => { load(model).catch(() => {}); });
+window.api.onSttPreload(({ model }) => {
+  load(model).catch(() => {});
+});
 window.api.sttReady();

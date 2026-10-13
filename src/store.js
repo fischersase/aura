@@ -72,9 +72,11 @@ function getApiKey() {
 
 function setApiKey(key) {
   const k = (key || '').trim();
-  const enc = !k ? '' : safeStorage.isEncryptionAvailable()
-    ? safeStorage.encryptString(k).toString('base64')
-    : Buffer.from(k, 'utf8').toString('base64');
+  const enc = !k
+    ? ''
+    : safeStorage.isEncryptionAvailable()
+      ? safeStorage.encryptString(k).toString('base64')
+      : Buffer.from(k, 'utf8').toString('base64');
   save({ apiKeyEnc: enc });
 }
 
@@ -86,7 +88,10 @@ function publicSettings() {
     hasApiKey: !!getApiKey(),
     platform: process.platform,
     version: app.getVersion(),
-    session: process.platform === 'linux' ? (process.env.XDG_SESSION_TYPE || (process.env.WAYLAND_DISPLAY ? 'wayland' : 'x11')) : ''
+    session:
+      process.platform === 'linux'
+        ? process.env.XDG_SESSION_TYPE || (process.env.WAYLAND_DISPLAY ? 'wayland' : 'x11')
+        : ''
   };
 }
 
@@ -100,7 +105,10 @@ function profilePrompt() {
     p.about && `Über den Nutzer: ${p.about}`,
     p.preferences && `Wünsche an Antworten: ${p.preferences}`
   ].filter(Boolean);
-  return lines.length ? 'Profil des Nutzers (selbst angegeben; nutze es, wo es hilft, ohne es ungefragt aufzuzählen):\n' + lines.join('\n') : '';
+  return lines.length
+    ? 'Profil des Nutzers (selbst angegeben; nutze es, wo es hilft, ohne es ungefragt aufzuzählen):\n' +
+        lines.join('\n')
+    : '';
 }
 
 const isLocal = () => load().provider === 'ollama';
@@ -108,4 +116,15 @@ const isLocal = () => load().provider === 'ollama';
 // Startklar: lokal braucht keinen Key, Gemini schon.
 const ready = () => isLocal() || !!getApiKey();
 
-module.exports = { DEFAULTS, DEFAULT_PROFILE, profilePrompt, load, save, getApiKey, setApiKey, publicSettings, isLocal, ready };
+module.exports = {
+  DEFAULTS,
+  DEFAULT_PROFILE,
+  profilePrompt,
+  load,
+  save,
+  getApiKey,
+  setApiKey,
+  publicSettings,
+  isLocal,
+  ready
+};

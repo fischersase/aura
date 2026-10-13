@@ -11,7 +11,8 @@ const { AgentBridge } = require('../src/agent2/bridge');
 const ROOT = path.join(__dirname, '..');
 const VENV_PY = path.join(ROOT, 'agent', '.venv', process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python');
 // AURA_AGENT_PYTHON: z. B. das Python eines installierten Aura (CI prüft so den Windows-Installer).
-const HAS_PYTHON = fs.existsSync(VENV_PY) || (process.env.AURA_AGENT_PYTHON && fs.existsSync(process.env.AURA_AGENT_PYTHON));
+const HAS_PYTHON =
+  fs.existsSync(VENV_PY) || (process.env.AURA_AGENT_PYTHON && fs.existsSync(process.env.AURA_AGENT_PYTHON));
 
 function pair() {
   const a = new Peer((line) => setImmediate(() => b.feed(line)));
@@ -50,41 +51,56 @@ test('rpc: Zeilen dürfen zerstückelt ankommen', async () => {
   assert.deepStrictEqual(got, [1, 1]);
 });
 
-test('bridge: echter Python-Agent mit Drehbuch – lesen, fragen, ablehnen', { skip: !HAS_PYTHON && 'agent/.venv fehlt (cd agent && uv sync)' }, async () => {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'aura-bridge-'));
-  const victim = path.join(tmp, 'bleibt.txt');
-  fs.writeFileSync(victim, 'x');
-  const script = path.join(tmp, 'script.json');
-  fs.writeFileSync(script, JSON.stringify([
-    [{ name: 'list_dir', args: { path: tmp } }],
-    [{ name: 'run_command', args: { command: `rm ${victim}` } }],
-    'Ordner gelesen, Löschen wurde abgelehnt.'
-  ]));
-  process.env.AURA_AGENT_TEST_SCRIPT = script;
-  const approvals = [];
-  const bridge = new AgentBridge({
-    app: { isPackaged: false, getAppPath: () => ROOT, getPath: () => tmp },
-    settings: () => ({ model: 'scripted', dataDir: path.join(tmp, 'agent'), auraDir: path.join(tmp, 'aura') }),
-    host: {
-      approve: async (req) => { approvals.push(req); return { decision: 'deny' }; },
-      screenshot: async () => ({ mime: 'image/jpeg', data: '' })
-    }
-  });
-  const steps = [];
-  let text = '';
-  try {
-    const done = await bridge.runTask({ taskId: 't1', chatId: 'c1', text: 'lösch bleibt.txt' }, {
-      onText: (d) => { text += d; },
-      onStep: (s) => steps.push(`${s.tool}:${s.state}`)
+test(
+  'bridge: echter Python-Agent mit Drehbuch – lesen, fragen, ablehnen',
+  { skip: !HAS_PYTHON && 'agent/.venv fehlt (cd agent && uv sync)' },
+  async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'aura-bridge-'));
+    const victim = path.join(tmp, 'bleibt.txt');
+    fs.writeFileSync(victim, 'x');
+    const script = path.join(tmp, 'script.json');
+    fs.writeFileSync(
+      script,
+      JSON.stringify([
+        [{ name: 'list_dir', args: { path: tmp } }],
+        [{ name: 'run_command', args: { command: `rm ${victim}` } }],
+        'Ordner gelesen, Löschen wurde abgelehnt.'
+      ])
+    );
+    process.env.AURA_AGENT_TEST_SCRIPT = script;
+    const approvals = [];
+    const bridge = new AgentBridge({
+      app: { isPackaged: false, getAppPath: () => ROOT, getPath: () => tmp },
+      settings: () => ({ model: 'scripted', dataDir: path.join(tmp, 'agent'), auraDir: path.join(tmp, 'aura') }),
+      host: {
+        approve: async (req) => {
+          approvals.push(req);
+          return { decision: 'deny' };
+        },
+        screenshot: async () => ({ mime: 'image/jpeg', data: '' })
+      }
     });
-    assert.strictEqual(done.text, 'Ordner gelesen, Löschen wurde abgelehnt.');
-    assert.strictEqual(text, done.text);
-    assert.deepStrictEqual(steps, ['list_dir:run', 'list_dir:ok', 'run_command:ask', 'run_command:denied']);
-    assert.strictEqual(approvals.length, 1);
-    assert.strictEqual(approvals[0].tool, 'run_command');
-    assert.ok(fs.existsSync(victim), 'Datei darf nicht gelöscht sein');
-  } finally {
-    bridge.stop();
-    delete process.env.AURA_AGENT_TEST_SCRIPT;
+    const steps = [];
+    let text = '';
+    try {
+      const done = await bridge.runTask(
+        { taskId: 't1', chatId: 'c1', text: 'lösch bleibt.txt' },
+        {
+          onText: (d) => {
+            text += d;
+          },
+          onStep: (s) => steps.push(`${s.tool}:${s.state}`)
+        }
+      );
+      assert.strictEqual(done.text, 'Ordner gelesen, Löschen wurde abgelehnt.');
+      assert.strictEqual(text, done.text);
+      assert.deepStrictEqual(steps, ['list_dir:run', 'list_dir:ok', 'run_command:ask', 'run_command:denied']);
+      assert.strictEqual(approvals.length, 1);
+      assert.strictEqual(approvals[0].tool, 'run_command');
+      assert.ok(fs.existsSync(victim), 'Datei darf nicht gelöscht sein');
+    } finally {
+      bridge.stop();
+      delete process.env.AURA_AGENT_TEST_SCRIPT;
+    }
   }
-});
+);

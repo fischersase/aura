@@ -1,5 +1,20 @@
 const $ = (id) => document.getElementById(id);
-const FIELDS = ['provider', 'monthlyBudgetUsd', 'hotkeyGemini', 'hotkeyRambler', 'hotkeyLive', 'hotkeyStop', 'chatModel', 'liveModel', 'ramblerModel', 'dictationModel', 'liveVoice', 'language', 'liveFps', 'panelCorner'];
+const FIELDS = [
+  'provider',
+  'monthlyBudgetUsd',
+  'hotkeyGemini',
+  'hotkeyRambler',
+  'hotkeyLive',
+  'hotkeyStop',
+  'chatModel',
+  'liveModel',
+  'ramblerModel',
+  'dictationModel',
+  'liveVoice',
+  'language',
+  'liveFps',
+  'panelCorner'
+];
 let keyTouched = false;
 let olPanel = null;
 
@@ -10,7 +25,9 @@ function status(el, text, ok) {
 
 async function load() {
   const s = await window.api.getSettings();
-  FIELDS.forEach((f) => { $(f).value = s[f] != null ? String(s[f]) : ''; });
+  FIELDS.forEach((f) => {
+    $(f).value = s[f] != null ? String(s[f]) : '';
+  });
   $('versionLine').textContent = `Version ${s.version}` + (s.session ? ` · Linux (${s.session})` : '');
   $('autostart').checked = !!s.autostart;
   $('glowStay').checked = !!s.glowStay;
@@ -30,18 +47,39 @@ function applyProvider() {
 $('provider').addEventListener('change', applyProvider);
 
 // Tastenkombination aufnehmen → Electron-Accelerator ("Control+Alt+G")
-const KEYMAP = { ' ': 'Space', ArrowUp: 'Up', ArrowDown: 'Down', ArrowLeft: 'Left', ArrowRight: 'Right', Escape: 'Escape', Enter: 'Return' };
+const KEYMAP = {
+  ' ': 'Space',
+  ArrowUp: 'Up',
+  ArrowDown: 'Down',
+  ArrowLeft: 'Left',
+  ArrowRight: 'Right',
+  Escape: 'Escape',
+  Enter: 'Return'
+};
 document.querySelectorAll('input.hotkey').forEach((el) => {
   el.addEventListener('keydown', (e) => {
     e.preventDefault();
-    if (e.key === 'Backspace' || e.key === 'Delete') { el.value = ''; return; }
+    if (e.key === 'Backspace' || e.key === 'Delete') {
+      el.value = '';
+      return;
+    }
     if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return;
     const mods = [];
     if (e.ctrlKey) mods.push('Control');
     if (e.altKey) mods.push('Alt');
     if (e.shiftKey) mods.push('Shift');
     if (e.metaKey) mods.push('Super');
-    let key = KEYMAP[e.key] || (e.code.startsWith('Key') ? e.code.slice(3) : e.code.startsWith('Digit') ? e.code.slice(5) : /^F\d+$/.test(e.key) ? e.key : e.key.length === 1 ? e.key.toUpperCase() : e.key);
+    let key =
+      KEYMAP[e.key] ||
+      (e.code.startsWith('Key')
+        ? e.code.slice(3)
+        : e.code.startsWith('Digit')
+          ? e.code.slice(5)
+          : /^F\d+$/.test(e.key)
+            ? e.key
+            : e.key.length === 1
+              ? e.key.toUpperCase()
+              : e.key);
     if (!mods.length && !/^F\d+$/.test(key)) {
       status($('hotkeyStatus'), 'Bitte mit Strg, Alt, Umschalt oder Win kombinieren.', false);
       return;
@@ -51,7 +89,9 @@ document.querySelectorAll('input.hotkey').forEach((el) => {
   });
 });
 
-$('apiKey').addEventListener('input', () => { keyTouched = true; });
+$('apiKey').addEventListener('input', () => {
+  keyTouched = true;
+});
 
 $('testKey').onclick = async () => {
   status($('keyStatus'), 'Prüfe …');
@@ -61,7 +101,9 @@ $('testKey').onclick = async () => {
 
 $('save').onclick = async () => {
   const patch = {};
-  FIELDS.forEach((f) => { patch[f] = $(f).value.trim(); });
+  FIELDS.forEach((f) => {
+    patch[f] = $(f).value.trim();
+  });
   patch.liveFps = Number(patch.liveFps) || 1;
   patch.monthlyBudgetUsd = Math.max(0, Number(String(patch.monthlyBudgetUsd).replace(',', '.')) || 0);
   patch.autostart = $('autostart').checked;
@@ -88,7 +130,11 @@ $('save').onclick = async () => {
 
 function showUsage(u) {
   const f = (v) => v.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  status($('usageLine'), `Diesen Monat geschätzt: ${f(u.costUsd)} $${u.budgetUsd ? ' von ' + f(u.budgetUsd) + ' $' : ''} (${u.requests} Anfragen)`, !u.overBudget);
+  status(
+    $('usageLine'),
+    `Diesen Monat geschätzt: ${f(u.costUsd)} $${u.budgetUsd ? ' von ' + f(u.budgetUsd) + ' $' : ''} (${u.requests} Anfragen)`,
+    !u.overBudget
+  );
 }
 window.api.getUsage().then(showUsage);
 window.api.onUsage(showUsage);
@@ -105,12 +151,22 @@ async function showExtensions(force) {
   el.textContent = 'Lade …';
   const x = await window.api.agentExtensions(force === true);
   el.innerHTML = '';
-  const line = (text, cls) => { const d = document.createElement('div'); d.textContent = text; if (cls) d.className = cls; el.appendChild(d); };
+  const line = (text, cls) => {
+    const d = document.createElement('div');
+    d.textContent = text;
+    if (cls) d.className = cls;
+    el.appendChild(d);
+  };
   line('Eingebaute Werkzeuge: ' + x.builtin.join(', '));
   line(x.hasAgentsMd ? 'AGENTS.md: wird verwendet' : 'AGENTS.md: leer');
   line(x.skills.length ? `Skills: ${x.skills.map((s) => s.name).join(', ')}` : 'Skills: keine');
   if (!x.mcp.length) line('MCP-Server: keine');
-  x.mcp.forEach((m) => line(m.error ? `MCP ${m.name}: Fehler – ${m.error}` : `MCP ${m.name}: ${m.toolNames.join(', ') || 'keine Werkzeuge'}`, m.error ? 'bad' : 'ok'));
+  x.mcp.forEach((m) =>
+    line(
+      m.error ? `MCP ${m.name}: Fehler – ${m.error}` : `MCP ${m.name}: ${m.toolNames.join(', ') || 'keine Werkzeuge'}`,
+      m.error ? 'bad' : 'ok'
+    )
+  );
   const hint = document.createElement('div');
   hint.className = 'hint';
   hint.textContent = `Ordner: ${x.auraDir}`;
@@ -120,7 +176,10 @@ $('reloadExt').onclick = () => showExtensions(true);
 showExtensions();
 document.addEventListener('click', (e) => {
   const a = e.target.closest('a[data-url]');
-  if (a) { e.preventDefault(); window.api.openExternal(a.dataset.url); }
+  if (a) {
+    e.preventDefault();
+    window.api.openExternal(a.dataset.url);
+  }
 });
 
 load();

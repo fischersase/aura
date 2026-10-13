@@ -1,6 +1,17 @@
 // Live mit lokalen Modellen: Sprache erkennen (Whisper), Antwort mit Bildschirmfoto (Ollama), vorlesen.
 // Anders als die Gemini Live API ist das ein Wechselgespräch: zuhören → nachdenken → sprechen.
-const LANG_CODES = { deutsch: 'de-DE', german: 'de-DE', englisch: 'en-US', english: 'en-US', französisch: 'fr-FR', french: 'fr-FR', spanisch: 'es-ES', spanish: 'es-ES', italienisch: 'it-IT', italian: 'it-IT' };
+const LANG_CODES = {
+  deutsch: 'de-DE',
+  german: 'de-DE',
+  englisch: 'en-US',
+  english: 'en-US',
+  französisch: 'fr-FR',
+  french: 'fr-FR',
+  spanisch: 'es-ES',
+  spanish: 'es-ES',
+  italienisch: 'it-IT',
+  italian: 'it-IT'
+};
 
 class LocalLiveSession {
   constructor(ui) {
@@ -24,7 +35,8 @@ class LocalLiveSession {
     this.resetVad();
     this.noise = 0.01;
     this.offProgress = window.api.onSttProgress((p) => {
-      if (this.state === 'thinking') this.ui.status(`Lade Spracherkennung … ${Math.round((p.loaded / p.total) * 100)} %`);
+      if (this.state === 'thinking')
+        this.ui.status(`Lade Spracherkennung … ${Math.round((p.loaded / p.total) * 100)} %`);
     });
     this.offHeard = window.api.onLiveHeard(({ id, text }) => {
       if (id !== this.turnId || !this.youEl) return;
@@ -46,7 +58,9 @@ class LocalLiveSession {
   listen() {
     this.state = 'listening';
     this.resetVad();
-    this.ui.status(this.muted ? 'Mikrofon stumm' : this.screenOn ? 'Hört zu und sieht deinen Bildschirm (lokal)' : 'Hört zu (lokal)');
+    this.ui.status(
+      this.muted ? 'Mikrofon stumm' : this.screenOn ? 'Hört zu und sieht deinen Bildschirm (lokal)' : 'Hört zu (lokal)'
+    );
   }
 
   // Einfache Sprach-Erkennung über die Lautstärke (100-ms-Blöcke).
@@ -122,24 +136,32 @@ class LocalLiveSession {
   }
 
   speak(text) {
-    if (!text || !('speechSynthesis' in window)) { this.listen(); return; }
+    if (!text || !('speechSynthesis' in window)) {
+      this.listen();
+      return;
+    }
     const u = new SpeechSynthesisUtterance(text);
     u.lang = this.lang;
     const voices = speechSynthesis.getVoices();
     const base = this.lang.slice(0, 2);
-    const voice = voices.find((v) => v.lang === this.lang && v.localService) || voices.find((v) => v.lang.startsWith(base));
+    const voice =
+      voices.find((v) => v.lang === this.lang && v.localService) || voices.find((v) => v.lang.startsWith(base));
     if (voice) u.voice = voice;
     u.rate = 1.05;
     this.state = 'speaking';
     this.ui.status('Spricht … (einfach reinreden zum Unterbrechen)');
-    const done = () => { if (this.active && this.state === 'speaking') this.listen(); };
+    const done = () => {
+      if (this.active && this.state === 'speaking') this.listen();
+    };
     u.onend = done;
     u.onerror = done;
     speechSynthesis.cancel();
     speechSynthesis.speak(u);
     // Ohne installierte Stimme feuert onend teils nicht.
     clearTimeout(this.speakTimer);
-    this.speakTimer = setTimeout(() => { if (!speechSynthesis.speaking) done(); }, 1500);
+    this.speakTimer = setTimeout(() => {
+      if (!speechSynthesis.speaking) done();
+    }, 1500);
   }
 
   toggleScreen() {
@@ -170,7 +192,10 @@ class LocalLiveSession {
         v = this.muted ? 0 : Math.min(1, this.micLevel * 6);
       }
       this.ui.level(v, out);
-      if (now - last > 33) { window.api.glowLevel(v); last = now; }
+      if (now - last > 33) {
+        window.api.glowLevel(v);
+        last = now;
+      }
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
@@ -182,7 +207,9 @@ class LocalLiveSession {
     this.turnId++;
     window.api.abortLiveTurn();
     clearTimeout(this.speakTimer);
-    try { speechSynthesis.cancel(); } catch {}
+    try {
+      speechSynthesis.cancel();
+    } catch {}
     if (this.mic) this.mic.close();
     this.mic = null;
     if (this.offProgress) this.offProgress();
