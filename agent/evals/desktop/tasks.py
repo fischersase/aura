@@ -162,7 +162,7 @@ def _installed(program: str) -> bool:
 
 
 def _says_installed(o: Outcome) -> bool:
-    said = re.search(r"bereits installiert|schon installiert|ist installiert", o.text or "", re.IGNORECASE)
+    said = re.search(r"\b(bereits|schon|ist)\b[^.]{0,40}\binstalliert", o.text or "", re.IGNORECASE)
     tried = any(
         s["tool"] == "run_command" and re.search(r"apt|snap|flatpak|install", s["label"]) for s in o.steps
     )
