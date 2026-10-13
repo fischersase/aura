@@ -38,6 +38,14 @@ class Host(Protocol):
         """Authorization header for one request to an OAuth MCP server (AURA-95); raises if not signed in."""
         ...
 
+    async def logins_for(self, origin: str) -> dict[str, Any]:
+        """Website logins stored for an origin (AURA-124): {logins: [{name, username}]}, never passwords."""
+        ...
+
+    async def login_fill(self, name: str, origin: str) -> dict[str, Any]:
+        """Credentials of a website login, only for its own origin: {username, password} or {error}."""
+        ...
+
     async def schedule_task(self, request: dict[str, Any]) -> dict[str, Any]:
         """Store a scheduled task in the app (AURA-121). Answer: {id, title, when} or {error}."""
         ...
@@ -78,6 +86,8 @@ class TaskContext:
     # Approvals "für diesen Auftrag" (AURA-119): (tool, subject) pairs, never a blanket allow.
     grants: set[tuple[str, str]] = field(default_factory=set)
     origin: str = ""  # website the browser is on (from the last browser result)
+    # Values that must never reach the model again, e.g. a password filled into a page (AURA-124).
+    masked: set[str] = field(default_factory=set)
     processes: set[asyncio.subprocess.Process] = field(default_factory=set)
     tool_errors_in_row: int = 0
     steps: int = 0

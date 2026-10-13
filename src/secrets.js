@@ -9,16 +9,18 @@ const { protectionOf, assertStorable, enableWeakIfAllowed } = require('./keystor
 
 const GEMINI = 'GEMINI_API_KEY'; // liegt in den Einstellungen, wird hier nur mit angezeigt
 const REF = /\$\{secret:([A-Za-z0-9_.-]+)\}/g;
-const KINDS = ['api_key', 'oauth', 'password', 'basic'];
+// login (AURA-124): {username, password} for one website origin, filled into the browser without the model seeing it.
+const KINDS = ['api_key', 'oauth', 'password', 'basic', 'login'];
 const LAST_USED_EVERY_MS = 60 * 1000; // lastUsed at most once a minute per secret (resolve runs on every MCP start)
 const validName = (/** @type {unknown} */ n) => /^[A-Za-z0-9_.-]{1,64}$/.test(String(n || ''));
 
-/** @typedef {'api_key' | 'oauth' | 'password' | 'basic'} SecretKind */
+/** @typedef {'api_key' | 'oauth' | 'password' | 'basic' | 'login'} SecretKind */
 /**
  * One stored credential. For oauth, enc holds the refresh token; access tokens never touch the disk.
  * @typedef {object} SecretEntry
  * @property {SecretKind} kind
  * @property {string} enc
+ * @property {string} [origin] website of a login (AURA-124)
  * @property {number} created
  * @property {number} updated
  * @property {string} note
@@ -154,7 +156,7 @@ function createVault(deps) {
    * @param {string} name
    * @param {unknown} value
    * @param {unknown} [note]
-   * @param {{ kind?: SecretKind, provider?: string, scopes?: string[], expiresAt?: number }} [meta]
+   * @param {{ kind?: SecretKind, provider?: string, scopes?: string[], expiresAt?: number, origin?: string }} [meta]
    */
   function set(name, value, note, meta = {}) {
     if (!validName(name))
@@ -181,10 +183,46 @@ function createVault(deps) {
       ...(meta.provider ? { provider: String(meta.provider).slice(0, 200) } : {}),
       ...(meta.scopes ? { scopes: meta.scopes.map(String).slice(0, 50) } : {}),
       ...(meta.expiresAt ? { expiresAt: Number(meta.expiresAt) } : {}),
+      ...(meta.origin ? { origin: String(meta.origin).slice(0, 200) } : {}),
       ...(prev && prev.lastUsed ? { lastUsed: prev.lastUsed } : {})
     };
     write(all);
     audit.write({ action: 'set', name, kind });
+  }
+
+  /**
+   * Website logins for one origin (AURA-124): names and user names only, never passwords.
+   * @param {string} origin
+   */
+  function loginsFor(origin) {
+    return Object.entries(read())
+      .filter(([, e]) => e.kind === 'login' && e.origin === origin)
+      .map(([name, e]) => {
+        let username = '';
+        try {
+          username = String(JSON.parse(decrypt(e)).username || '');
+        } catch {}
+        return { name, username };
+      });
+  }
+
+  /**
+   * The credentials of a website login, only for its own origin (like a password manager's origin binding).
+   * @param {string} name
+   * @param {string} origin
+   * @param {string} [by]
+   * @returns {{ username: string, password: string }}
+   */
+  function loginFor(name, origin, by) {
+    const e = read()[name];
+    if (!e || e.kind !== 'login') throw new Error(`Kein Website-Login „${name}“.`);
+    if (!origin || e.origin !== origin)
+      throw new Error(
+        `„${name}“ gehört zu ${e.origin || '?'}, nicht zu ${origin || '?'}. Aura füllt ihn dort nicht aus.`
+      );
+    const v = JSON.parse(decrypt(e));
+    markUsed(name, by || 'browser');
+    return { username: String(v.username || ''), password: String(v.password || '') };
   }
 
   /**
@@ -226,7 +264,8 @@ function createVault(deps) {
       let hint = '',
         broken = false;
       try {
-        hint = tail(decrypt(e));
+        // A website login shows its user name, never the end of the password (AURA-124).
+        hint = e.kind === 'login' ? String(JSON.parse(decrypt(e)).username || '') : tail(decrypt(e));
       } catch {
         broken = true;
       }
@@ -237,6 +276,7 @@ function createVault(deps) {
         provider: e.provider,
         scopes: e.scopes,
         expiresAt: e.expiresAt,
+        origin: e.origin,
         lastUsed: e.lastUsed,
         created: e.created,
         updated: e.updated,
@@ -302,7 +342,7 @@ function createVault(deps) {
     return out;
   }
 
-  return { protection, get, set, setNote, remove, list, resolve, resolveServerConfig, markUsed };
+  return { protection, get, set, setNote, remove, list, resolve, resolveServerConfig, markUsed, loginsFor, loginFor };
 }
 
 const refsIn = (/** @type {unknown} */ value) => [...JSON.stringify(value || {}).matchAll(REF)].map((m) => m[1]);
@@ -354,5 +394,9 @@ module.exports = {
   /** @param {Record<string, unknown>} cfg */
   resolveServerConfig: (cfg) => appVault().resolveServerConfig(cfg),
   /** @param {string} name @param {string} [by] */
-  markUsed: (name, by) => appVault().markUsed(name, by)
+  markUsed: (name, by) => appVault().markUsed(name, by),
+  /** @param {string} origin */
+  loginsFor: (origin) => appVault().loginsFor(origin),
+  /** @param {string} name @param {string} origin @param {string} [by] */
+  loginFor: (name, origin, by) => appVault().loginFor(name, origin, by)
 };

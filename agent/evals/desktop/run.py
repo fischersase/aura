@@ -65,9 +65,14 @@ async def run_task(task: Task, display: str, model: str, num_ctx: int) -> dict[s
             session_type="x11",
             browser_headless=True,
             connectors=CONNECTORS,  # the app always sends the catalog (AURA-96)
+            login_origins=sorted(
+                {lg["origin"].replace("{web}", web.base if web else "") for lg in task.logins.values()}
+            ),
             **task.settings,
         )
         host = FakeHost(task.approve, answers=list(task.answers))
+        for name, login in task.logins.items():
+            host.logins[name] = {**login, "origin": login["origin"].replace("{web}", web.base if web else "")}
         llm = OllamaLlm(model=f"ollama/{model}", num_ctx=num_ctx, think=False)
         ctl = TaskController(
             build_runner(settings, llm, browser=task.browser),

@@ -80,6 +80,12 @@ class RpcHost:
             raise RuntimeError((res or {}).get("error") or "Nicht verbunden – in der Aura Zentrale anmelden.")
         return {"Authorization": header}
 
+    async def logins_for(self, origin: str) -> dict[str, Any]:
+        return await self.peer.request("host.loginsFor", {"origin": origin}, timeout=30) or {}
+
+    async def login_fill(self, name: str, origin: str) -> dict[str, Any]:
+        return await self.peer.request("host.loginFill", {"name": name, "origin": origin}, timeout=30) or {}
+
     async def schedule_task(self, request: dict[str, Any]) -> dict[str, Any]:
         return await self.peer.request("host.scheduleTask", request, timeout=30) or {}
 

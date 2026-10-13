@@ -85,6 +85,7 @@
     'secrets',
     'setSecret',
     'setSecretNote',
+    'setLogin',
     'deleteSecret',
     'setWeakStorage',
     'profile',

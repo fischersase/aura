@@ -568,6 +568,30 @@ const API = {
     } catch {}
     return API.secrets();
   },
+  // Website login (AURA-124): user name + password for one origin, stored together and encrypted.
+  setLogin({ name, url, username, password, note } = {}) {
+    let origin;
+    try {
+      const u = new URL(String(url || '').trim());
+      if (!/^https?:$/.test(u.protocol)) throw new Error();
+      origin = u.origin;
+    } catch {
+      return { error: 'Bitte die Adresse der Website angeben, z. B. https://www.bahn.de' };
+    }
+    if (!String(username || '').trim() || !String(password || ''))
+      return { error: 'Benutzername und Passwort angeben.' };
+    try {
+      secrets.set(
+        String(name || '').trim(),
+        JSON.stringify({ username: String(username).trim(), password: String(password) }),
+        note || `Login für ${origin}`,
+        { kind: 'login', origin }
+      );
+    } catch (e) {
+      return { error: e.message };
+    }
+    return API.secrets();
+  },
   setSecretNote({ name, note }) {
     secrets.setNote(name, note);
     return API.secrets();

@@ -168,6 +168,14 @@ def instruction(
                 "schedule_task; das genaue Datum rechnest du aus „Jetzt“ aus. Bei „sag mir, wenn …“ (neue Mails, Tickets, "
                 "Änderungen) mit only_if_new=true und kind=interval. Geplantes ansehen oder löschen: "
                 "list_scheduled_tasks, cancel_scheduled_task.\n"
+                + (
+                    "- Für diese Websites hat der Nutzer in Aura Zugangsdaten hinterlegt; Aufträge dort (auch „zeig mir "
+                    "meine …“) erledigt immer browser, der sich damit anmeldet: "
+                    + ", ".join(settings.login_origins)
+                    + "\n"
+                    if settings.login_origins and has_browser
+                    else ""
+                )
                 + "- Was gerade auf dem Bildschirm zu sehen ist: screenshot.\n"
                 + f"- Alles andere: run_command ({SHELL_NAME}). Nur lesende Befehle laufen ohne Rückfrage. Pfade dürfen mit ~ beginnen."
             ),

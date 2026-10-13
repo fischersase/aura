@@ -53,6 +53,7 @@ const CONFIRM = {
   deleteSkill: (a) => `Skill „${a}“ löschen`,
   toggleSkill: (a) => `Skill „${a.name}“ ${a.enabled ? 'einschalten' : 'ausschalten'}`,
   saveAgentsMd: () => 'Anweisungen an den Agenten (AGENTS.md) überschreiben',
+  setLogin: (a) => `Website-Login „${a && a.name}“ für ${a && a.url} speichern`,
   setSecret: (a) => `Schlüssel „${a.name}“ setzen`,
   deleteSecret: (a) => `Schlüssel „${a}“ löschen`,
   setWeakStorage: (a) =>

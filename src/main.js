@@ -805,6 +805,15 @@ const agentV2 = new AgentBridge({
       memoryPaused: !!s.memoryPaused,
       // Location (AURA-116): only what the user allowed in the profile.
       locationMode: (s.profile && s.profile.locationMode) || 'profile',
+      // Websites with a stored login (origins only, AURA-124).
+      loginOrigins: [
+        ...new Set(
+          secrets
+            .list()
+            .filter((e) => e.kind === 'login' && e.origin)
+            .map((e) => e.origin)
+        )
+      ],
       profilePlace: s.profile && s.profile.share ? s.profile.location || '' : '',
       dataDir: path.join(app.getPath('userData'), 'agent'),
       auraDir: defaultAuraDir()
@@ -856,6 +865,23 @@ const agentV2 = new AgentBridge({
         return connectors.registrySummary(await zentrale.API.searchRegistry(String((req && req.query) || '')));
       } catch (err) {
         return { results: [], error: err instanceof Error ? err.message : String(err) };
+      }
+    },
+    // Website logins (AURA-124): names for the page's origin; credentials only for exactly that origin, filled by
+    // the agent straight into the page without the model seeing them.
+    loginsFor: async (req) => {
+      try {
+        return { logins: secrets.loginsFor(String((req && req.origin) || '')) };
+      } catch (err) {
+        return { logins: [], error: err instanceof Error ? err.message : String(err) };
+      }
+    },
+    loginFill: async (req) => {
+      try {
+        const origin = String((req && req.origin) || '');
+        return secrets.loginFor(String((req && req.name) || ''), origin, `browser ${origin}`);
+      } catch (err) {
+        return { error: err instanceof Error ? err.message : String(err) };
       }
     },
     // Scheduled tasks from the chat (AURA-121); the agent's schedule_task is T2, so the user approved it already.

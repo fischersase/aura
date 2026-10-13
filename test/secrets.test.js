@@ -186,3 +186,22 @@ test('store: a legacy plaintext key keeps working and is re-encrypted once a key
   assert.ok(!raw.includes(Buffer.from(key).toString('base64')), 'migrated to encrypted');
   assert.strictEqual(store.getApiKey(), key);
 });
+
+test('website logins are bound to their origin and never show the password (AURA-124)', () => {
+  const { vault: v } = setup();
+  v.set('BAHN', JSON.stringify({ username: 'anna@example.org', password: 'Geheim-123!' }), 'Bahn', {
+    kind: 'login',
+    origin: 'https://www.bahn.de'
+  });
+  assert.deepStrictEqual(v.loginsFor('https://www.bahn.de'), [{ name: 'BAHN', username: 'anna@example.org' }]);
+  assert.deepStrictEqual(v.loginsFor('https://evil.example'), []);
+  assert.deepStrictEqual(v.loginFor('BAHN', 'https://www.bahn.de'), {
+    username: 'anna@example.org',
+    password: 'Geheim-123!'
+  });
+  assert.throws(() => v.loginFor('BAHN', 'https://evil.example'), /nicht zu https:\/\/evil\.example/);
+  const listed = v.list().find((e) => e.name === 'BAHN');
+  assert.strictEqual(listed.hint, 'anna@example.org');
+  assert.strictEqual(listed.origin, 'https://www.bahn.de');
+  assert.ok(!JSON.stringify(v.list()).includes('Geheim'), 'no part of the password in the listing');
+});

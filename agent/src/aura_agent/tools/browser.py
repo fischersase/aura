@@ -199,9 +199,10 @@ def build_browser_toolset(settings: AgentSettings, headless: bool = False) -> Mc
 BROWSER_INSTRUCTION = """Du bist der Browser-Spezialist von Aura. Du bedienst Webseiten in einem eigenen Browserfenster.
 
 Vorgehen:
-0. Siehst du ein Login-Formular, eine Login-Wand („Bitte anmelden“), eine Sicherheitsabfrage („Ich bin kein Roboter“,
-   CAPTCHA), einen Zwei-Faktor-Code oder einen Bezahlschritt: sofort request_takeover mit einem kurzen Grund. Du gibst
-   nie selbst Passwörter oder Codes ein und fragst auch nicht danach.
+0. Sicherheitsabfrage („Ich bin kein Roboter“, CAPTCHA, „bestätige, dass du ein Mensch bist“), Zwei-Faktor-Code oder
+   Bezahlschritt: sofort request_takeover mit einem kurzen Grund – auch wenn du eigentlich nur etwas lesen sollst.
+   Login-Formular oder Login-Wand („Bitte anmelden“): erst browser_logins; mit gespeichertem Login browser_fill_login,
+   sonst request_takeover. Du tippst nie selbst Passwörter oder Codes und fragst auch nicht danach.
 1. browser_navigate zur passenden Seite (bei Suchen direkt die Such-URL, z. B. https://music.youtube.com/search?q=…).
 2. Elemente findest du mit browser_find (Text suchen) oder browser_snapshot (ganze Seite, groß – sparsam nutzen).
    Beide liefern Referenzen (ref), die du bei browser_click, browser_type usw. als target angibst.
@@ -220,8 +221,9 @@ Regeln:
 - Nichts kaufen, bestellen, senden, veröffentlichen, löschen oder Konten anlegen, wenn der Auftrag das nicht ausdrücklich verlangt.
   Solche Klicks zeigt die App dem Nutzer ohnehin zur Freigabe.
 - Keine Passwörter oder Zahlungsdaten eingeben.
-- Login ohne gespeicherte Zugangsdaten, Sicherheitsabfrage (CAPTCHA, „Ich bin kein Roboter“), Zwei-Faktor-Code oder
-  Bezahlschritt: request_takeover mit einem kurzen Grund aufrufen. Der Nutzer erledigt das selbst im Browserfenster.
+- Login-Formular: erst browser_logins. Gibt es einen gespeicherten Login für die Seite, trägst du ihn mit
+  browser_fill_login ein (du siehst das Passwort nie). Sonst, und bei Sicherheitsabfrage (CAPTCHA, „Ich bin kein
+  Roboter“), Zwei-Faktor-Code oder Bezahlschritt: request_takeover mit einem kurzen Grund aufrufen. Der Nutzer erledigt das selbst im Browserfenster.
   Danach browser_snapshot und weitermachen. Eine Sicherheitsabfrage versuchst du nie selbst zu lösen.
 - Meldet eine Seite „Zugriff verweigert“, „bot detected“ oder sperrt Automatisierung: nicht mit Tricks erneut versuchen.
   Melde das ehrlich; ein offizieller Zugang (Verbindung in der Aura Zentrale) ist dann der richtige Weg.
@@ -256,3 +258,88 @@ async def request_takeover(reason: str) -> dict[str, Any]:
         "decision": "cancel",
         "note": "Der Nutzer hat abgebrochen. Nichts weiter tun; ehrlich zurückmelden.",
     }
+
+
+def make_login_tools(toolset: McpToolset) -> list[Any]:
+    """Website logins from Aura's vault (AURA-124, FR-PAR-031).
+
+    The model only knows the login's name. The credentials come from the app for exactly the page's origin and are
+    typed by calling Playwright's browser_type directly, outside the model loop; its result (which echoes the typed
+    text) is discarded, and the password is masked in every later result of the task.
+    """
+
+    @aura_tool(Tier.T0, label=lambda a: "gespeicherte Logins")
+    async def browser_logins() -> dict[str, Any]:
+        """Zeigt, ob Aura für die aktuell geöffnete Website gespeicherte Zugangsdaten hat (nur Namen, nie Passwörter)."""
+        task = current()
+        if task is None or not task.origin:
+            return {"error": "Keine Seite offen. Erst browser_navigate oder browser_snapshot."}
+        res = await task.host.logins_for(task.origin)
+        logins = res.get("logins") or []
+        if not logins:
+            return {
+                "logins": [],
+                "note": "Kein gespeicherter Login für diese Seite: request_takeover nutzen.",
+            }
+        return {"website": task.origin, "logins": logins}
+
+    def _label(a: dict[str, Any]) -> str:
+        task = current()
+        return f"Login „{a.get('login', '')}“ auf {task.origin if task and task.origin else '?'} eintragen"
+
+    @aura_tool(Tier.T2, label=_label)
+    async def browser_fill_login(
+        login: str,
+        password_target: str,
+        username_target: str = "",
+        submit: bool = False,
+        tool_context: Any = None,
+    ) -> dict[str, Any]:
+        """Trägt einen in Aura gespeicherten Website-Login ein (Name aus browser_logins). Du siehst das Passwort nie.
+
+        Args:
+          login: Name des Logins aus browser_logins.
+          password_target: ref des Passwortfelds aus browser_snapshot oder browser_find.
+          username_target: ref des Felds für Benutzername/E-Mail (leer, wenn die Seite es nicht fragt).
+          submit: Nach dem Passwort Enter drücken (anmelden).
+        """
+        task = current()
+        if task is None or not task.origin:
+            return {"error": "Keine Seite offen. Erst browser_snapshot."}
+        creds = await task.host.login_fill(login, task.origin)
+        if creds.get("error") or not creds.get("password"):
+            return {"error": str(creds.get("error") or "Login nicht verfügbar.")}
+        password = str(creds["password"])
+        task.masked.add(password)
+        tools = {getattr(t, "name", ""): t for t in await toolset.get_tools()}
+        type_tool = tools.get("browser_type")
+        if type_tool is None:
+            return {"error": "Der Browser kann gerade nicht tippen."}
+        try:
+            if username_target:
+                await type_tool.run_async(
+                    args={
+                        "element": "Benutzername",
+                        "target": username_target,
+                        "text": str(creds.get("username", "")),
+                    },
+                    tool_context=tool_context,
+                )
+            result = await type_tool.run_async(
+                args={
+                    "element": "Passwort",
+                    "target": password_target,
+                    "text": password,
+                    "submit": bool(submit),
+                },
+                tool_context=tool_context,
+            )
+        except Exception as e:  # noqa: BLE001 - report without details that could contain the value
+            return {"error": f"Eintragen hat nicht geklappt ({e.__class__.__name__})."}
+        failed = isinstance(result, dict) and result.get("isError")
+        task.audit.write("login_filled", task=task.task_id, login=login, origin=task.origin, ok=not failed)
+        if failed:
+            return {"error": "Eintragen hat nicht geklappt. Prüfe die Felder mit browser_snapshot."}
+        return {"ok": True, "note": "Eingetragen. Prüfe mit browser_snapshot, ob die Anmeldung geklappt hat."}
+
+    return [browser_logins, browser_fill_login]
