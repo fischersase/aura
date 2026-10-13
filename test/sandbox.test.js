@@ -54,7 +54,7 @@ test('programs in ~/.local/bin do not expose ~/.local', () => {
 // Real sandbox (Linux with a working bwrap): the server cannot read the user's files, but its own directory.
 test(
   'a sandboxed program cannot read home files but can write its own directory',
-  { skip: !sandbox.findBwrap() },
+  { skip: !sandbox.findBwrap() && !process.env.AURA_REQUIRE_BWRAP },
   () => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aura-sbx-home-'));
     fs.writeFileSync(path.join(home, 'secret.txt'), 'top secret');

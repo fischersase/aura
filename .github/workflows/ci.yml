@@ -77,4 +77,8 @@ jobs:
       # Für den Ende-zu-Ende-Test der Brücke (startet den echten Python-Agenten mit Drehbuch-Modell).
       - run: uv sync --locked
         working-directory: agent
+      # Connector sandbox (AURA-97): the real isolation test must run here, not be skipped.
+      - run: sudo apt-get install -y -qq bubblewrap
       - run: npm test
+        env:
+          AURA_REQUIRE_BWRAP: '1'
