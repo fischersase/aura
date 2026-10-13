@@ -32,6 +32,8 @@ contextBridge.exposeInMainWorld('api', {
       'installRegistry',
       'connectors',
       'driftInfo',
+      'tasks',
+      'removeTask',
       'approveTools',
       'installConnector',
       'getSkill',
@@ -56,6 +58,7 @@ contextBridge.exposeInMainWorld('api', {
     z.setPolicy = (tool, policy) => ipcRenderer.invoke('z:setPolicy', { tool, policy });
     z.toggleServer = (name, enabled) => ipcRenderer.invoke('z:toggleServer', { name, enabled });
     z.toggleSkill = (name, enabled) => ipcRenderer.invoke('z:toggleSkill', { name, enabled });
+    z.toggleTask = (id, enabled) => ipcRenderer.invoke('z:toggleTask', { id, enabled });
     return z;
   })(),
   onNavigate: (/** @type {(nav: any) => void} */ fn) => ipcRenderer.on('z:navigate', (_e, nav) => fn(nav))

@@ -924,6 +924,139 @@
             }
           }
         }
+      },
+      "host.scheduleTask": {
+        "description": "Store a scheduled task; the app runs it in the background (AURA-121).",
+        "params": {
+          "type": "object",
+          "required": [
+            "taskId",
+            "title",
+            "prompt",
+            "trigger"
+          ],
+          "properties": {
+            "taskId": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "prompt": {
+              "type": "string"
+            },
+            "trigger": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "required": [
+                    "kind",
+                    "at"
+                  ],
+                  "properties": {
+                    "kind": {
+                      "const": "once"
+                    },
+                    "at": {
+                      "type": "string"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "kind",
+                    "time"
+                  ],
+                  "properties": {
+                    "kind": {
+                      "const": "daily"
+                    },
+                    "time": {
+                      "type": "string"
+                    },
+                    "days": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 7
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "kind",
+                    "minutes"
+                  ],
+                  "properties": {
+                    "kind": {
+                      "const": "interval"
+                    },
+                    "minutes": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "when": {
+              "type": "string"
+            },
+            "error": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "host.listTasks": {
+        "description": "Scheduled tasks (AURA-121).",
+        "params": {
+          "type": "object"
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "tasks": {
+              "type": "array"
+            }
+          }
+        }
+      },
+      "host.cancelTask": {
+        "description": "Delete a scheduled task (AURA-121).",
+        "params": {
+          "type": "object",
+          "required": [
+            "id"
+          ],
+          "properties": {
+            "id": {
+              "type": "string"
+            }
+          }
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "removed": {
+              "type": "boolean"
+            }
+          }
+        }
       }
     },
     "notifications": {

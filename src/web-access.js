@@ -17,6 +17,7 @@ const ALLOW = new Set([
   'searchRegistry',
   'connectors',
   'driftInfo',
+  'tasks',
   'getSkill',
   'secrets',
   'setSecretNote',
@@ -34,6 +35,8 @@ const CONFIRM = {
   saveServer: (a) => `MCP-Server „${a.name}“ speichern: ${serverCommand(a.config)}`,
   installRegistry: (a) =>
     `MCP-Server „${a.name || (a.server && a.server.name) || '?'}“ aus dem Verzeichnis installieren`,
+  removeTask: (a) => `Geplante Aufgabe „${a}“ löschen`,
+  toggleTask: (a) => `Geplante Aufgabe „${a.id}“ ${a.enabled ? 'einschalten' : 'pausieren'}`,
   approveTools: (a) => `Geänderte Werkzeuge des MCP-Servers „${a}“ freigeben`,
   installConnector: (a) =>
     `Verbindung „${a && a.id}“ aus dem Aura-Katalog einrichten (Zugangsdaten werden gespeichert)`,

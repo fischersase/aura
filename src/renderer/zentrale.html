@@ -17,6 +17,7 @@
   <button data-page="rules">Regeln</button>
   <button data-page="servers">MCP-Server</button>
   <button data-page="catalog">Verbindungen</button>
+  <button data-page="tasks">Aufgaben</button>
   <button data-page="skills">Skills</button>
   <button data-page="instructions">Anweisungen</button>
   <button data-page="memory">Gedächtnis</button>
@@ -112,6 +113,13 @@
     <p class="lead small">Suche in registry.modelcontextprotocol.io. Diese Server hat Aura <b>nicht</b> geprüft: Jede ihrer Aktionen fragt vorher nach. Installiere nur Server, deren Herkunft du vertraust.</p>
     <form id="searchForm" class="row"><input id="q" type="search" placeholder="z. B. playwright, github, notion, kalender" spellcheck="false"><button class="primary">Suchen</button></form>
     <div id="results"></div>
+  </section>
+
+  <!-- Geplante Aufgaben (AURA-121) -->
+  <section id="tasks" class="page hidden">
+    <h1>Aufgaben</h1>
+    <p class="lead">Was Aura später oder regelmäßig für dich erledigt. Neue Aufgaben legst du im Chat an, z. B. „Erinnere mich morgen um 9 an den Zahnarzt“ oder „Fass mir werktags um 8 meine Termine zusammen“. Aura führt sie aus, solange Aura läuft (auch nur im Infobereich); ist der Rechner aus oder im Ruhezustand, holt Aura einen verpassten Lauf einmal nach.</p>
+    <div id="taskList" class="list"></div>
   </section>
 
   <!-- Skills -->

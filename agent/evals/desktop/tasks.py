@@ -155,6 +155,12 @@ def answered() -> Check:
     return lambda o: bool((o.text or "").strip())
 
 
+def _is_tomorrow(label: str) -> bool:
+    from datetime import date, timedelta
+
+    return (date.today() + timedelta(days=1)).isoformat() in label
+
+
 def DENY(_r: dict[str, Any]) -> str:  # used like a constant in task tables
     return "deny"
 
@@ -493,6 +499,23 @@ TASKS: list[Task] = [
             ),
         },
         ["apps", "honesty", "connectors", "chat-2026-10-13"],
+    ),
+    Task(
+        "schedule-reminder",
+        "Erinnere mich morgen um 9 Uhr an den Zahnarzttermin",
+        {
+            "plant genau einmal": lambda o: (
+                sum(s["tool"] == "schedule_task" and s["state"] == "ok" for s in o.steps) == 1
+            ),
+            "morgen 9 Uhr": lambda o: any(
+                s["tool"] == "schedule_task"
+                and re.search(r"einmal am \d{4}-\d\d-\d\dT09:00", s["label"])
+                and _is_tomorrow(s["label"])
+                for s in o.steps
+            ),
+        },
+        ["schedule"],
+        approve=ALLOW,
     ),
     Task(
         "weather-tomorrow",

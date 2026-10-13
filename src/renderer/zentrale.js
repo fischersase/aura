@@ -33,6 +33,7 @@ function show(page) {
   if (page === 'secrets') renderSecrets();
   if (page === 'profile') loadProfile();
   if (page === 'catalog') renderConnectors();
+  if (page === 'tasks') renderTasks();
 }
 document.querySelectorAll('nav button[data-page]').forEach((b) => {
   b.onclick = () => show(b.dataset.page);
@@ -437,6 +438,47 @@ async function serverDialog(name) {
           .forEach((x) => x.classList.toggle('on', x === b));
         $('fStdio').classList.toggle('hidden', b.dataset.k !== 'stdio');
         $('fHttp').classList.toggle('hidden', b.dataset.k !== 'http');
+      };
+    });
+}
+
+// ---------- Geplante Aufgaben (AURA-121) ----------
+
+async function renderTasks() {
+  const tasks = await z.tasks();
+  if (!tasks.length) {
+    $('taskList').innerHTML = '<div class="empty">Noch keine geplanten Aufgaben.</div>';
+    return;
+  }
+  const when = (ms) => (ms ? new Date(ms).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' }) : '–');
+  $('taskList').innerHTML = tasks
+    .map(
+      (t) => `<div class="server"><div class="top">
+        <label class="switch"><input type="checkbox" data-task-toggle="${esc(t.id)}"${t.enabled ? ' checked' : ''}><span></span></label>
+        <span class="title">${esc(t.title)}</span><span class="badge">${esc(t.when)}</span>
+        ${t.running ? '<span class="badge ok">läuft</span>' : ''}
+        ${t.lastStatus === 'error' ? '<span class="badge bad">Fehler</span>' : ''}
+        <span class="grow"></span><button class="small danger" data-task-remove="${esc(t.id)}">Löschen</button></div>
+        <div class="cmd">${esc(t.prompt)}</div>
+        <div class="muted small">Nächster Lauf: ${esc(when(t.nextRun))}${t.lastRun ? ` · Zuletzt: ${esc(when(t.lastRun))}` : ''}</div>
+        ${t.lastText ? `<div class="desc">${esc(t.lastText)}</div>` : ''}</div>`
+    )
+    .join('');
+  $('taskList')
+    .querySelectorAll('[data-task-toggle]')
+    .forEach((c) => {
+      c.onchange = async () => {
+        await z.toggleTask(c.dataset.taskToggle, c.checked);
+        renderTasks();
+      };
+    });
+  $('taskList')
+    .querySelectorAll('[data-task-remove]')
+    .forEach((b) => {
+      b.onclick = async () => {
+        if (!confirm('Diese geplante Aufgabe löschen?')) return;
+        await z.removeTask(b.dataset.taskRemove);
+        renderTasks();
       };
     });
 }

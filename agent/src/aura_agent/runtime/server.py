@@ -76,6 +76,15 @@ class RpcHost:
             raise RuntimeError((res or {}).get("error") or "Nicht verbunden – in der Aura Zentrale anmelden.")
         return {"Authorization": header}
 
+    async def schedule_task(self, request: dict[str, Any]) -> dict[str, Any]:
+        return await self.peer.request("host.scheduleTask", request, timeout=30) or {}
+
+    async def list_tasks(self) -> dict[str, Any]:
+        return await self.peer.request("host.listTasks", {}, timeout=30) or {}
+
+    async def cancel_task(self, task_id: str) -> dict[str, Any]:
+        return await self.peer.request("host.cancelTask", {"id": task_id}, timeout=30) or {}
+
     async def takeover(self, request: dict[str, Any]) -> dict[str, Any]:
         # The user may need a while (login with 2FA); 10 minutes, then it counts as cancelled.
         try:

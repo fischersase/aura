@@ -23,6 +23,7 @@ class FakeHost:
         self.registry: list[dict[str, Any]] = []  # host.searchRegistry results (AURA-96)
         self.registry_queries: list[str] = []
         self.proposals: list[dict[str, Any]] = []
+        self.scheduled: list[dict[str, Any]] = []  # host.scheduleTask requests (AURA-121)
         self.takeovers: list[dict[str, Any]] = []  # host.takeover requests (AURA-118)
         self.takeover_decisions: list[str] = []
         self.proposal_decisions: list[str] = []
@@ -42,6 +43,16 @@ class FakeHost:
         if server not in self.auth_headers:
             raise RuntimeError("Nicht verbunden – in der Aura Zentrale anmelden.")
         return {"Authorization": self.auth_headers[server]}
+
+    async def schedule_task(self, request: dict[str, Any]) -> dict[str, Any]:
+        self.scheduled.append(request)
+        return {"id": f"bg{len(self.scheduled)}", "title": request["title"], "when": str(request["trigger"])}
+
+    async def list_tasks(self) -> dict[str, Any]:
+        return {"tasks": [{"id": f"bg{i + 1}", "title": r["title"]} for i, r in enumerate(self.scheduled)]}
+
+    async def cancel_task(self, task_id: str) -> dict[str, Any]:
+        return {"removed": any(f"bg{i + 1}" == task_id for i in range(len(self.scheduled)))}
 
     async def takeover(self, request: dict[str, Any]) -> dict[str, Any]:
         self.takeovers.append(request)

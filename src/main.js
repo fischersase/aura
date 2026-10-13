@@ -30,6 +30,7 @@ const agentSkills = require('./agent/skills');
 const agentMcp = require('./agent/mcp');
 const secrets = require('./secrets');
 const connectors = require('./connectors');
+const { createScheduler } = require('./scheduler');
 const sandbox = require('./sandbox');
 const web = require('./web');
 const { createOAuthClient } = require('./oauth');
@@ -827,6 +828,27 @@ const agentV2 = new AgentBridge({
         return { results: [], error: err instanceof Error ? err.message : String(err) };
       }
     },
+    // Scheduled tasks from the chat (AURA-121); the agent's schedule_task is T2, so the user approved it already.
+    scheduleTask: async (req) => {
+      try {
+        const t = scheduler.add({ title: req.title, prompt: req.prompt, trigger: req.trigger });
+        return { id: t.id, title: t.title, when: scheduler.list().find((x) => x.id === t.id).when };
+      } catch (err) {
+        return { error: err instanceof Error ? err.message : String(err) };
+      }
+    },
+    listTasks: async () => ({
+      tasks: scheduler.list().map((t) => ({
+        id: t.id,
+        title: t.title,
+        when: t.when,
+        enabled: t.enabled,
+        nextRun: t.nextRun ? new Date(t.nextRun).toISOString() : null,
+        lastStatus: t.lastStatus || '',
+        lastText: t.lastText || ''
+      }))
+    }),
+    cancelTask: async (req) => ({ removed: scheduler.remove(String((req && req.id) || '')) }),
     // Browser takeover (AURA-118): the user signs in or solves a CAPTCHA in Aura's browser window, then "Weiter".
     takeover: (req) =>
       new Promise((resolve) => {
@@ -1026,6 +1048,53 @@ ipcMain.handle('agent:voiceTask', async (_e, { request }) => {
 });
 
 // Hintergrund-Aufträge: Ist das Panel zu, wenn ein Auftrag fertig wird, meldet sich Aura mit einer Benachrichtigung.
+// ---------- Background and scheduled tasks (AURA-121) ----------
+// A due task runs as a headless agent task in its own chat "Hintergrund: <Titel>". Nobody watches: approvals in
+// background runs are denied for now (the approval inbox follows with AURA-122), and the agent is told so.
+const BG_HINT =
+  '\n\n[Hintergrundauftrag: Niemand schaut gerade zu. Folgenreiche Aktionen werden abgelehnt; sag am Ende kurz, ' +
+  'was der Nutzer selbst freigeben oder erledigen muss. Antworte knapp, das Ergebnis erscheint als Benachrichtigung.]';
+let bgSeq = 0;
+async function runBackgroundTask(task) {
+  if (!voiceAgentReady()) throw new Error('Der Agent ist nicht verfügbar (Agent v2 einschalten).');
+  const taskId = `${task.chatId}-${++bgSeq}`;
+  agentRuns++;
+  registerStopHotkey();
+  try {
+    const done = await agentV2.runTask({ taskId, chatId: task.chatId, text: task.prompt + BG_HINT });
+    const text = String((done && done.text) || (done && done.cancelled ? 'Abgebrochen.' : 'Erledigt.'));
+    const prior = chats.get(task.chatId);
+    chats.save({
+      id: task.chatId,
+      history: [
+        ...((prior && prior.history) || [{ role: 'user', parts: [{ text: `Hintergrund: ${task.title}` }] }]),
+        { role: 'user', parts: [{ text: `${new Date().toLocaleString('de-DE')}: ${task.prompt}` }] },
+        { role: 'model', parts: [{ text }] }
+      ]
+    });
+    if (Notification.isSupported()) {
+      const n = new Notification({
+        title: `Aura: ${task.title}`,
+        body: text
+          .replace(/[*_`#>]/g, '')
+          .replace(/\s+/g, ' ')
+          .slice(0, 180),
+        icon: ICON
+      });
+      n.on('click', () => openPanel());
+      n.show();
+    }
+    return { text, status: done && done.verified === false ? 'unverified' : 'ok' };
+  } finally {
+    agentRuns--;
+    registerStopHotkey();
+  }
+}
+const scheduler = createScheduler({
+  file: path.join(app.getPath('userData'), 'agent', 'tasks.json'),
+  run: runBackgroundTask
+});
+
 function notifyIfHidden(text, verified) {
   if (panelOpen || !Notification.isSupported()) return;
   const body = String(text || 'Fertig.')
@@ -1208,6 +1277,10 @@ Object.assign(zentrale.API, {
       return { error: err instanceof Error ? err.message : String(err) };
     }
   },
+  // Scheduled tasks (AURA-121): list, pause/resume, delete.
+  tasks: () => scheduler.list(),
+  toggleTask: ({ id, enabled } = {}) => scheduler.setEnabled(String(id || ''), !!enabled),
+  removeTask: (id) => scheduler.remove(String(id || '')),
   disconnectServer: async (name) => {
     const r = await oauth.disconnect(String(name || ''));
     await agentMcp.sync(true).catch(() => {});
@@ -1588,6 +1661,7 @@ app.whenReady().then(() => {
   if (!store.load().setupDone || !store.ready()) openSetup();
   else if (!handleArgs(process.argv) && failed.length) openSettings();
   preloadStt().catch(() => {});
+  scheduler.start();
   screen.on('display-removed', () => {
     currentDisplay = null;
   });
