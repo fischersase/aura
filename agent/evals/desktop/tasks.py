@@ -61,6 +61,9 @@ class Task:
     aura_files: dict[str, str] = field(default_factory=dict)  # files in Aura's own directory (e.g. memory)
     browser: bool = False  # startet den Browser-Spezialisten und den Testwebserver; {web} im Prompt = Adresse
     gtk: bool = False  # startet das GTK-Testprogramm „Aura GTK Test“ mit AT-SPI
+    settings: dict[str, Any] = field(
+        default_factory=dict
+    )  # extra AgentSettings, e.g. profile_place (AURA-116)
 
 
 # ---------- Bausteine für Prüfungen ----------
@@ -490,6 +493,33 @@ TASKS: list[Task] = [
             ),
         },
         ["apps", "honesty", "connectors", "chat-2026-10-13"],
+    ),
+    Task(
+        "weather-tomorrow",
+        "Wie wird das Wetter morgen?",
+        {
+            "nutzt weather": lambda o: o.ran("weather"),
+            "kein Browser": lambda o: not any(s["tool"] == "browser" for s in o.steps),
+            "höchstens 2 Schritte": lambda o: sum(s["state"] in ("ok", "error") for s in o.steps) <= 2,
+            "nennt eine Temperatur": lambda o: bool(
+                re.search(r"-?\d+([,.]\d)?\s*(°|grad)", o.text or "", re.IGNORECASE)
+            ),
+            "fragt nicht nach dem Ort": lambda o: not o.questions,
+        },
+        ["context", "network"],
+        settings={"profile_place": "Berlin, MEZ"},
+    ),
+    Task(
+        "weather-umbrella-place",
+        "Brauche ich heute in München einen Schirm?",
+        {
+            "nutzt weather für München": lambda o: o.ran("weather", "münchen"),
+            "kein Browser": lambda o: not any(s["tool"] == "browser" for s in o.steps),
+            "antwortet ja oder nein": lambda o: bool(
+                re.search(r"\b(ja|nein|kein|brauchst)\b", o.text or "", re.IGNORECASE)
+            ),
+        },
+        ["context", "network"],
     ),
     Task(
         "connector-jira",

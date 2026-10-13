@@ -92,6 +92,9 @@ the Electron main process:
 - No auto-updater; updates come through apt or a new installer.
 - Hard-coded outbound endpoints: `generativelanguage.googleapis.com` (Gemini, only with provider Gemini),
   `registry.modelcontextprotocol.io` (only when the user searches the MCP registry in the Zentrale),
+  `api.open-meteo.com` and `geocoding-api.open-meteo.com` (weather and place lookup when the user asks about the
+  weather; sends the place or rounded coordinates, AURA-116), `ipapi.co` (only if the user chose "Ungefähr über meine
+  IP-Adresse" as location source; the service sees the IP address),
   Hugging Face (Whisper model download, [src/renderer/stt.html](../../src/renderer/stt.html) CSP).
 - **Cost tracking is local only**: [src/usage.js](../../src/usage.js) estimates cost from token counts returned by
   Gemini and stores the monthly sum in `userData/usage.json`. Nothing is reported anywhere.

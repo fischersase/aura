@@ -773,6 +773,9 @@ const agentV2 = new AgentBridge({
       declinedConnectors: s.declinedConnectors || [],
       disabledSkills: s.disabledSkills || [],
       memoryPaused: !!s.memoryPaused,
+      // Location (AURA-116): only what the user allowed in the profile.
+      locationMode: (s.profile && s.profile.locationMode) || 'profile',
+      profilePlace: s.profile && s.profile.share ? s.profile.location || '' : '',
       dataDir: path.join(app.getPath('userData'), 'agent'),
       auraDir: defaultAuraDir()
     };

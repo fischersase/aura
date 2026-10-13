@@ -102,3 +102,5 @@ a.button-link { display: inline-block; padding: 5px 14px; border-radius: 16px; b
 ul.drift { margin: 4px 0 10px; padding-left: 18px; font-size: 13.5px; line-height: 1.5; }
 ul.drift .before { color: var(--muted); text-decoration: line-through; }
 ul.drift .after { color: var(--bad); }
+.radio-list { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 12px; font-size: 13.5px; }
+.radio-list label { display: flex; gap: 8px; align-items: flex-start; font-weight: 400; }
