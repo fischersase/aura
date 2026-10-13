@@ -15,7 +15,10 @@ import re
 import time
 from collections.abc import Callable
 
-from google.adk.agents.run_config import RunConfig, StreamingMode
+from google.adk.agents.run_config import (
+    RunConfig,
+    StreamingMode,  # pyright: ignore[reportPrivateImportUsage] - public in ADK docs, re-exported here
+)
 from google.adk.runners import Runner
 from google.genai import types
 

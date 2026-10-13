@@ -25,7 +25,7 @@ else:
 def available() -> bool:
     if IS_WINDOWS:
         try:
-            import comtypes  # noqa: F401
+            import comtypes  # noqa: F401  # pyright: ignore[reportMissingImports] - Windows only
         except ImportError:
             return False
         return True

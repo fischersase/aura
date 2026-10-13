@@ -25,7 +25,7 @@ import logging
 import shlex
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from ..platform.base import IS_WINDOWS
 from ..platform.proc import spawn_kwargs
@@ -124,7 +124,10 @@ class Hooks:
             if code != 0:
                 return HookVerdict("deny", f"Hook {hook.command} ist fehlgeschlagen ({code}): {err[:200]}")
             try:
-                decision = (json.loads(out) or {}).get("decision") if out.startswith("{") else None
+                parsed: Any = json.loads(out) if out.startswith("{") else None
+                decision = (
+                    cast("dict[str, Any]", parsed).get("decision") if isinstance(parsed, dict) else None
+                )
             except json.JSONDecodeError:
                 decision = None
             if decision == "deny":

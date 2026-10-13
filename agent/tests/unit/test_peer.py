@@ -63,3 +63,25 @@ async def test_invalid_json_gets_parse_error():
     reader.feed_eof()
     await serve
     assert sent[0]["error"]["code"] == -32700
+
+
+async def test_malformed_responses_do_not_stop_the_connection():
+    reader = asyncio.StreamReader()
+    sent: list[dict] = []
+    p = Peer(reader, lambda b: sent.append(json.loads(b)))
+    serve = asyncio.create_task(p.serve())
+    first = asyncio.create_task(p.request("host.screenshot", {}))
+    await asyncio.sleep(0.01)
+    rid = sent[-1]["id"]
+    reader.feed_data(b'{"id": [1], "result": {}}\n')  # unhashable id
+    reader.feed_data(json.dumps({"id": rid, "error": "kaputt"}).encode() + b"\n")  # error is not an object
+    with pytest.raises(RpcError) as e:
+        await first
+    assert "kaputt" in e.value.message
+    # The connection still works afterwards.
+    second = asyncio.create_task(p.request("host.screenshot", {}))
+    await asyncio.sleep(0.01)
+    reader.feed_data(json.dumps({"id": sent[-1]["id"], "result": {"ok": True}}).encode() + b"\n")
+    assert await second == {"ok": True}
+    reader.feed_eof()
+    await serve

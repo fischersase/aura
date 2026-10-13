@@ -10,6 +10,8 @@ Läuft als eigener Prozess (python -m aura_agent.platform.uia_helper), weil UI-A
 Programmen blockieren: Aura beendet und startet den Helfer dann neu. Die Rollen heißen wie bei AT-SPI
 ("push button", "entry", "password text" …), damit Werkzeuge und Stufen auf beiden Systemen gleich arbeiten.
 """
+# pyright: reportAttributeAccessIssue=false, reportMissingImports=false
+# (Windows-only module: pyright runs on Linux, where ctypes.WinDLL, winreg and comtypes do not exist.)
 
 from __future__ import annotations
 

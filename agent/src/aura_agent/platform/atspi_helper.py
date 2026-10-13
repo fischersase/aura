@@ -12,6 +12,8 @@ Spricht JSON-Zeilen über stdin/stdout:
 Ein eigener Prozess, weil AT-SPI-Aufrufe bei hängenden Programmen blockieren können: Aura beendet
 und startet den Helfer dann einfach neu.
 """
+# pyright: reportMissingImports=false
+# (Uses the system PyGObject (gi), which is not installed in the agent's virtual environment.)
 
 from __future__ import annotations
 

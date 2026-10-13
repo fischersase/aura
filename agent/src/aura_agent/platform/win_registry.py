@@ -1,4 +1,6 @@
 """Registry des Benutzers lesen und schreiben (winreg), plus Benachrichtigung der Programme über Änderungen."""
+# pyright: reportAttributeAccessIssue=false, reportMissingImports=false
+# (Windows-only module: pyright runs on Linux, where ctypes.WinDLL, winreg and comtypes do not exist.)
 
 from __future__ import annotations
 

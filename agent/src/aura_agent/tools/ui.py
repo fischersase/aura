@@ -19,7 +19,9 @@ _last: dict[int, dict[str, Any]] = {}  # Index → Element aus dem letzten ui_sn
 
 
 def _consequential(a: dict[str, Any]) -> tuple[Tier, str]:
-    text = f"{a.get('element', '')} {(_last.get(int(a.get('index', -1)) or {}).get('name', '')) if str(a.get('index', '')).lstrip('-').isdigit() else ''}"
+    index = str(a.get("index", ""))
+    known = _last.get(int(index)) if index.lstrip("-").isdigit() else None
+    text = f"{a.get('element', '')} {(known or {}).get('name', '')}"
     if CONSEQUENTIAL.search(text):
         return Tier.T2, "kann etwas löschen, senden, kaufen oder bestätigen"
     return Tier.T1, ""

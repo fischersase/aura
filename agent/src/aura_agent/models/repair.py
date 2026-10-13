@@ -72,7 +72,8 @@ def parse_args(raw: Any) -> dict[str, Any] | None:
 def _call_from_obj(obj: Any, known: list[str]) -> ParsedCall | None:
     if not isinstance(obj, dict):
         return None
-    fn = obj.get("function") if isinstance(obj.get("function"), dict) else obj
+    inner = obj.get("function")
+    fn: dict[str, Any] = inner if isinstance(inner, dict) else obj
     name = resolve_name(fn.get("name"), known)
     if not name:
         return None

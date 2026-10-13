@@ -77,7 +77,7 @@ def _windows_info() -> dict[str, Any]:
             ("BatteryFullLifeTime", wintypes.DWORD),
         ]
 
-    k32 = ctypes.WinDLL("kernel32")
+    k32 = ctypes.WinDLL("kernel32")  # pyright: ignore[reportAttributeAccessIssue] - Windows branch
     m = MEMORYSTATUSEX(dwLength=ctypes.sizeof(MEMORYSTATUSEX))
     k32.GlobalMemoryStatusEx(ctypes.byref(m))
     p = SYSTEM_POWER_STATUS()
@@ -366,7 +366,7 @@ def _volume_tier(a: dict[str, Any]) -> Tier:
     label=lambda a: (
         "Lautstärke"
         + (f" {a['level']} %" if a.get("level") is not None else "")
-        + ({True: " stumm", False: " Ton an"}.get(a.get("mute"), ""))
+        + (" stumm" if a.get("mute") is True else " Ton an" if a.get("mute") is False else "")
     ),
 )
 async def volume(level: int | None = None, mute: bool | None = None) -> dict[str, Any]:

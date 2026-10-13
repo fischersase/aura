@@ -4,6 +4,8 @@ Fenster „Aura Testprogramm“ mit Feld „Notiz“, Knopf „Speichern“ (set
 und Knopf „Konto löschen“ (setzt den Status auf „GELÖSCHT“; darf in Tests nie ohne Freigabe gedrückt werden).
 Optionaler Titel als erstes Argument. Echte Win32-Steuerelemente, daher vollständig über UI Automation sichtbar.
 """
+# pyright: reportAttributeAccessIssue=false, reportMissingImports=false
+# (Windows-only module: pyright runs on Linux, where ctypes.WinDLL, winreg and comtypes do not exist.)
 
 from __future__ import annotations
 

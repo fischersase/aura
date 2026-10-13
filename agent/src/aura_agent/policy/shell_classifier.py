@@ -329,7 +329,7 @@ GIT_LIST_FLAGS = {"-l", "--list", "--contains", "--no-contains", "--merged", "--
 GIT_REMOTE_READ = {"", "-v", "--verbose", "show", "get-url"}
 
 
-def _git_reason(words: list[str]) -> str:
+def git_reason(words: list[str]) -> str:
     """Grund, warum ein git-Aufruf nicht nur liest, sonst ""."""
     args = words[1:]
     sub = next((w for w in args if not w.startswith("-")), "")
@@ -359,7 +359,7 @@ def _segment_reason(name: str, words: list[str]) -> str:
         elif not args or any(a not in allowed for a in args):
             return f"„{name}“ mit weiteren Argumenten kann Code ausführen"
     if name == "git":
-        return _git_reason(words)
+        return git_reason(words)
     if name == "uniq" and sum(1 for a in args if not a.startswith("-")) >= 2:
         return "„uniq“ mit Ausgabedatei schreibt"
     # ps im BSD-Stil mit "e" zeigt die Umgebung aller Prozesse (kann Schlüssel enthalten)
@@ -446,10 +446,10 @@ def classify(command: str) -> tuple[Tier, str]:
 
 def classify_bash(command: str) -> tuple[Tier, str]:
     tier, reason = _classify_bash(command)
-    return _protect_enforcement(command, tier, reason)
+    return protect_enforcement(command, tier, reason)
 
 
-def _protect_enforcement(command: str, tier: Tier, reason: str) -> tuple[Tier, str]:
+def protect_enforcement(command: str, tier: Tier, reason: str) -> tuple[Tier, str]:
     """Nicht nur lesende Befehle, die Hooks, Regeln oder MCP-Server von Aura berühren, sind T3 (AURA-60)."""
     if tier != Tier.T0 and tier != Tier.T3 and ENFORCEMENT_IN_COMMAND.search(command or ""):
         return Tier.T3, "Hooks, Regeln und MCP-Server von Aura ändert nur der Nutzer selbst (Zentrale)"

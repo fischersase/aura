@@ -3,6 +3,8 @@
 COM wird im Multithread-Modus betrieben (sys.coinit_flags = 0), passend zu pywinrt; jeder Aufruf läuft in
 einem Hilfsthread (asyncio.to_thread) und meldet diesen Thread selbst bei COM an.
 """
+# pyright: reportAttributeAccessIssue=false, reportMissingImports=false
+# (Windows-only module: pyright runs on Linux, where ctypes.WinDLL, winreg and comtypes do not exist.)
 
 from __future__ import annotations
 
