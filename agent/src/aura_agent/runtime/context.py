@@ -38,6 +38,10 @@ class Host(Protocol):
         """Authorization header for one request to an OAuth MCP server (AURA-95); raises if not signed in."""
         ...
 
+    async def takeover(self, request: dict[str, Any]) -> dict[str, Any]:
+        """The user takes over the browser (login, CAPTCHA, AURA-118). Answer: {decision: continue|cancel}."""
+        ...
+
     async def search_registry(self, query: str) -> dict[str, Any]:
         """Search the official MCP registry through the app (AURA-96): {results: [{id, title, publisher, …}]}."""
         ...

@@ -122,3 +122,17 @@ async def test_unknown_place_and_unreachable_service():
 )
 def test_weather_codes(code, text):
     assert describe(code) == text
+
+
+async def test_one_network_hiccup_is_retried():
+    calls = {"n": 0}
+
+    def flaky(req: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise httpx.ConnectError("reset")
+        return httpx.Response(200, json=GEO if req.url.host.startswith("geocoding") else FORECAST)
+
+    svc = ContextService("profile", "Berlin", httpx.AsyncClient(transport=httpx.MockTransport(flaky)))
+    _, weather = make_context_tools(svc)
+    assert (await weather())["jetzt"]["wetter"] == "bedeckt"

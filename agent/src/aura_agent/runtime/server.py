@@ -74,6 +74,14 @@ class RpcHost:
             raise RuntimeError((res or {}).get("error") or "Nicht verbunden – in der Aura Zentrale anmelden.")
         return {"Authorization": header}
 
+    async def takeover(self, request: dict[str, Any]) -> dict[str, Any]:
+        # The user may need a while (login with 2FA); 10 minutes, then it counts as cancelled.
+        try:
+            res = await self.peer.request("host.takeover", request, timeout=600)
+        except Exception:  # noqa: BLE001 - timeout or app gone: cancel
+            return {"decision": "cancel"}
+        return {"decision": "continue" if (res or {}).get("decision") == "continue" else "cancel"}
+
     async def search_registry(self, query: str) -> dict[str, Any]:
         return await self.peer.request("host.searchRegistry", {"query": query}, timeout=30) or {}
 

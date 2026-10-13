@@ -224,3 +224,8 @@ button svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke
 .verified { margin-top: 6px; font-size: 12px; }
 .verified.yes { color: #81c995; }
 .verified.no { color: #f28b82; }
+/* Browser takeover (AURA-118) */
+.ask.takeover { box-shadow: 0 0 0 1px rgba(253,214,99,.6) inset; }
+.ask.takeover .treason { font-size: 13px; margin-bottom: 4px; }
+.ask.takeover .small-hint { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.ask.takeover button.primary { background: #4285F4; color: #fff; }

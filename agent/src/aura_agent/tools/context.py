@@ -104,7 +104,11 @@ class ContextService:
         hit = self._cache.get(key)
         if hit and time.monotonic() - hit[0] < CACHE_S:
             return hit[1]
-        r = await self._http().get(url, params=params)
+        try:
+            r = await self._http().get(url, params=params)
+        except httpx.TransportError:
+            # One retry: a single dropped connection should not cost the answer (seen in evals, 2026-10-13).
+            r = await self._http().get(url, params=params)
         r.raise_for_status()
         data = r.json()
         self._cache[key] = (time.monotonic(), data)

@@ -617,6 +617,36 @@ window.api.onAgentAsk(({ chatId: cid, id, question, options }) => {
   (box.querySelector('.opts button') || form.querySelector('input')).focus({ preventScroll: true });
 });
 
+// Browser takeover (AURA-118): the user signs in or solves a CAPTCHA in Aura's browser window, then "Weiter".
+window.api.onAgentTakeover((t) => {
+  if (!streaming || streaming.id !== t.chatId) {
+    window.api.agentTakeoverAnswer(t.id, 'cancel');
+    return;
+  }
+  streaming.el.classList.remove('thinking');
+  const box = document.createElement('div');
+  box.className = 'ask takeover';
+  box.innerHTML = `<div class="q"><b>Du bist dran</b></div><div class="treason"></div>
+    <div class="small-hint">Erledige das im Aura-Browserfenster (Aura löst Sicherheitsabfragen nie selbst). Danach hier „Weiter“.</div>
+    <div class="opts"><button type="button" class="primary" data-d="continue">Weiter</button>
+    <button type="button" data-d="cancel">Abbrechen</button></div>`;
+  box.querySelector('.treason').textContent = t.reason;
+  box.querySelectorAll('[data-d]').forEach((b) => {
+    b.onclick = () => {
+      box.classList.add('answered');
+      box.querySelector('.opts').remove();
+      const a = document.createElement('div');
+      a.className = 'a';
+      a.textContent = b.dataset.d === 'continue' ? 'Weiter: Aura macht weiter.' : 'Abgebrochen.';
+      box.appendChild(a);
+      window.api.agentTakeoverAnswer(t.id, b.dataset.d);
+    };
+  });
+  streaming.el.querySelector('.steps').appendChild(box);
+  scrollDown();
+  box.querySelector('[data-d="continue"]').focus({ preventScroll: true });
+});
+
 // Connect card (AURA-96): Aura suggests a connection to a service; nothing is installed without "Verbinden".
 window.api.onAgentConnector((c) => {
   if (!streaming || streaming.id !== c.chatId) {

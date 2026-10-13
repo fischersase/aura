@@ -23,6 +23,8 @@ class FakeHost:
         self.registry: list[dict[str, Any]] = []  # host.searchRegistry results (AURA-96)
         self.registry_queries: list[str] = []
         self.proposals: list[dict[str, Any]] = []
+        self.takeovers: list[dict[str, Any]] = []  # host.takeover requests (AURA-118)
+        self.takeover_decisions: list[str] = []
         self.proposal_decisions: list[str] = []
 
     async def approve(self, request: dict[str, Any]) -> str:
@@ -40,6 +42,10 @@ class FakeHost:
         if server not in self.auth_headers:
             raise RuntimeError("Nicht verbunden – in der Aura Zentrale anmelden.")
         return {"Authorization": self.auth_headers[server]}
+
+    async def takeover(self, request: dict[str, Any]) -> dict[str, Any]:
+        self.takeovers.append(request)
+        return {"decision": self.takeover_decisions.pop(0) if self.takeover_decisions else "cancel"}
 
     async def search_registry(self, query: str) -> dict[str, Any]:
         self.registry_queries.append(query)
