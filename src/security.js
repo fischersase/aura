@@ -69,6 +69,7 @@ const IPC_ACCESS = {
   'agent:approval': PANEL,
   'agent:answer': PANEL,
   'agent:connectorAnswer': PANEL,
+  'agent:takeoverAnswer': PANEL,
   'agent:voiceTask': PANEL,
   'agent:stop': PANEL,
   'agent:openLog': ['settings.html'],

@@ -19,6 +19,7 @@ const LOG_MAX_BYTES = 5 * 1024 * 1024;
  * @property {(req: any) => unknown} [input]
  * @property {(req: any) => unknown} [authHeader] fresh Authorization header for an OAuth MCP server (AURA-95)
  * @property {(req: any) => unknown} [searchRegistry] official MCP registry search (AURA-96)
+ * @property {(req: any) => unknown} [takeover] the user takes over the browser (AURA-118)
  * @property {(req: any) => unknown} [proposeConnector] connect card in the panel (AURA-96)
  */
 /** @typedef {{ onText?: (delta: string) => void, onStep?: (step: any) => void, onPlan?: (items: any) => void }} TaskHandlers */
@@ -109,6 +110,7 @@ class AgentBridge {
     peer.on('host.screenshot', (req) => this.host.screenshot(req.maxWidth || 1600));
     peer.on('host.ask', (req) => this.host.ask(req));
     peer.on('host.input', (req) => (this.host.input ? this.host.input(req) : { error: 'Eingabe nicht verfügbar' }));
+    peer.on('host.takeover', (req) => (this.host.takeover ? this.host.takeover(req) : { decision: 'cancel' }));
     peer.on('host.searchRegistry', (req) =>
       this.host.searchRegistry ? this.host.searchRegistry(req) : { results: [], error: 'Suche nicht verfügbar' }
     );

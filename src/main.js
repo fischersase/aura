@@ -822,6 +822,18 @@ const agentV2 = new AgentBridge({
         return { results: [], error: err instanceof Error ? err.message : String(err) };
       }
     },
+    // Browser takeover (AURA-118): the user signs in or solves a CAPTCHA in Aura's browser window, then "Weiter".
+    takeover: (req) =>
+      new Promise((resolve) => {
+        const sender = v2Senders.get(req.taskId);
+        if (!sender || sender.isDestroyed()) return resolve({ decision: 'cancel' });
+        const id = 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        const answer = (decision) => resolve({ decision: decision === 'continue' ? 'continue' : 'cancel' });
+        answer.taskId = req.taskId;
+        v2Questions.set(id, answer);
+        sender.send('agent:takeover', { chatId: req.taskId, id, reason: String(req.reason || '').slice(0, 300) });
+        if (panel && !panelOpen) openPanel();
+      }),
     // Connect card in the panel (AURA-96). Nothing is installed here; "connect" opens the Zentrale pre-filled.
     proposeConnector: (req) =>
       new Promise((resolve) => {
@@ -895,6 +907,13 @@ chats.setOnRemove((id) => {
   agentV2.forgetChat(id).catch(() => {});
 });
 
+ipcMain.on('agent:takeoverAnswer', (_e, { id, decision }) => {
+  const r = v2Questions.get(id);
+  if (r) {
+    v2Questions.delete(id);
+    r(decision);
+  }
+});
 ipcMain.on('agent:connectorAnswer', (_e, { id, decision }) => {
   const r = v2Questions.get(id);
   if (r) {

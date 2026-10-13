@@ -882,6 +882,39 @@
             }
           }
         }
+      },
+      "host.takeover": {
+        "description": "The user takes over the browser for a login, CAPTCHA, 2FA or payment step (AURA-118); Aura never solves CAPTCHAs.",
+        "params": {
+          "type": "object",
+          "required": [
+            "taskId",
+            "reason"
+          ],
+          "properties": {
+            "taskId": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "result": {
+          "type": "object",
+          "required": [
+            "decision"
+          ],
+          "properties": {
+            "decision": {
+              "enum": [
+                "continue",
+                "cancel"
+              ]
+            }
+          }
+        }
       }
     },
     "notifications": {

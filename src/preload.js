@@ -54,6 +54,8 @@ contextBridge.exposeInMainWorld('api', {
   onAgentAsk: on('agent:ask'),
   agentAnswer: (id, answer) => ipcRenderer.send('agent:answer', { id, answer }),
   onAgentConnector: on('agent:connector'),
+  onAgentTakeover: on('agent:takeover'),
+  agentTakeoverAnswer: (id, decision) => ipcRenderer.send('agent:takeoverAnswer', { id, decision }),
   agentConnectorAnswer: (id, decision) => ipcRenderer.send('agent:connectorAnswer', { id, decision }),
   onAgentPlan: on('agent:plan'),
   onAgentVerified: on('agent:verified'),
