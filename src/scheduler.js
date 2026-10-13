@@ -18,7 +18,9 @@ const MAX_PARALLEL = 3;
  *   { kind: 'interval', minutes: number }} Trigger
  * days: 1 = Monday … 7 = Sunday (ISO); empty or missing = every day.
  * @typedef {{ id: string, title: string, prompt: string, trigger: Trigger, created: number, enabled: boolean,
- *   nextRun: number | null, lastRun?: number, lastStatus?: string, lastText?: string, chatId: string }} Task
+ *   nextRun: number | null, lastRun?: number, lastStatus?: string, lastText?: string, chatId: string,
+ *   onlyIfNew?: boolean }} Task
+ * onlyIfNew (AURA-123): a watch task; the run reports only when something new turned up (else "NICHTS NEUES").
  */
 
 /**
@@ -113,7 +115,7 @@ function createScheduler(deps) {
     fs.renameSync(tmp, deps.file);
   }
 
-  /** @param {{ title?: string, prompt?: string, trigger?: any }} p */
+  /** @param {{ title?: string, prompt?: string, trigger?: any, onlyIfNew?: boolean }} p */
   function add(p) {
     const title = String(p.title || '')
       .trim()
@@ -134,7 +136,8 @@ function createScheduler(deps) {
       created: now(),
       enabled: true,
       nextRun: nextRun(trigger, now()),
-      chatId: 'bg-' + id
+      chatId: 'bg-' + id,
+      ...(p.onlyIfNew ? { onlyIfNew: true } : {})
     };
     tasks.push(task);
     save();
@@ -178,7 +181,9 @@ function createScheduler(deps) {
           .run(t)
           .then((r) => {
             t.lastStatus = (r && r.status) || 'ok';
-            t.lastText = String((r && r.text) || '').slice(0, 500);
+            // A watch run with nothing new keeps the last real result for the next comparison.
+            const text = String((r && r.text) || '').slice(0, 500);
+            if (!(t.onlyIfNew && isNothingNew(text))) t.lastText = text;
           })
           .catch((err) => {
             t.lastStatus = 'error';
@@ -210,4 +215,32 @@ function createScheduler(deps) {
   };
 }
 
-module.exports = { createScheduler, validTrigger, nextRun, describe, MIN_INTERVAL_MIN, MAX_PARALLEL };
+// Watch tasks answer exactly this when nothing new turned up; the run then stays silent.
+const NOTHING_NEW = 'NICHTS NEUES';
+const isNothingNew = (/** @type {string} */ text) => /^\s*\**\s*NICHTS NEUES\b/i.test(String(text || ''));
+
+/**
+ * The prompt a run gets: for watch tasks with the previous result, so the agent can tell what is new.
+ * @param {Task} t
+ */
+function runPrompt(t) {
+  if (!t.onlyIfNew) return t.prompt;
+  return (
+    `${t.prompt}\n\n[Prüfauftrag: Melde nur, was seit der letzten Prüfung neu ist. Ist nichts Neues dabei, ` +
+    `antworte genau „${NOTHING_NEW}“ und sonst nichts.` +
+    (t.lastText && !isNothingNew(t.lastText) ? ` Letztes Ergebnis: ${t.lastText}` : '') +
+    ']'
+  );
+}
+
+module.exports = {
+  createScheduler,
+  validTrigger,
+  nextRun,
+  describe,
+  runPrompt,
+  isNothingNew,
+  NOTHING_NEW,
+  MIN_INTERVAL_MIN,
+  MAX_PARALLEL
+};

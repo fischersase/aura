@@ -30,7 +30,7 @@ const agentSkills = require('./agent/skills');
 const agentMcp = require('./agent/mcp');
 const secrets = require('./secrets');
 const connectors = require('./connectors');
-const { createScheduler } = require('./scheduler');
+const { createScheduler, runPrompt, isNothingNew } = require('./scheduler');
 const { createInbox } = require('./inbox');
 const sandbox = require('./sandbox');
 const web = require('./web');
@@ -834,7 +834,12 @@ const agentV2 = new AgentBridge({
     // Scheduled tasks from the chat (AURA-121); the agent's schedule_task is T2, so the user approved it already.
     scheduleTask: async (req) => {
       try {
-        const t = scheduler.add({ title: req.title, prompt: req.prompt, trigger: req.trigger });
+        const t = scheduler.add({
+          title: req.title,
+          prompt: req.prompt,
+          trigger: req.trigger,
+          onlyIfNew: !!req.onlyIfNew
+        });
         return { id: t.id, title: t.title, when: scheduler.list().find((x) => x.id === t.id).when };
       } catch (err) {
         return { error: err instanceof Error ? err.message : String(err) };
@@ -1094,8 +1099,10 @@ async function runBackgroundTask(task) {
   agentRuns++;
   registerStopHotkey();
   try {
-    const done = await agentV2.runTask({ taskId, chatId: task.chatId, text: task.prompt + BG_HINT });
+    const done = await agentV2.runTask({ taskId, chatId: task.chatId, text: runPrompt(task) + BG_HINT });
     const text = String((done && done.text) || (done && done.cancelled ? 'Abgebrochen.' : 'Erledigt.'));
+    // Watch task with nothing new (AURA-123): no chat entry, no notification.
+    if (task.onlyIfNew && isNothingNew(text)) return { text, status: 'ok' };
     const prior = chats.get(task.chatId);
     chats.save({
       id: task.chatId,
@@ -1319,6 +1326,14 @@ Object.assign(zentrale.API, {
     })),
   toggleTask: ({ id, enabled } = {}) => scheduler.setEnabled(String(id || ''), !!enabled),
   removeTask: (id) => scheduler.remove(String(id || '')),
+  // Ready-made tasks from the Zentrale (AURA-123), e.g. the daily briefing.
+  addTask: ({ title, prompt, trigger, onlyIfNew } = {}) => {
+    try {
+      return { task: scheduler.add({ title, prompt, trigger, onlyIfNew: !!onlyIfNew }) };
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : String(err) };
+    }
+  },
   // Stop a running background run (AURA-122): its waiting approvals count as denied, then the agent stops.
   stopTask: (id) => {
     const taskId = bgRunning.get(String(id || ''));

@@ -36,7 +36,10 @@ def _trigger(kind: str, at: str, time: str, days: list[int] | None, minutes: int
 
 @aura_tool(
     Tier.T2,
-    label=lambda a: f"{a.get('title', '')} – {_when(a)}",
+    label=lambda a: (
+        f"{a.get('title', '')} – {_when(a)}"
+        + (" (meldet sich nur bei Neuem)" if a.get("only_if_new") else "")
+    ),
     effect=lambda a: f"Plant „{a.get('title', '')}“ {_when(a)}: {str(a.get('prompt', ''))[:200]}",
 )
 async def schedule_task(
@@ -47,6 +50,7 @@ async def schedule_task(
     time: str = "",
     days: list[int] | None = None,
     minutes: int = 0,
+    only_if_new: bool = False,
 ) -> dict[str, Any]:
     """Plant einen Auftrag für später oder regelmäßig (Erinnerung, tägliche Zusammenfassung, regelmäßige Prüfung).
 
@@ -60,6 +64,8 @@ async def schedule_task(
       time: Bei daily: Uhrzeit "HH:MM", z. B. "08:00".
       days: Bei daily optional: Wochentage 1=Mo … 7=So, z. B. [1, 2, 3, 4, 5] für werktags.
       minutes: Bei interval: Abstand in Minuten (mindestens 15).
+      only_if_new: true für Prüfaufträge („sag mir, wenn neue Tickets/Mails kommen“): Aura meldet sich nur,
+        wenn seit der letzten Prüfung etwas Neues dazugekommen ist.
     """
     task = current()
     if task is None:
@@ -70,6 +76,7 @@ async def schedule_task(
             "title": title,
             "prompt": prompt,
             "trigger": _trigger(kind, at, time, days, minutes),
+            **({"onlyIfNew": True} if only_if_new else {}),
         }
     )
     if res.get("error"):

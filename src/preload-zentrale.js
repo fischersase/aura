@@ -35,6 +35,7 @@ contextBridge.exposeInMainWorld('api', {
       'tasks',
       'removeTask',
       'stopTask',
+      'addTask',
       'approveTools',
       'installConnector',
       'getSkill',
