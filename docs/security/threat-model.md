@@ -206,7 +206,7 @@ Code: [gnome-extension/aura-bridge@aura/extension.js](../../gnome-extension/aura
 | LLM03 Supply Chain | Yes | Pinned actions, lockfiles, attestations, signed apt repo | AURA-19, AURA-20, AURA-22, Whisper download |
 | LLM04 Data and Model Poisoning | Memory, skills, AGENTS.md | `remember` T2 when tainted; overwrite T2 | New control files creatable at T1 |
 | LLM05 Improper Output Handling | Tool args, renderer | Structured tool calls, classifiers, CSP | — |
-| LLM06 Excessive Agency | Yes, central | T0–T3, approvals, plan mode, policy, hooks, emergency stop (`hotkeyStop`) | Approval fatigue; "allow for task" |
+| LLM06 Excessive Agency | Yes, central | T0–T3, approvals, plan mode, policy, hooks, emergency stop (`hotkeyStop`); approvals are scoped to tool + website, connector tool or exact action (once / task / session / 1–24 h / always, AURA-119), never a blanket allow | Approval fatigue |
 | LLM07 System Prompt Leakage | Low | No secrets in prompts | — |
 | LLM08 Vector/Embedding Weaknesses | Low | SQLite full-text memory, local only | — |
 | LLM09 Misinformation | Yes | Verification of state-changing actions (`verified`), honesty nudges in [runtime/controller.py](../../agent/src/aura_agent/runtime/controller.py) | — |
@@ -237,7 +237,7 @@ Code: [gnome-extension/aura-bridge@aura/extension.js](../../gnome-extension/aura
 | ID | Requirement | Rationale | Verification |
 |---|---|---|---|
 | NFR-SEC-001 | Every tool call, including calls inside specialist agents and MCP toolsets, passes `GuardPlugin.before_tool_callback`. Tools without Aura metadata are classified T2. | Single enforcement point; new tools fail safe | Canary test that a specialist tool call is audited; unit test `meta_of(unknown) == T2` |
-| NFR-SEC-002 | T3 actions are never executed; no policy rule, hook, approval or "allow for task" can unlock them. | Credentials and irreversible destruction must not depend on user attention | Unit tests on `PolicyEngine.evaluate` and guard with T3 + allow rule + `allow_all` |
+| NFR-SEC-002 | T3 actions are never executed; no policy rule, hook, approval or "allow for task" can unlock them. | Credentials and irreversible destruction must not depend on user attention | Unit tests on `PolicyEngine.evaluate` and guard with T3 + allow rule + scoped grants |
 | NFR-SEC-003 | T2 actions execute only after an explicit approval from the UI; a missing, failed or timed-out approval is a denial. | Model text cannot approve | Test `host.approve` raising/timeout → `DENIED`; e2e approval test |
 | NFR-SEC-004 | A command classified T0 or T1 by the shell or PowerShell classifier cannot execute an arbitrary sub-command, write a file, or reach the network beyond reading. | Read-only allow-lists are the largest bypass surface (AURA-13) | Corpus of bypass payloads (env, awk, find -exec, git -c, python -c, node -e, xargs, sed `e`, …) must classify ≥ T2; reviewed per new allow-list entry |
 | NFR-SEC-005 | All file tools and the shell classifiers block (T3) access to credential stores listed in section 2 (A3), including cloud CLI configs, `.env`, `.npmrc`, `.pypirc`, `gh` tokens and Aura's `userData` secrets, regardless of path spelling or symlinks. | Prevent secret disclosure to model/provider | Parametrised tests over path variants (`~`, relative, symlink, case on Windows) |

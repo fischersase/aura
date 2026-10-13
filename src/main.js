@@ -716,7 +716,8 @@ ipcMain.on('agent:approval', (_e, { stepId, ok }) => {
   const r = approvals.get(stepId);
   if (r) {
     approvals.delete(stepId);
-    r(ok === 'all' || ok === 'always' ? ok : !!ok);
+    // Scopes as strings (AURA-119): 'all' (task), 'always', 'session', 'hours:N'; everything else yes/no.
+    r(typeof ok === 'string' && /^(all|always|session|hours:\d{1,2})$/.test(ok) ? ok : !!ok);
   }
 });
 
@@ -786,8 +787,12 @@ const agentV2 = new AgentBridge({
       new Promise((resolve) => {
         const sender = v2Senders.get(req.taskId);
         if (!sender || sender.isDestroyed()) return resolve({ decision: 'deny' });
+        // Scoped approvals (AURA-119): the agent binds them to this tool and its website, connector tool or action.
+        const SCOPES = ['always', 'session', 'hours:1', 'hours:8'];
         const answer = (ok) =>
-          resolve({ decision: ok === 'all' ? 'task' : ok === 'always' ? 'always' : ok ? 'once' : 'deny' });
+          resolve({
+            decision: ok === 'all' ? 'task' : SCOPES.includes(ok) ? ok : ok ? 'once' : 'deny'
+          });
         answer.taskId = req.taskId;
         approvals.set(req.stepId, answer);
         const detail = req.effect && req.effect !== req.label ? req.effect : '';

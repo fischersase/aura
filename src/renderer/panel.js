@@ -542,7 +542,26 @@ window.api.onAgentApprove((step) => {
     always.onclick = () => answer('always');
     box.querySelector('.btns').insertBefore(always, box.querySelector('.allow'));
     box.querySelector('.all').textContent = 'Für diesen Auftrag';
+    box.querySelector('.all').title =
+      'Diese Aktion (auf dieser Webseite, mit diesem Werkzeug) für den Rest des Auftrags ohne Rückfrage';
     box.querySelector('.allow').textContent = 'Nur jetzt';
+    // Longer scopes (AURA-119): still bound to this action, website or connector tool.
+    const longer = document.createElement('select');
+    longer.className = 'longer';
+    longer.title = 'Länger erlauben – nur für diese Aktion bzw. diese Webseite';
+    for (const [v, t] of [
+      ['', 'Länger …'],
+      ['session', 'bis Aura neu startet'],
+      ['hours:1', '1 Stunde'],
+      ['hours:8', '8 Stunden']
+    ]) {
+      const o = document.createElement('option');
+      o.value = v;
+      o.textContent = t;
+      longer.appendChild(o);
+    }
+    longer.onchange = () => longer.value && answer(longer.value);
+    box.querySelector('.btns').insertBefore(longer, always);
   }
   box.querySelector('.allow').onclick = () => answer(true);
   box.querySelector('.deny').onclick = () => answer(false);

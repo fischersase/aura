@@ -610,13 +610,22 @@
           ],
           "properties": {
             "decision": {
-              "enum": [
-                "once",
-                "task",
-                "always",
-                "deny"
+              "oneOf": [
+                {
+                  "enum": [
+                    "once",
+                    "task",
+                    "session",
+                    "always",
+                    "deny"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "pattern": "^hours:([1-9]|1[0-9]|2[0-4])$"
+                }
               ],
-              "description": "task = Rest dieses Auftrags ohne Rückfrage; always = Regel in ~/.aura/policy.toml anlegen."
+              "description": "Scoped approvals (AURA-119), bound to the tool plus its website, connector tool or exact action: once; task = this task; session = until the agent restarts; hours:N = N hours (max 24); always = rule in ~/.aura/policy.toml."
             }
           }
         }
