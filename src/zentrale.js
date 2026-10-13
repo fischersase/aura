@@ -587,6 +587,7 @@ const API = {
     for (const k of Object.keys(store.DEFAULT_PROFILE))
       clean[k] =
         typeof store.DEFAULT_PROFILE[k] === 'boolean' ? !!(p || {})[k] : String((p || {})[k] || '').slice(0, 2000);
+    if (!['profile', 'ip', 'device'].includes(clean.locationMode)) clean.locationMode = 'profile';
     store.save({ profile: clean });
     return API.profile();
   },

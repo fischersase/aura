@@ -65,6 +65,7 @@ async def run_task(task: Task, display: str, model: str, num_ctx: int) -> dict[s
             session_type="x11",
             browser_headless=True,
             connectors=CONNECTORS,  # the app always sends the catalog (AURA-96)
+            **task.settings,
         )
         host = FakeHost(task.approve, answers=list(task.answers))
         llm = OllamaLlm(model=f"ollama/{model}", num_ctx=num_ctx, think=False)

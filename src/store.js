@@ -37,7 +37,16 @@ const DEFAULTS = {
 };
 
 // Nutzerprofil: was Aura über dich wissen darf (fließt in die Systemanweisung ein, wenn share an ist).
-const DEFAULT_PROFILE = { name: '', location: '', occupation: '', about: '', preferences: '', share: true };
+// locationMode (AURA-116): 'profile' (only the place above), 'ip' (approximate, opt-in), 'device' (OS, opt-in).
+const DEFAULT_PROFILE = {
+  name: '',
+  location: '',
+  occupation: '',
+  about: '',
+  preferences: '',
+  share: true,
+  locationMode: 'profile'
+};
 
 /** @type {Record<string, any> | null} */
 let cache = null;

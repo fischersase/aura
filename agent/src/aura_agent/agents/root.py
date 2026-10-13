@@ -22,6 +22,7 @@ from ..platform.base import IS_WINDOWS
 from ..runtime.context import current
 from ..runtime.settings import AgentSettings
 from ..tools.connectors import make_connector_tools
+from ..tools.context import ContextService, make_context_tools
 from ..tools.desktop import launch_app, list_windows, open_target, window_action
 from ..tools.files import edit_file, find_files, list_dir, move_path, read_file, trash, write_file
 from ..tools.interaction import ask_user, todo_write
@@ -93,6 +94,7 @@ def instruction(
                 f"Du bist Aura, der Assistent auf dem {OS_NAME}-PC von {settings.user_name}. "
                 f"Benutzerordner: {settings.home}. Sitzung: {settings.session_type or ('windows' if IS_WINDOWS else 'unbekannt')}. "
                 f"Jetzt: {now_text()}."
+                + (f" Wohnort laut Profil: {settings.profile_place}." if settings.profile_place else "")
             ),
             f"Antworte kurz, klar und freundlich auf {settings.language}. Markdown sparsam.",
             (
@@ -141,7 +143,7 @@ def instruction(
                 + (
                     "- Webseiten bedienen (suchen, klicken, Formulare, Musik auf YouTube Music abspielen, Infos von Seiten holen): "
                     "browser mit einer klaren, vollständigen Aufgabe. Nur eine Seite anzeigen: open_target.\n"
-                    "- Etwas im Internet nachschlagen (Wetter, Nachrichten, Fakten, Öffnungszeiten): browser mit dem Auftrag, "
+                    "- Etwas im Internet nachschlagen (Nachrichten, Fakten, Öffnungszeiten): browser mit dem Auftrag, "
                     "auf DuckDuckGo zu suchen und die Antwort mit Quelle zurückzugeben.\n"
                     if has_browser
                     else ""
@@ -153,6 +155,8 @@ def instruction(
                     if has_apps
                     else ""
                 )
+                + "- Wetter, Regen, Temperatur (auch „brauche ich einen Schirm?“): weather; ohne Ort nimmt es den Ort des "
+                "Nutzers. Wo der Nutzer ist: location. Nie dafür den Browser.\n"
                 + "- Was gerade auf dem Bildschirm zu sehen ist: screenshot.\n"
                 + f"- Alles andere: run_command ({SHELL_NAME}). Nur lesende Befehle laufen ohne Rückfrage. Pfade dürfen mit ~ beginnen."
             ),
@@ -203,6 +207,7 @@ def build_root(
 ) -> LlmAgent:
     memory = FactStore(settings.aura_dir)
     tools: list = list(TOOLS) + make_memory_tools(memory, episodes, settings.memory_paused)
+    tools += make_context_tools(ContextService(settings.location_mode, settings.profile_place))
     if browser is not None:
         tools.append(browser_agent(model, browser))
     if integrations is not None:

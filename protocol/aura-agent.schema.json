@@ -161,6 +161,18 @@
                     "type": "string"
                   },
                   "description": "Connector IDs the user never wants suggested."
+                },
+                "locationMode": {
+                  "enum": [
+                    "profile",
+                    "ip",
+                    "device"
+                  ],
+                  "description": "Location source chosen by the user (AURA-116)."
+                },
+                "profilePlace": {
+                  "type": "string",
+                  "description": "Place from the user's profile, if shared."
                 }
               }
             }
