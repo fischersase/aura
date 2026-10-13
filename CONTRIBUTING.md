@@ -28,8 +28,13 @@ gir1.2-atspi-2.0` (see `.github/workflows/ci.yml`).
 
 ```bash
 npm run check && npm test                       # app (JavaScript) and the bridge to the agent
-cd agent && uv run ruff check src tests spikes evals && uv run pytest -q   # agent: unit, harness, contract tests
+cd agent && uv run ruff format --check src tests spikes evals && uv run ruff check src tests spikes evals \
+  && uv run pytest -q                           # agent: format, lint, unit, harness, contract tests
 ```
+
+Python follows PEP 8 with 4 spaces (ADR 0017); `cd agent && uv run ruff format src tests spikes evals` formats it.
+Mechanical reformatting commits are listed in `.git-blame-ignore-revs`; GitHub skips them in blame views, and locally
+`git config blame.ignoreRevsFile .git-blame-ignore-revs` does the same.
 
 Changes to the agent's behaviour (prompts, tools, guard) should also pass the desktop eval suite with a real model:
 `cd agent && uv run python -m evals.desktop.run --k 3 --num-ctx 32768` (see [ADR 0008](docs/adr/0008-eval-suite.md)).

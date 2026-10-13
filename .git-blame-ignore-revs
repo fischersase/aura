@@ -1,0 +1,6 @@
+# Mechanical reformatting commits, skipped by git blame:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+# GitHub uses this file automatically.
+
+# style(agent): ruff format (4 spaces, PEP 8) (AURA-73)
+1c3997d9c17624f9a79a92537f5b471dbb37c92d
