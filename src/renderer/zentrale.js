@@ -32,7 +32,7 @@ function show(page) {
   if (page === 'chats') renderChats();
   if (page === 'secrets') renderSecrets();
   if (page === 'profile') loadProfile();
-  if (page === 'catalog') setTimeout(() => $('q').focus(), 30);
+  if (page === 'catalog') renderConnectors();
 }
 document.querySelectorAll('nav button[data-page]').forEach((b) => {
   b.onclick = () => show(b.dataset.page);
@@ -386,6 +386,96 @@ async function serverDialog(name) {
     });
 }
 
+// ---------- Verbindungen: Aura-Katalog (AURA-96) ----------
+
+let connectorEntries = [];
+async function renderConnectors() {
+  connectorEntries = await z.connectors();
+  const label = { coming: 'Kommt bald', advanced: 'Für Fortgeschrittene' };
+  $('connectorList').innerHTML = connectorEntries
+    .map((c) => {
+      const server = c.server ? S.servers.find((s) => s.name === c.server) : null;
+      const state = server
+        ? server.auth === 'oauth' && !server.signedIn
+          ? '<span class="badge warn">Anmeldung nötig</span>'
+          : '<span class="badge good">Verbunden</span>'
+        : label[c.status]
+          ? `<span class="badge">${esc(label[c.status])}</span>`
+          : '';
+      const action =
+        c.status === 'coming'
+          ? ''
+          : c.status === 'advanced'
+            ? `<a href="#" data-url="${esc(c.homepage)}" class="small">Anleitung</a>`
+            : server
+              ? `<button class="small" data-connect="${esc(c.id)}">Neu einrichten</button>`
+              : `<button class="small primary" data-connect="${esc(c.id)}">Verbinden</button>`;
+      return `<div class="result connector"><div class="top"><span class="title">${esc(c.title)}</span>
+        <span class="badge good" title="Von Aura geprüft">Von Aura geprüft</span>${state}<span class="grow"></span>${action}</div>
+        <div class="desc">${esc(c.description)}</div><div class="muted small">Anbieter: ${esc(c.publisher)}</div></div>`;
+    })
+    .join('');
+  $('connectorList')
+    .querySelectorAll('[data-connect]')
+    .forEach((b) => {
+      b.onclick = () => connectDialog(b.dataset.connect);
+    });
+}
+
+// Guided setup: steps, a link to where the token is made, one field per value. OAuth entries sign in right away.
+function connectDialog(id) {
+  const c = connectorEntries.find((x) => x.id === id);
+  if (!c) return;
+  const steps = (list) => `<ol class="steps">${list.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>`;
+  const creds = c.credentials
+    .map(
+      (k) => `
+    <fieldset class="cred"><legend>${esc(k.label)}</legend>
+      ${k.tokenUrl ? `<p><a href="#" data-url="${esc(k.tokenUrl)}" class="button-link">${k.kind === 'api-token' ? 'Token erstellen' : 'Öffnen'} ↗</a></p>` : ''}
+      ${steps(k.help)}
+      <input type="${k.secret ? 'password' : k.kind === 'email' ? 'email' : 'text'}" data-cred="${esc(k.name)}" placeholder="${esc(k.label)} hier einfügen" spellcheck="false" autocomplete="off">
+    </fieldset>`
+    )
+    .join('');
+  dialog(
+    `${c.title} verbinden`,
+    `<p class="small muted">${esc(c.description)}</p>
+    ${c.setup.length ? steps(c.setup) : ''}
+    ${creds}
+    <div class="hint">${c.credentials.some((k) => k.secret) ? 'Zugangsschlüssel speichert Aura verschlüsselt unter „Schlüssel &amp; Konten“; der Agent sieht sie nie. ' : ''}Lesen geht ohne Rückfrage; Senden, Ändern und Löschen fragt Aura immer vorher.</div>`,
+    async () => {
+      const values = {};
+      for (const el of document.querySelectorAll('[data-cred]')) values[el.dataset.cred] = el.value;
+      const r = await z.installConnector({ id: c.id, values });
+      if (r.error) return r.error;
+      if (r.oauth) {
+        $('dlgOk').textContent = 'Im Browser anmelden …';
+        const s = await z.connectServer(r.name);
+        if (s && s.error) return `Gespeichert, aber die Anmeldung hat nicht geklappt: ${s.error}`;
+      }
+      await load(true);
+      renderConnectors();
+      return null;
+    },
+    c.oauth ? 'Anmelden' : 'Verbinden'
+  );
+  const first = document.querySelector('[data-cred]');
+  if (first) first.focus();
+}
+
+// From the connect card in the panel: open this page with the entry ready (catalog) or the search filled in.
+window.api.onNavigate?.(async (nav) => {
+  if (!S) await load();
+  show(nav.page || 'catalog');
+  if (!nav.connect) return;
+  await renderConnectors();
+  if (connectorEntries.some((c) => c.id === nav.connect)) connectDialog(nav.connect);
+  else if (nav.query) {
+    $('q').value = nav.query;
+    $('searchForm').requestSubmit();
+  }
+});
+
 // ---------- Katalog ----------
 
 let lastResults = [];
@@ -408,6 +498,7 @@ $('searchForm').onsubmit = async (e) => {
     return;
   }
   const installed = new Set(S.servers.map((s) => s.name));
+  const reviewed = new Set(connectorEntries.map((c) => c.title.toLowerCase()));
   $('results').innerHTML = lastResults
     .map(
       (x, i) => `

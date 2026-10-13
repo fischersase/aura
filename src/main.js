@@ -29,6 +29,7 @@ const agentInput = require('./agent/input');
 const agentSkills = require('./agent/skills');
 const agentMcp = require('./agent/mcp');
 const secrets = require('./secrets');
+const connectors = require('./connectors');
 const web = require('./web');
 const { createOAuthClient } = require('./oauth');
 const { enableWeakIfAllowed } = require('./keystore');
@@ -765,6 +766,9 @@ const agentV2 = new AgentBridge({
       toolPolicy: s.toolPolicy || {},
       ...browserLauncher(),
       mcpServers: mcpServersForAgent(),
+      // Connector catalog for find_connector, and IDs the user never wants suggested (AURA-96).
+      connectors: connectors.list(),
+      declinedConnectors: s.declinedConnectors || [],
       disabledSkills: s.disabledSkills || [],
       memoryPaused: !!s.memoryPaused,
       dataDir: path.join(app.getPath('userData'), 'agent'),
@@ -803,6 +807,48 @@ const agentV2 = new AgentBridge({
         answer.taskId = req.taskId;
         v2Questions.set(id, answer);
         sender.send('agent:ask', { chatId: req.taskId, id, question: req.question, options: req.options || [] });
+        if (panel && !panelOpen) openPanel();
+      }),
+    // Connector search in the official registry (AURA-96): the app does the HTTP request, not the agent.
+    searchRegistry: async (req) => {
+      try {
+        return connectors.registrySummary(await zentrale.API.searchRegistry(String((req && req.query) || '')));
+      } catch (err) {
+        return { results: [], error: err instanceof Error ? err.message : String(err) };
+      }
+    },
+    // Connect card in the panel (AURA-96). Nothing is installed here; "connect" opens the Zentrale pre-filled.
+    proposeConnector: (req) =>
+      new Promise((resolve) => {
+        const sender = v2Senders.get(req.taskId);
+        if (!sender || sender.isDestroyed()) return resolve({ decision: 'later' });
+        const id = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        const answer = (decision) => {
+          const d = ['connect', 'later', 'never'].includes(decision) ? decision : 'later';
+          if (d === 'never') {
+            const declined = new Set(store.load().declinedConnectors || []);
+            declined.add(String(req.id));
+            store.save({ declinedConnectors: [...declined] });
+          }
+          if (d === 'connect') {
+            closePanel();
+            zentrale.open(ICON, { page: 'catalog', connect: String(req.id), query: String(req.title || '') });
+          }
+          resolve({ decision: d });
+        };
+        answer.taskId = req.taskId;
+        v2Questions.set(id, answer);
+        sender.send('agent:connector', {
+          chatId: req.taskId,
+          id,
+          title: String(req.title || req.id),
+          publisher: String(req.publisher || ''),
+          verified: req.verified === 'aura' ? 'aura' : 'registry',
+          description: String(req.description || ''),
+          reason: String(req.reason || ''),
+          needs: Array.isArray(req.needs) ? req.needs.map(String) : [],
+          risk: String(req.risk || '')
+        });
         if (panel && !panelOpen) openPanel();
       }),
     screenshot: async (maxWidth) => {
@@ -844,6 +890,13 @@ chats.setOnRemove((id) => {
   agentV2.forgetChat(id).catch(() => {});
 });
 
+ipcMain.on('agent:connectorAnswer', (_e, { id, decision }) => {
+  const r = v2Questions.get(id);
+  if (r) {
+    v2Questions.delete(id);
+    r(decision);
+  }
+});
 ipcMain.on('agent:answer', (_e, { id, answer }) => {
   const r = v2Questions.get(id);
   if (r) {
@@ -866,7 +919,9 @@ function mcpServersForAgent() {
     .filter(([, c]) => c && !c.disabled)
     .map(([name, c]) => {
       try {
-        return { name, ...secrets.resolveServerConfig(c) };
+        // A server added by hand with a catalog URL gets the catalog's tiers too (AURA-96).
+        const catalogId = c.catalogId || (connectors.forUrl(c.url) || {}).id;
+        return { name, ...secrets.resolveServerConfig(c), ...(catalogId ? { catalogId } : {}) };
       } catch (err) {
         return { name, error: String(err.message || err) };
       }

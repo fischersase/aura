@@ -16,7 +16,7 @@
   <button data-page="tools">Werkzeuge</button>
   <button data-page="rules">Regeln</button>
   <button data-page="servers">MCP-Server</button>
-  <button data-page="catalog">MCP-Katalog</button>
+  <button data-page="catalog">Verbindungen</button>
   <button data-page="skills">Skills</button>
   <button data-page="instructions">Anweisungen</button>
   <button data-page="memory">Gedächtnis</button>
@@ -99,8 +99,11 @@
 
   <!-- Katalog -->
   <section id="catalog" class="page hidden">
-    <h1>MCP-Katalog</h1>
-    <p class="lead">Suche im offiziellen MCP-Verzeichnis (registry.modelcontextprotocol.io) und füge Server mit einem Klick hinzu. Installiere nur Server, deren Herkunft du vertraust.</p>
+    <h1>Verbindungen</h1>
+    <p class="lead">Verbinde Aura mit deinen Diensten. Die Einträge unten hat Aura geprüft und fertig eingerichtet: Du meldest dich nur an oder trägst einen Zugangsschlüssel ein; Aura zeigt dir, wo du ihn bekommst.</p>
+    <div id="connectorList" class="connectors"></div>
+    <h2>Weitere Server im offiziellen MCP-Verzeichnis</h2>
+    <p class="lead small">Suche in registry.modelcontextprotocol.io. Diese Server hat Aura <b>nicht</b> geprüft: Jede ihrer Aktionen fragt vorher nach. Installiere nur Server, deren Herkunft du vertraust.</p>
     <form id="searchForm" class="row"><input id="q" type="search" placeholder="z. B. playwright, github, notion, kalender" spellcheck="false"><button class="primary">Suchen</button></form>
     <div id="results"></div>
   </section>

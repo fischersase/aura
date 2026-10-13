@@ -53,6 +53,8 @@ contextBridge.exposeInMainWorld('api', {
   agentApproval: (stepId, ok) => ipcRenderer.send('agent:approval', { stepId, ok }),
   onAgentAsk: on('agent:ask'),
   agentAnswer: (id, answer) => ipcRenderer.send('agent:answer', { id, answer }),
+  onAgentConnector: on('agent:connector'),
+  agentConnectorAnswer: (id, decision) => ipcRenderer.send('agent:connectorAnswer', { id, decision }),
   onAgentPlan: on('agent:plan'),
   onAgentVerified: on('agent:verified'),
   agentVoiceTask: (request) => ipcRenderer.invoke('agent:voiceTask', { request }),

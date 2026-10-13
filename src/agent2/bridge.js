@@ -107,6 +107,12 @@ class AgentBridge {
     peer.on('host.screenshot', (req) => this.host.screenshot(req.maxWidth || 1600));
     peer.on('host.ask', (req) => this.host.ask(req));
     peer.on('host.input', (req) => (this.host.input ? this.host.input(req) : { error: 'Eingabe nicht verfügbar' }));
+    peer.on('host.searchRegistry', (req) =>
+      this.host.searchRegistry ? this.host.searchRegistry(req) : { results: [], error: 'Suche nicht verfügbar' }
+    );
+    peer.on('host.proposeConnector', (req) =>
+      this.host.proposeConnector ? this.host.proposeConnector(req) : { decision: 'later' }
+    );
     peer.on('host.authHeader', (req) =>
       this.host.authHeader ? this.host.authHeader(req) : { error: 'Anmeldung nicht verfügbar' }
     );

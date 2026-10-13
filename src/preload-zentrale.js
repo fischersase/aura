@@ -30,6 +30,8 @@ contextBridge.exposeInMainWorld('api', {
       'disconnectServer',
       'searchRegistry',
       'installRegistry',
+      'connectors',
+      'installConnector',
       'getSkill',
       'saveSkill',
       'deleteSkill',
@@ -53,5 +55,6 @@ contextBridge.exposeInMainWorld('api', {
     z.toggleServer = (name, enabled) => ipcRenderer.invoke('z:toggleServer', { name, enabled });
     z.toggleSkill = (name, enabled) => ipcRenderer.invoke('z:toggleSkill', { name, enabled });
     return z;
-  })()
+  })(),
+  onNavigate: (/** @type {(nav: any) => void} */ fn) => ipcRenderer.on('z:navigate', (_e, nav) => fn(nav))
 });
