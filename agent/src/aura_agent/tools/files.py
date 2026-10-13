@@ -202,7 +202,7 @@ DIFF_LINES = 80
 def _diff(old: str, new: str, name: str) -> str:
   lines = list(difflib.unified_diff(old.splitlines(), new.splitlines(), f"{name} (vorher)", f"{name} (nachher)", lineterm="", n=2))
   if len(lines) > DIFF_LINES:
-    lines = lines[:DIFF_LINES] + [f"… ({len(lines) - DIFF_LINES} weitere Zeilen)"]
+    lines = [*lines[:DIFF_LINES], f"… ({len(lines) - DIFF_LINES} weitere Zeilen)"]
   return "\n".join(lines) or "(keine Änderung)"
 
 

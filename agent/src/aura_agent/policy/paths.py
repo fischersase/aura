@@ -8,6 +8,7 @@ powershell_classifier.FORBIDDEN.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import re
 from pathlib import Path
@@ -50,10 +51,8 @@ def forbidden(path: str | Path) -> str | None:
   """Grund, falls der Pfad gesperrt ist, sonst None. Prüft den Pfad und sein Symlink-Ziel."""
   p = Path(path)
   candidates = {str(p)}
-  try:
+  with contextlib.suppress(OSError):
     candidates.add(os.path.realpath(p))
-  except OSError:
-    pass
   for c in {c.replace("\\", "/") for c in candidates}:
     for pattern, reason in FORBIDDEN_PATHS:
       if pattern.search(c):
@@ -92,10 +91,8 @@ def control_tier(*paths: str | Path) -> tuple[Tier, str] | None:
   worst: tuple[Tier, str] | None = None
   for p in paths:
     candidates = {str(p)}
-    try:
+    with contextlib.suppress(OSError):
       candidates.add(os.path.realpath(p))
-    except OSError:
-      pass
     for c in {c.replace("\\", "/") for c in candidates}:
       if _AURA_ENFORCEMENT.search(c):
         return Tier.T3, "Hooks, Regeln und MCP-Server von Aura ändert nur der Nutzer selbst (Zentrale)"

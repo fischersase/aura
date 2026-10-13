@@ -73,7 +73,7 @@ def installed_apps() -> list[App]:
       if sec.get("NoDisplay", "").lower() == "true" or sec.get("Hidden", "").lower() == "true" or sec.get("Type", "Application") != "Application":
         continue
       names = [sec.get(k, "") for k in ("Name", "Name[de]", "GenericName", "GenericName[de]", "Keywords", "Keywords[de]")]
-      apps[app_id] = App(id=app_id, file=f, name=sec.get("Name", app_id), names=" ".join(names + [app_id]).lower(),
+      apps[app_id] = App(id=app_id, file=f, name=sec.get("Name", app_id), names=" ".join([*names, app_id]).lower(),
                          exec=sec.get("Exec", ""), wm_class=sec.get("StartupWMClass", ""))
   return list(apps.values())
 

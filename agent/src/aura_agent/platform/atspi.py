@@ -60,7 +60,8 @@ class HelperClient:
   async def call(self, method: str, **params: Any) -> dict[str, Any]:
     async with self._lock:
       proc = await self._start()
-      assert proc.stdin and proc.stdout
+      if proc.stdin is None or proc.stdout is None:
+        raise RuntimeError("AT-SPI helper has no pipes")
       rid = next(self._ids)
       proc.stdin.write((json.dumps({"id": rid, "method": method, "params": params}) + "\n").encode())
       try:

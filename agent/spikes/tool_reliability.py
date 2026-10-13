@@ -125,8 +125,8 @@ def todo_write(items: list[str]) -> dict:
 
 
 CORE = [media_control, media_status, launch_app, list_windows, read_file, find_files, volume, web_search]
-MID = CORE + [write_file, shell, settings_set, clipboard_write]
-FULL = MID + [window_action, list_dir, web_fetch, settings_get, clipboard_read, notify, system_info, todo_write]
+MID = [*CORE, write_file, shell, settings_set, clipboard_write]
+FULL = [*MID, window_action, list_dir, web_fetch, settings_get, clipboard_read, notify, system_info, todo_write]
 
 # (Bitte, erwartetes Werkzeug, Prüfung der Argumente)
 CASES = [

@@ -9,6 +9,7 @@ lässt Ollama das Modell jedes Mal neu laden (~70 s bei 18 GB).
 from __future__ import annotations
 
 import base64
+import contextlib
 import json
 import logging
 import uuid
@@ -288,10 +289,8 @@ class OllamaLlm(BaseLlm):
 
 def _error(status: int, detail: str) -> LlmResponse:
   msg = detail
-  try:
+  with contextlib.suppress(json.JSONDecodeError, AttributeError):
     msg = json.loads(detail).get("error", detail)
-  except (json.JSONDecodeError, AttributeError):
-    pass
   if "not found" in str(msg) and "model" in str(msg):
     msg = f"{msg}. Das Modell ist nicht heruntergeladen (ollama pull …)."
   return LlmResponse(error_code=f"OLLAMA_{status}", error_message=str(msg), turn_complete=True)

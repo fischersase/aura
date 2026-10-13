@@ -365,7 +365,9 @@ async def settings(schema: str, key: str, value: str | None = None) -> dict[str,
   if code:
     return {"error": out.strip()}
   _, after = await _run("gsettings", "get", schema, key)
-  norm = lambda v: v.strip().strip("'\"")
+  def norm(v: str) -> str:
+    return v.strip().strip("'\"")
+
   ok = norm(after) == norm(value)
   return {"schema": schema, "key": key, "before": before.strip(), "after": after.strip(), "verified": ok,
           **({} if ok else {"error": "Wert wurde nicht übernommen."})}
