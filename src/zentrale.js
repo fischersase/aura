@@ -10,14 +10,21 @@ const skills = require('./agent/skills');
 const mcp = require('./agent/mcp');
 const loop = require('./agent/loop');
 const secrets = require('./secrets');
+const connectors = require('./connectors');
 
 const REGISTRY = 'https://registry.modelcontextprotocol.io/v0.1/servers';
 let win = null;
 
-function open(icon) {
+/**
+ * @param {string} icon
+ * @param {{ page?: string, connect?: string, query?: string }} [nav] e.g. from the connect card (AURA-96)
+ */
+function open(icon, nav) {
+  const navigate = () => nav && win && !win.isDestroyed() && win.webContents.send('z:navigate', nav);
   if (win && !win.isDestroyed()) {
     win.show();
     win.focus();
+    navigate();
     return;
   }
   win = new BrowserWindow({
@@ -32,6 +39,7 @@ function open(icon) {
     webPreferences: { preload: path.join(__dirname, 'preload-zentrale.js'), contextIsolation: true }
   });
   win.loadFile(path.join(__dirname, 'renderer', 'zentrale.html'));
+  win.webContents.once('did-finish-load', navigate);
   win.on('closed', () => {
     win = null;
   });
@@ -88,8 +96,10 @@ async function state(force) {
   // OAuth servers without a sign-in are not in error, they wait for "Anmelden" (AURA-95).
   const waitsForSignIn = (/** @type {string} */ name, /** @type {any} */ c) =>
     c.auth === 'oauth' && !secrets.get(require('./oauth').vaultName(name));
+  const clashes = connectors.collisions(Object.keys(cfg).filter((n) => cfg[n] && !cfg[n].disabled));
   const servers = Object.entries(cfg).map(([name, c]) => ({
     name,
+    catalogId: c.catalogId || (connectors.forUrl(c.url) || {}).id || '',
     type: c.url ? 'http' : 'stdio',
     command: c.url ? c.url : [c.command, ...(c.args || [])].join(' '),
     env: Object.keys(c.env || {}),
@@ -98,7 +108,7 @@ async function state(force) {
     secretRefs: secrets.refsIn(c),
     auth: c.auth === 'oauth' ? 'oauth' : '',
     signedIn: c.auth === 'oauth' ? !!secrets.get(require('./oauth').vaultName(name)) : false,
-    error: waitsForSignIn(name, c) ? null : status[name] ? status[name].error : null,
+    error: clashes[name] || (waitsForSignIn(name, c) ? null : status[name] ? status[name].error : null),
     running: !!(status[name] && !status[name].error),
     tools: mcpTools
       .filter((t) => t.server === name)
@@ -379,9 +389,57 @@ const API = {
     }
     const cfg = configFromRegistry(server, plain);
     if (!cfg) return { error: 'Für diesen Eintrag kennt Aura keine Startart (nur npm, PyPI, Docker oder Remote).' };
-    all[n] = cfg;
+    all[n] = { ...cfg, source: 'registry' }; // unreviewed: every tool asks (FR-CON-008)
     writeMcpConfig(all);
     return { name: n, state: await state(true) };
+  },
+
+  // Aura connector catalog (AURA-96): reviewed entries with ready settings; "installed" if a server uses it.
+  connectors() {
+    const cfg = readMcpConfig();
+    const used = new Map();
+    for (const [name, c] of Object.entries(cfg)) {
+      const id = c.catalogId || (connectors.forUrl(c.url) || {}).id;
+      if (id) used.set(id, name);
+    }
+    return connectors.list().map((e) => ({
+      id: e.id,
+      title: e.title,
+      description: e.description,
+      publisher: e.publisher,
+      status: e.status,
+      homepage: e.homepage,
+      oauth: !!(e.config && e.config.auth === 'oauth'),
+      credentials: e.credentials,
+      setup: e.setup || [],
+      server: used.get(e.id) || null
+    }));
+  },
+  // Connect a catalog entry: credentials go to the vault, mcp.json gets the entry with ${secret:…} and catalogId.
+  installConnector({ id, values } = {}) {
+    const entry = connectors.byId(String(id || ''));
+    if (!entry) return { error: 'Unbekannter Eintrag im Katalog.' };
+    const all = readMcpConfig();
+    let n = entry.title.split(/[ (]/)[0].replace(/[^A-Za-z0-9_.-]/g, '-') || entry.id;
+    const existing = Object.entries(all).find(
+      ([, c]) => c.catalogId === entry.id || (connectors.forUrl(c.url) || {}).id === entry.id
+    );
+    if (existing) n = existing[0];
+    else while (all[n]) n += '-2';
+    let cfg;
+    try {
+      cfg = connectors.configFor(
+        entry,
+        values || {},
+        (cred) => secretNameFor(n, cred),
+        (name, value, note) => secrets.set(name, value, note)
+      );
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : String(e) };
+    }
+    all[n] = cfg;
+    writeMcpConfig(all);
+    return { name: n, oauth: cfg.auth === 'oauth' };
   },
 
   // Skills

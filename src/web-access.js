@@ -15,6 +15,7 @@ const ALLOW = new Set([
   'doctor',
   'getServer',
   'searchRegistry',
+  'connectors',
   'getSkill',
   'secrets',
   'setSecretNote',
@@ -32,6 +33,8 @@ const CONFIRM = {
   saveServer: (a) => `MCP-Server „${a.name}“ speichern: ${serverCommand(a.config)}`,
   installRegistry: (a) =>
     `MCP-Server „${a.name || (a.server && a.server.name) || '?'}“ aus dem Verzeichnis installieren`,
+  installConnector: (a) =>
+    `Verbindung „${a && a.id}“ aus dem Aura-Katalog einrichten (Zugangsdaten werden gespeichert)`,
   toggleServer: (a) => `MCP-Server „${a.name}“ ${a.enabled ? 'einschalten (startet ihn)' : 'ausschalten'}`,
   removeServer: (a) => `MCP-Server „${a}“ entfernen`,
   connectServer: (a) => `Beim MCP-Server „${a}“ anmelden (öffnet den Browser)`,

@@ -68,6 +68,7 @@ const IPC_ACCESS = {
   'chats:delete': PANEL,
   'agent:approval': PANEL,
   'agent:answer': PANEL,
+  'agent:connectorAnswer': PANEL,
   'agent:voiceTask': PANEL,
   'agent:stop': PANEL,
   'agent:openLog': ['settings.html'],

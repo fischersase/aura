@@ -18,6 +18,8 @@ const LOG_MAX_BYTES = 5 * 1024 * 1024;
  * @property {(maxWidth: number) => unknown} screenshot
  * @property {(req: any) => unknown} [input]
  * @property {(req: any) => unknown} [authHeader] fresh Authorization header for an OAuth MCP server (AURA-95)
+ * @property {(req: any) => unknown} [searchRegistry] official MCP registry search (AURA-96)
+ * @property {(req: any) => unknown} [proposeConnector] connect card in the panel (AURA-96)
  */
 /** @typedef {{ onText?: (delta: string) => void, onStep?: (step: any) => void, onPlan?: (items: any) => void }} TaskHandlers */
 /** @typedef {{ handlers: Record<string, ((arg: any) => void) | undefined>, resolve: (result: any) => void, reject: (err: Error) => void }} RunningTask */
@@ -107,6 +109,12 @@ class AgentBridge {
     peer.on('host.screenshot', (req) => this.host.screenshot(req.maxWidth || 1600));
     peer.on('host.ask', (req) => this.host.ask(req));
     peer.on('host.input', (req) => (this.host.input ? this.host.input(req) : { error: 'Eingabe nicht verfügbar' }));
+    peer.on('host.searchRegistry', (req) =>
+      this.host.searchRegistry ? this.host.searchRegistry(req) : { results: [], error: 'Suche nicht verfügbar' }
+    );
+    peer.on('host.proposeConnector', (req) =>
+      this.host.proposeConnector ? this.host.proposeConnector(req) : { decision: 'later' }
+    );
     peer.on('host.authHeader', (req) =>
       this.host.authHeader ? this.host.authHeader(req) : { error: 'Anmeldung nicht verfügbar' }
     );

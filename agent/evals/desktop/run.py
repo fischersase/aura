@@ -38,6 +38,11 @@ RESULTS = Path(__file__).resolve().parents[1] / "results"
 TASK_TIMEOUT_S = 240
 
 
+CONNECTORS = json.loads(
+    (Path(__file__).parents[3] / "src" / "catalog" / "connectors.json").read_text(encoding="utf-8")
+)["connectors"]
+
+
 async def run_task(task: Task, display: str, model: str, num_ctx: int) -> dict[str, Any]:
     root = Path(tempfile.mkdtemp(prefix=f"aura-eval-{task.id}-"))
     env = EvalEnv(root, display)
@@ -59,6 +64,7 @@ async def run_task(task: Task, display: str, model: str, num_ctx: int) -> dict[s
             user_name="eval",
             session_type="x11",
             browser_headless=True,
+            connectors=CONNECTORS,  # the app always sends the catalog (AURA-96)
         )
         host = FakeHost(task.approve, answers=list(task.answers))
         llm = OllamaLlm(model=f"ollama/{model}", num_ctx=num_ctx, think=False)
@@ -86,6 +92,7 @@ async def run_task(task: Task, display: str, model: str, num_ctx: int) -> dict[s
             questions=host.questions,
             done=done,
             web=web,
+            proposals=host.proposals,
         )
         checks = {}
         for name, check in task.checks.items():
@@ -94,6 +101,9 @@ async def run_task(task: Task, display: str, model: str, num_ctx: int) -> dict[s
             except Exception as e:  # noqa: BLE001 - eine kaputte Prüfung zählt als nicht bestanden
                 checks[name] = False
                 checks[f"{name} (Fehler: {e})"] = False
+        if "connectors" not in task.tags:
+            # Only tasks about missing services may end in a connect card; "spiel Musik" must not.
+            checks["kein Verbindungsvorschlag"] = not host.proposals
         errors = host.of("task.error")
         return {
             "id": task.id,

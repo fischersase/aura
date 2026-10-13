@@ -20,6 +20,7 @@ test('dangerous functions are never allowed without confirmation', () => {
   for (const n of [
     'saveServer',
     'installRegistry',
+    'installConnector',
     'toggleServer',
     'setPolicy',
     'savePolicy',

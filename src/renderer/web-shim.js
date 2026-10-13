@@ -70,6 +70,8 @@
     'disconnectServer',
     'searchRegistry',
     'installRegistry',
+    'connectors',
+    'installConnector',
     'getSkill',
     'saveSkill',
     'deleteSkill',
