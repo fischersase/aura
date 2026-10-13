@@ -617,6 +617,50 @@ window.api.onAgentAsk(({ chatId: cid, id, question, options }) => {
   (box.querySelector('.opts button') || form.querySelector('input')).focus({ preventScroll: true });
 });
 
+// Connect card (AURA-96): Aura suggests a connection to a service; nothing is installed without "Verbinden".
+window.api.onAgentConnector((c) => {
+  if (!streaming || streaming.id !== c.chatId) {
+    window.api.agentConnectorAnswer(c.id, 'later');
+    return;
+  }
+  streaming.el.classList.remove('thinking');
+  const box = document.createElement('div');
+  box.className = 'ask connector';
+  box.innerHTML = `<div class="ctop"><b class="ctitle"></b><span class="cbadge"></span></div>
+    <div class="cwhy"></div><div class="cdesc"></div><div class="cneeds"></div><div class="crisk"></div>
+    <div class="opts"><button type="button" class="primary" data-d="connect">Verbinden</button>
+    <button type="button" data-d="later">Später</button><button type="button" data-d="never">Nicht mehr vorschlagen</button></div>`;
+  box.querySelector('.ctitle').textContent = c.title;
+  const badge = box.querySelector('.cbadge');
+  badge.textContent = c.verified === 'aura' ? 'Von Aura geprüft' : 'Nicht geprüft';
+  badge.classList.add(c.verified === 'aura' ? 'ok' : 'warn');
+  box.querySelector('.cwhy').textContent = c.reason;
+  box.querySelector('.cdesc').textContent = [c.description, c.publisher && `Anbieter: ${c.publisher}`]
+    .filter(Boolean)
+    .join(' · ');
+  box.querySelector('.cneeds').textContent = c.needs.length ? 'Du brauchst: ' + c.needs.join(', ') : '';
+  box.querySelector('.crisk').textContent = c.risk;
+  const labels = {
+    connect: 'Verbinden: die Aura Zentrale ist offen.',
+    later: 'Später.',
+    never: 'Nicht mehr vorschlagen.'
+  };
+  box.querySelectorAll('[data-d]').forEach((b) => {
+    b.onclick = () => {
+      box.classList.add('answered');
+      box.querySelector('.opts').remove();
+      const a = document.createElement('div');
+      a.className = 'a';
+      a.textContent = labels[b.dataset.d];
+      box.appendChild(a);
+      window.api.agentConnectorAnswer(c.id, b.dataset.d);
+    };
+  });
+  streaming.el.querySelector('.steps').appendChild(box);
+  scrollDown();
+  box.querySelector('[data-d="connect"]').focus({ preventScroll: true });
+});
+
 window.api.onAgentVerified(({ chatId: cid, verified }) => {
   if (!streaming || streaming.id !== cid) return;
   const badge = document.createElement('div');

@@ -211,6 +211,16 @@ button svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke
 .ask .free input { flex: 1; min-width: 0; font: inherit; font-size: 13px; padding: 6px 10px; border-radius: 12px; border: 1px solid var(--bg-3); background: transparent; color: inherit; }
 .ask .free button { background: #4285F4; color: #fff; }
 .ask .a { font-size: 13px; font-weight: 500; }
+/* Connect card (AURA-96) */
+.ask.connector .ctop { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.ask.connector .cbadge { font-size: 11px; padding: 1px 8px; border-radius: 10px; }
+.ask.connector .cbadge.ok { background: rgba(129,201,149,.2); color: #81c995; }
+.ask.connector .cbadge.warn { background: rgba(253,214,99,.2); color: #fdd663; }
+.ask.connector .cwhy { font-size: 13px; margin-bottom: 4px; }
+.ask.connector .cdesc, .ask.connector .cneeds, .ask.connector .crisk { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.ask.connector .cneeds:empty { display: none; }
+.ask.connector .opts { margin: 8px 0 0; }
+.ask.connector button.primary { background: #4285F4; color: #fff; }
 .verified { margin-top: 6px; font-size: 12px; }
 .verified.yes { color: #81c995; }
 .verified.no { color: #f28b82; }

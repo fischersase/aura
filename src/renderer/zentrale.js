@@ -397,8 +397,8 @@ async function renderConnectors() {
       const server = c.server ? S.servers.find((s) => s.name === c.server) : null;
       const state = server
         ? server.auth === 'oauth' && !server.signedIn
-          ? '<span class="badge warn">Anmeldung nötig</span>'
-          : '<span class="badge good">Verbunden</span>'
+          ? '<span class="badge bad">Anmeldung nötig</span>'
+          : '<span class="badge ok">Verbunden</span>'
         : label[c.status]
           ? `<span class="badge">${esc(label[c.status])}</span>`
           : '';
@@ -411,7 +411,7 @@ async function renderConnectors() {
               ? `<button class="small" data-connect="${esc(c.id)}">Neu einrichten</button>`
               : `<button class="small primary" data-connect="${esc(c.id)}">Verbinden</button>`;
       return `<div class="result connector"><div class="top"><span class="title">${esc(c.title)}</span>
-        <span class="badge good" title="Von Aura geprüft">Von Aura geprüft</span>${state}<span class="grow"></span>${action}</div>
+        <span class="badge ok">Von Aura geprüft</span>${state}<span class="grow"></span>${action}</div>
         <div class="desc">${esc(c.description)}</div><div class="muted small">Anbieter: ${esc(c.publisher)}</div></div>`;
     })
     .join('');
@@ -498,7 +498,6 @@ $('searchForm').onsubmit = async (e) => {
     return;
   }
   const installed = new Set(S.servers.map((s) => s.name));
-  const reviewed = new Set(connectorEntries.map((c) => c.title.toLowerCase()));
   $('results').innerHTML = lastResults
     .map(
       (x, i) => `

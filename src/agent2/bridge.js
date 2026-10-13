@@ -18,6 +18,8 @@ const LOG_MAX_BYTES = 5 * 1024 * 1024;
  * @property {(maxWidth: number) => unknown} screenshot
  * @property {(req: any) => unknown} [input]
  * @property {(req: any) => unknown} [authHeader] fresh Authorization header for an OAuth MCP server (AURA-95)
+ * @property {(req: any) => unknown} [searchRegistry] official MCP registry search (AURA-96)
+ * @property {(req: any) => unknown} [proposeConnector] connect card in the panel (AURA-96)
  */
 /** @typedef {{ onText?: (delta: string) => void, onStep?: (step: any) => void, onPlan?: (items: any) => void }} TaskHandlers */
 /** @typedef {{ handlers: Record<string, ((arg: any) => void) | undefined>, resolve: (result: any) => void, reject: (err: Error) => void }} RunningTask */
