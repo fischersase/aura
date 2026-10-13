@@ -88,3 +88,6 @@ td.args { font-family: "Cascadia Code", Consolas, monospace; font-size: 12px; ov
 .warnbox { margin: 0 16px 12px; padding: 10px 12px; border-radius: 10px; background: rgba(253,214,99,.12); color: var(--warn); font-size: 12.5px; display: flex; gap: 10px; align-items: center; }
 .warnbox span { flex: 1; }
 nav #openWeb { margin: 0 0 8px; font-size: 13px; text-align: center; background: rgba(127,127,127,.16); }
+
+/* Opt-in checkbox below a banner (Schlüssel & Konten, AURA-93) */
+label.check { display: flex; gap: 8px; align-items: center; margin-top: 10px; font-size: 13px; }

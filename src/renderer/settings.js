@@ -124,6 +124,11 @@ $('save').onclick = async () => {
   } else {
     status($('hotkeyStatus'), '');
   }
+  if (r.keyError) {
+    status($('keyStatus'), r.keyError, false);
+    status($('saveStatus'), 'Gespeichert, aber ohne den API-Key (siehe oben).', false);
+    return;
+  }
   const ready = r.settings.provider === 'ollama' || r.settings.hasApiKey;
   status($('saveStatus'), ready ? 'Gespeichert.' : 'Gespeichert, aber noch kein API-Key.', ready);
 };

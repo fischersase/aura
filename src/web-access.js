@@ -44,6 +44,8 @@ const CONFIRM = {
   saveAgentsMd: () => 'Anweisungen an den Agenten (AGENTS.md) überschreiben',
   setSecret: (a) => `Schlüssel „${a.name}“ setzen`,
   deleteSecret: (a) => `Schlüssel „${a}“ löschen`,
+  setWeakStorage: (a) =>
+    a ? 'Schlüssel ohne Schlüsselbund schwach geschützt speichern' : 'Schwache Speicherung ausschalten',
   setAgentVersion: (a) => `Agent-Version auf „${a}“ umstellen`,
   installExtension: () => 'GNOME-Erweiterung installieren'
 };

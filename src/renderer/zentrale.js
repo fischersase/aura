@@ -526,14 +526,30 @@ async function renderSecrets() {
     ],
     weak: [
       'banner-warn',
-      'Kein Schlüsselbund gefunden: Electron verschlüsselt nur mit einem festen Schlüssel. Installiere bzw. entsperre gnome-keyring oder KWallet und starte Aura neu.'
+      r.allowWeak
+        ? 'Kein Schlüsselbund gefunden. Du hast erlaubt, Schlüssel trotzdem zu speichern; sie sind nur mit einem festen Kennwort verschlüsselt. Besser: gnome-keyring oder KWallet installieren bzw. entsperren und Aura neu starten.'
+        : 'Kein Schlüsselbund gefunden: Aura würde nur mit einem festen Kennwort verschlüsseln und nimmt deshalb keine neuen Schlüssel an. Installiere bzw. entsperre gnome-keyring oder KWallet und starte Aura neu.'
     ],
     none: [
       'banner-bad',
       'Verschlüsselung ist hier nicht verfügbar, deshalb nimmt Aura keine neuen Schlüssel an. Unter Linux: gnome-keyring oder KWallet installieren und Aura neu starten.'
     ]
   }[r.protection];
-  $('secretProtection').innerHTML = `<span class="${prot[0]}">${esc(prot[1])}</span>`;
+  const weakToggle =
+    r.protection === 'weak'
+      ? `<label class="check"><input type="checkbox" id="allowWeak"${r.allowWeak ? ' checked' : ''}> Trotzdem schwach geschützt speichern (nicht empfohlen)</label>`
+      : '';
+  const plainWarn = r.geminiPlaintext
+    ? '<div class="banner-bad">Der Gemini-Key liegt noch unverschlüsselt in den Einstellungen (von einer älteren Aura-Version). Sobald ein Schlüsselbund verfügbar ist, verschlüsselt Aura ihn automatisch; oder ersetze ihn hier.</div>'
+    : '';
+  $('secretProtection').innerHTML = `<span class="${prot[0]}">${esc(prot[1])}</span>${weakToggle}${plainWarn}`;
+  if ($('allowWeak')) {
+    $('allowWeak').onchange = async (e) => {
+      await z.setWeakStorage(e.target.checked);
+      renderSecrets();
+    };
+  }
+  const KIND = { api_key: 'API-Key', oauth: 'Anmeldung (OAuth)', password: 'Passwort', basic: 'Benutzer + Passwort' };
   $('secretList').innerHTML = r.list
     .map((k) => {
       const status = k.builtin
@@ -544,8 +560,15 @@ async function renderSecrets() {
           ? '<span class="badge bad">nicht lesbar</span>'
           : '<span class="badge ok">verschlüsselt</span>';
       const used = k.usedBy.length ? `Genutzt von ${esc(k.usedBy.join(', '))}` : 'Von keinem Server genutzt';
+      const meta = [
+        KIND[k.kind] || '',
+        k.provider ? esc(k.provider) : '',
+        k.scopes && k.scopes.length ? 'Rechte: ' + esc(k.scopes.join(', ')) : '',
+        k.lastUsed ? 'zuletzt genutzt ' + esc(fmtDate(k.lastUsed)) : '',
+        k.expiresAt ? (k.expiresAt < Date.now() ? 'abgelaufen ' : 'läuft ab ') + esc(fmtDate(k.expiresAt)) : ''
+      ].filter(Boolean);
       return `<div class="item"><div class="name">${esc(k.name)} ${status}${k.hint ? ` <span class="badge">${esc(k.hint)}</span>` : ''}</div>
-      <div class="desc">${k.note ? esc(k.note) + ' · ' : ''}${used}${k.updated ? ' · geändert ' + esc(fmtDate(k.updated)) : ''}</div>
+      <div class="desc">${meta.length ? meta.join(' · ') + '<br>' : ''}${k.note ? esc(k.note) + ' · ' : ''}${used}${k.updated ? ' · geändert ' + esc(fmtDate(k.updated)) : ''}</div>
       <div class="side">${k.builtin ? '' : `<button class="small" data-copy="${esc(k.name)}" title="\${secret:${esc(k.name)}} kopieren">Verweis kopieren</button>`}
       <button class="small" data-replace="${esc(k.name)}">${k.builtin && !k.set ? 'Festlegen' : 'Ersetzen'}</button>
       ${k.builtin && !k.set ? '' : `<button class="small danger" data-sdel2="${esc(k.name)}">Löschen</button>`}</div></div>`;

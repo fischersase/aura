@@ -228,7 +228,7 @@ Every push runs the tests on Linux and Windows, CodeQL and a secret scan; `main`
 
 ## Privacy and secrets
 
-Your API key and all keys under *Schlüssel* are stored only on your computer, encrypted with the OS keystore (Windows DPAPI, Linux GNOME keyring or KWallet) in the app's settings folder. Without a keyring on Linux, the *Schlüssel* page cannot store keys and says so; install gnome-keyring or KWallet. It is never part of this repository; every push is scanned with gitleaks. With Ollama, nothing leaves your computer except the one-time model downloads.
+Your API key and all keys under *Schlüssel & Konten* are stored only on your computer, encrypted with the OS keystore (Windows DPAPI, Linux GNOME keyring or KWallet) in the app's settings folder. Without a keyring on Linux, Aura does not store keys unless you explicitly allow weak storage on that page (encrypted with a fixed password only); better install gnome-keyring or KWallet. Each use of a key is logged (without the value) in `credential-audit.jsonl`. It is never part of this repository; every push is scanned with gitleaks. With Ollama, nothing leaves your computer except the one-time model downloads.
 
 ## Contributing, security, license
 

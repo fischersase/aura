@@ -4,6 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 const { app, safeStorage } = require('electron');
+const { protectionOf, assertStorable, enableWeakIfAllowed } = require('./keystore');
 
 const DEFAULTS = {
   // Kürzel, die unter Windows standardmäßig frei sind.
@@ -64,27 +65,45 @@ function save(patch) {
   return next;
 }
 
+// Before AURA-93 a key was stored as base64 plaintext when no keystore was available. Such a value is still read
+// (never delete a working key silently) and re-encrypted as soon as strong protection is available.
+const LEGACY_PLAIN = /^AIza[0-9A-Za-z_-]{20,}$/;
+
 function getApiKey() {
   const s = load();
   if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY;
   if (!s.apiKeyEnc) return '';
-  try {
-    const buf = Buffer.from(s.apiKeyEnc, 'base64');
-    return safeStorage.isEncryptionAvailable() ? safeStorage.decryptString(buf) : buf.toString('utf8');
-  } catch {
-    return '';
+  const buf = Buffer.from(s.apiKeyEnc, 'base64');
+  if (safeStorage.isEncryptionAvailable()) {
+    try {
+      return safeStorage.decryptString(buf);
+    } catch {}
   }
+  const plain = buf.toString('utf8');
+  if (!LEGACY_PLAIN.test(plain)) return '';
+  if (protectionOf(safeStorage) === 'strong') {
+    save({ apiKeyEnc: safeStorage.encryptString(plain).toString('base64'), apiKeyPlaintext: false });
+  } else if (!s.apiKeyPlaintext) {
+    save({ apiKeyPlaintext: true }); // shown as a warning in the settings and the Zentrale
+  }
+  return plain;
 }
 
-/** @param {string | null | undefined} key */
+/**
+ * Stores the Gemini key encrypted. Throws WeakProtectionError without a keyring, unless the user allowed weak
+ * storage (AURA-93); there is no plaintext fallback any more.
+ * @param {string | null | undefined} key
+ */
 function setApiKey(key) {
   const k = (key || '').trim();
-  const enc = !k
-    ? ''
-    : safeStorage.isEncryptionAvailable()
-      ? safeStorage.encryptString(k).toString('base64')
-      : Buffer.from(k, 'utf8').toString('base64');
-  save({ apiKeyEnc: enc });
+  if (!k) {
+    save({ apiKeyEnc: '', apiKeyPlaintext: false });
+    return;
+  }
+  const allowWeak = !!load().allowWeakSecretStorage;
+  assertStorable(protectionOf(safeStorage), allowWeak);
+  enableWeakIfAllowed(safeStorage, allowWeak);
+  save({ apiKeyEnc: safeStorage.encryptString(k).toString('base64'), apiKeyPlaintext: false });
 }
 
 // Einstellungen ohne Geheimnisse, für die Oberfläche.
@@ -93,6 +112,7 @@ function publicSettings() {
   return {
     ...rest,
     hasApiKey: !!getApiKey(),
+    secretProtection: protectionOf(safeStorage),
     platform: process.platform,
     version: app.getVersion(),
     session:

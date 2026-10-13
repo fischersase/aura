@@ -11,7 +11,8 @@ const {
   session,
   nativeImage,
   shell,
-  Notification
+  Notification,
+  safeStorage
 } = require('electron');
 const fs = require('fs');
 const path = require('path');
@@ -29,6 +30,7 @@ const agentSkills = require('./agent/skills');
 const agentMcp = require('./agent/mcp');
 const secrets = require('./secrets');
 const web = require('./web');
+const { enableWeakIfAllowed } = require('./keystore');
 const security = require('./security');
 const { LiveRelay } = require('./live-relay');
 security.guardIpc(ipcMain); // vor der ersten IPC-Registrierung (AURA-18)
@@ -548,15 +550,22 @@ ipcMain.handle('settings:get', () => store.publicSettings());
 
 ipcMain.handle('settings:save', (_e, patch) => {
   const { apiKey, ...rest } = patch || {};
+  let keyError = '';
   // eslint-disable-next-line security/detect-possible-timing-attacks -- presence check, not a secret comparison
-  if (apiKey !== undefined) store.setApiKey(apiKey);
+  if (apiKey !== undefined) {
+    try {
+      store.setApiKey(apiKey);
+    } catch (err) {
+      keyError = err instanceof Error ? err.message : String(err); // no keyring: the key is not stored (AURA-93)
+    }
+  }
   store.save(rest);
   ollama.setContextSize(store.load().ollamaContext);
   const failed = registerHotkeys();
   applyAutostart();
   broadcastUsage();
   preloadStt().catch(() => {});
-  return { settings: store.publicSettings(), failedHotkeys: failed };
+  return { settings: store.publicSettings(), failedHotkeys: failed, ...(keyError ? { keyError } : {}) };
 });
 
 ipcMain.handle('settings:testKey', async (_e, key) => {
@@ -1397,6 +1406,8 @@ function createTray() {
 }
 
 app.whenReady().then(() => {
+  // Linux without keyring: if the user agreed to weak storage, values stored that way must stay readable (AURA-93).
+  enableWeakIfAllowed(safeStorage, !!store.load().allowWeakSecretStorage);
   ollama.setContextSize(store.load().ollamaContext);
   // Mikrofon und Bildschirm nur für die Fenster, die sie brauchen; keine Navigation weg von Auras Seiten (AURA-14).
   security.install({ app, session, shell });
