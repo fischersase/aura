@@ -46,6 +46,10 @@ async def run_task(task: Task, display: str, model: str, num_ctx: int) -> dict[s
     t0 = time.monotonic()
     try:
         await env.setup(files=task.files, player=task.player, windows=task.windows, gtk=task.gtk)
+        for rel, content in task.aura_files.items():
+            target = root / "aura" / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(content)
         settings = AgentSettings(
             model=model,
             num_ctx=num_ctx,
