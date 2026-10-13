@@ -22,3 +22,6 @@ build/
 .coverage.*
 coverage.json
 htmlcov/
+
+# Local eval runs (AURA-85); reference results that are already tracked stay in git.
+agent/evals/results/desktop-*
