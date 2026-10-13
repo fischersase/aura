@@ -236,3 +236,15 @@ button svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke
 #inbox.hidden { display: none; }
 #inbox .inbox-head { font-size: 12px; font-weight: 600; color: #fdd663; margin: 0 4px 6px; }
 #inbox .inbox-item { margin-bottom: 8px; }
+/* Approval buttons wrap instead of squeezing into one-letter columns */
+.approve .btns { flex-wrap: wrap; }
+.approve .btns > button, .approve .btns > select { flex: 0 0 auto; white-space: nowrap; }
+/* Resize grip on the free corner of the card; enlarge button in the header */
+#resizeGrip { position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; cursor: nwse-resize; z-index: 5; opacity: .45;
+  background: linear-gradient(135deg, var(--muted) 0 2px, transparent 2px 5px, var(--muted) 5px 7px, transparent 7px); border-radius: 14px 0 0 0; }
+#resizeGrip:hover { opacity: .9; }
+body.corner-left #resizeGrip { left: auto; right: 3px; cursor: nesw-resize; transform: scaleX(-1); }
+body.corner-top #resizeGrip { top: auto; bottom: 3px; transform: scaleY(-1); }
+body.corner-top.corner-left #resizeGrip { transform: scale(-1, -1); cursor: nwse-resize; }
+.card.compact #resizeGrip { display: none; }
+#sizeBtn.on svg { transform: rotate(180deg); }

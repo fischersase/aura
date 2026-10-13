@@ -173,13 +173,40 @@ function createPanel() {
   });
 }
 
+// Panel size: default or what the user dragged/toggled, kept inside the work area.
+function panelDims(wa) {
+  const s = store.load().panelSize || {};
+  const w = Math.round(Math.min(Math.max(Number(s.w) || PANEL_W, 380), wa.width - 2 * MARGIN));
+  const h = Math.round(Math.min(Math.max(Number(s.h) || PANEL_H, 420), wa.height - 2 * MARGIN));
+  return { w, h };
+}
+
 function placePanel(display) {
   const wa = display.workArea;
   const corner = store.load().panelCorner;
-  const x = corner.endsWith('left') ? wa.x + MARGIN : wa.x + wa.width - PANEL_W - MARGIN;
-  const y = corner.startsWith('top') ? wa.y + MARGIN : wa.y + wa.height - PANEL_H - MARGIN;
-  panel.setBounds({ x, y, width: PANEL_W, height: PANEL_H });
+  const { w, h } = panelDims(wa);
+  // Anchored to its corner: a bigger panel grows towards the middle of the screen.
+  const x = corner.endsWith('left') ? wa.x + MARGIN : wa.x + wa.width - w - MARGIN;
+  const y = corner.startsWith('top') ? wa.y + MARGIN : wa.y + wa.height - h - MARGIN;
+  panel.setBounds({ x, y, width: w, height: h });
 }
+
+// Resize from the panel (grip or enlarge button).
+ipcMain.handle('panel:setSize', (_e, size) => {
+  const d = screen.getDisplayMatching(panel.getBounds());
+  if (size === 'default') store.save({ panelSize: null });
+  else if (size === 'large')
+    store.save({ panelSize: { w: Math.min(820, d.workArea.width - 2 * MARGIN), h: d.workArea.height - 2 * MARGIN } });
+  else if (size && Number.isFinite(Number(size.w)) && Number.isFinite(Number(size.h)))
+    store.save({ panelSize: { w: Number(size.w), h: Number(size.h) } });
+  placePanel(d);
+  const b = panel.getBounds();
+  return { w: b.width, h: b.height, large: b.width > PANEL_W + 40 || b.height > PANEL_H + 40 };
+});
+ipcMain.handle('panel:getSize', () => {
+  const b = panel.getBounds();
+  return { w: b.width, h: b.height, large: b.width > PANEL_W + 40 || b.height > PANEL_H + 40 };
+});
 
 function createRamblerBar() {
   ramblerBar = baseWindow({
