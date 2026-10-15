@@ -2,41 +2,44 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
+<meta name="color-scheme" content="dark">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'">
 <title>Aura – Einrichtung</title>
 <style>
-  :root { --bg: #1f1f1f; --card: #2a2b2d; --text: #e3e3e3; --muted: #a8abb0; --blue: #4285F4; --line: rgba(255,255,255,.1);
-    font-family: "Google Sans", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; color-scheme: dark; --link: #a8c7fa; }
-  @media (prefers-color-scheme: light) { :root { --bg: #f8fafd; --card: #fff; --text: #1f1f1f; --muted: #5f6368; --line: rgba(0,0,0,.1); color-scheme: light; --link: #0b57d0; } }
-  body { margin: 0; background: var(--bg); color: var(--text); font-size: 14.5px; line-height: 1.5; }
+  :root { --bg: #0e0e10; --card: #1e1f20; --text: #e3e3e3; --muted: #8e918f; --blue: #a8c7fa; --line: rgba(255,255,255,.08);
+    font-family: "Google Sans", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; color-scheme: dark; --link: #a8c7fa;
+    scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.16) transparent; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-size: 14.5px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
   main { max-width: 540px; margin: 0 auto; padding: 28px 24px; }
   .dots { display: flex; gap: 6px; margin-bottom: 22px; }
   .dots i { width: 28px; height: 4px; border-radius: 2px; background: var(--line); }
   .dots i.on { background: linear-gradient(90deg, #4285F4, #9B72CB); }
-  h1 { font-size: 22px; font-weight: 500; margin: 0 0 8px; display: flex; gap: 10px; align-items: center; }
+  h1 { font-size: 24px; font-weight: 400; margin: 0 0 8px; display: flex; gap: 10px; align-items: center; }
   h1 img { width: 28px; height: 28px; }
   p { margin: 0 0 12px; color: var(--muted); }
   ol { padding-left: 20px; margin: 0 0 14px; } li { margin-bottom: 6px; }
   .step { display: none; } .step.on { display: block; animation: in .35s cubic-bezier(.34,1.56,.64,1); }
   @keyframes in { from { opacity: 0; transform: translateY(8px); } }
   label { display: block; margin: 12px 0 4px; }
-  input[type=text], input[type=password] { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--text); font: inherit; }
+  input[type=text], input[type=password] { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: #141517; color: var(--text); font: inherit; outline: none; }
   .row { display: flex; gap: 8px; } .row input, .row select { flex: 1; }
-  button { font: inherit; border: 0; border-radius: 20px; padding: 10px 18px; cursor: pointer; background: rgba(127,127,127,.18); color: var(--text); }
-  button.primary { background: var(--blue); color: #fff; }
+  button { font: inherit; border: 0; border-radius: 999px; padding: 10px 18px; cursor: pointer; background: #282a2c; color: var(--text); }
+  button:hover { background: #333537; }
+  button.primary { background: var(--blue); color: #062e6f; font-weight: 500; }
+  button.primary:hover { background: #b8d2fc; }
   button.link { background: none; color: var(--link); padding: 0; }
   .status { min-height: 20px; margin-top: 8px; font-size: 13.5px; } .ok { color: #81c995; } .bad { color: #f28b82; }
   .nav { display: flex; justify-content: space-between; margin-top: 26px; }
-  .box { background: var(--card); border-radius: 14px; padding: 14px 16px; box-shadow: 0 0 0 1px var(--line) inset; margin-bottom: 12px; }
-  kbd { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 1px 7px; font-family: inherit; font-size: 13px; }
+  .box { background: var(--card); border-radius: 16px; padding: 14px 16px; border: 1px solid var(--line); margin-bottom: 12px; }
+  kbd { background: #141517; border: 1px solid var(--line); border-radius: 6px; padding: 1px 7px; font-family: inherit; font-size: 13px; }
   .hidden { display: none !important; }
-  .choice { display: block; width: 100%; text-align: left; border-radius: 14px; padding: 14px 16px; margin-bottom: 10px; background: var(--card); box-shadow: 0 0 0 1px var(--line) inset; }
+  .choice { display: block; width: 100%; text-align: left; border-radius: 16px; padding: 14px 16px; margin-bottom: 10px; background: var(--card); border: 1px solid var(--line); }
   .choice b { display: block; font-weight: 500; margin-bottom: 2px; }
   .choice span { color: var(--muted); font-size: 13.5px; }
   .choice.on { box-shadow: 0 0 0 2px var(--blue) inset; }
-  select { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--text); font: inherit; }
-  .hint { color: var(--muted); font-size: 13px; margin-top: 6px; } a { color: var(--link); }
-  code { font-size: 12.5px; background: rgba(127,127,127,.15); padding: 1px 5px; border-radius: 5px; }
+  select { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: #141517; color: var(--text); font: inherit; }
+  .hint { color: var(--muted); font-size: 13px; margin-top: 6px; } a { color: var(--link); text-decoration: none; }
+  code { font-size: 12.5px; background: rgba(255,255,255,.08); padding: 1px 5px; border-radius: 5px; }
   .ol-progress { display: flex; gap: 10px; align-items: center; margin-top: 8px; font-size: 13px; color: var(--muted); }
   .ol-progress b { flex: 1; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
   .ol-progress i { display: block; height: 100%; width: 0; background: var(--blue); transition: width .3s; }
@@ -97,7 +100,7 @@
   <section class="step" data-step="done">
     <h1>Fertig</h1>
     <div class="box">
-      <div><kbd id="kG"></kbd> Aura öffnen (jedes Mal ein neuer Chat)</div>
+      <div><kbd id="kG"></kbd> Aura öffnen / minimieren (Chat bleibt unten rechts erhalten)</div>
       <div style="margin-top:6px"><kbd id="kL"></kbd> Live mit Bildschirm</div>
       <div style="margin-top:6px"><kbd id="kD"></kbd> Rambler: im Textfeld diktieren</div>
     </div>

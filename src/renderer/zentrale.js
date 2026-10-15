@@ -1,7 +1,8 @@
-// Aura Zentrale: Oberfläche.
+// Aura Zentrale: Oberfläche im minimalistischen Google-Gemini-Stil.
 const $ = (id) => document.getElementById(id);
 const z = window.api.z;
 let S = null; // letzter Zustand
+let connectorEntries = [];
 
 const esc = (s) =>
   String(s ?? '').replace(
@@ -17,27 +18,226 @@ const POLICIES = [
 const policySelect = (tool, value) =>
   `<select data-policy="${esc(tool)}">${POLICIES.map(([v, l]) => `<option value="${v}"${v === value ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
 
+const ICON_PLUS = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
+const ICON_DOTS =
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="19" cy="12" r="1.6" fill="currentColor"/></svg>';
+
+const CONNECTOR_ICONS = {
+  'google-workspace':
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M21.35 11.1h-9.17v2.73h6.51c-.33 1.81-1.5 3.34-3.2 4.37v3.62h5.18c3.03-2.79 4.78-6.9 4.78-11.72 0-.8-.08-1.57-.23-2.3z"/><path fill="#34A853" d="M12.18 22c4.32 0 7.95-1.43 10.6-3.88l-5.18-3.62c-1.43.96-3.26 1.53-5.42 1.53-4.17 0-7.7-2.81-8.96-6.6H-2.1v3.73C.54 18.4 5.94 22 12.18 22z" transform="translate(2 0) scale(.88)"/><circle cx="12" cy="12" r="8.5" fill="none" stroke="#4285F4" stroke-width="2"/><path d="M8 12h8M12 8v8" stroke="#34A853" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  github:
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#e3e3e3" d="M12 2C6.48 2 2 6.58 2 12.23c0 4.52 2.87 8.35 6.84 9.7.5.1.68-.22.68-.49 0-.24-.01-.88-.01-1.72-2.78.62-3.37-1.37-3.37-1.37-.45-1.18-1.11-1.5-1.11-1.5-.91-.64.07-.63.07-.63 1 .07 1.53 1.05 1.53 1.05.9 1.57 2.35 1.12 2.92.85.09-.67.35-1.12.63-1.38-2.22-.26-4.56-1.14-4.56-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.28 2.75 1.05a9.3 9.3 0 0 1 5 0c1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.94-2.34 4.81-4.57 5.06.36.32.68.94.68 1.9 0 1.37-.01 2.48-.01 2.82 0 .27.18.6.69.49A10.25 10.25 0 0 0 22 12.23C22 6.58 17.52 2 12 2z"/></svg>',
+  atlassian:
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#2684FF" d="M7.12 11.43a.68.68 0 0 0-1.15.08L2.09 19.3a.7.7 0 0 0 .63 1.01h6.77a.68.68 0 0 0 .63-.42c1.45-3.32.57-6.83-3-8.46zm4.3-7.77a13.4 13.4 0 0 0-.82 13.22l2.63 5.02c.12.24.37.4.64.4h6.77a.7.7 0 0 0 .63-1.01L12.62 3.64a.66.66 0 0 0-1.2.02z"/></svg>',
+  mail: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5" fill="none" stroke="#f28b82" stroke-width="1.8"/><path d="m4 7 8 6 8-6" fill="none" stroke="#f28b82" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+};
+
+function connectorIcon(id) {
+  const key = String(id || '').toLowerCase();
+  if (CONNECTOR_ICONS[key]) return CONNECTOR_ICONS[key];
+  if (key.includes('github')) return CONNECTOR_ICONS.github;
+  if (key.includes('atlassian') || key.includes('jira')) return CONNECTOR_ICONS.atlassian;
+  if (key.includes('google') || key.includes('workspace')) return CONNECTOR_ICONS['google-workspace'];
+  if (key.includes('mail')) return CONNECTOR_ICONS.mail;
+  return '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3" fill="none" stroke="#a8c7fa" stroke-width="1.8"/><path d="m8 10 3 2-3 2M13 14h3" fill="none" stroke="#a8c7fa" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+}
+
+// Empfohlene Starter-Skills im Stil von Google Gemini („Erste Schritte“).
+const STARTER_SKILLS = [
+  {
+    name: 'schreibstil-anpassen',
+    title: 'Schreibstil anpassen',
+    description: 'Texte auf den eigenen Kommunikationsstil abstimmen',
+    icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="16" cy="6" r="2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="10" cy="12" r="2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>',
+    content: `---
+name: schreibstil-anpassen
+description: Passt Entwürfe, E-Mails und Texte an meinen persönlichen Schreib- und Kommunikationsstil an
+---
+
+# Schreibstil anpassen
+
+Wenn du Texte, E-Mails oder Nachrichten für mich formulierst oder überarbeitest:
+
+1. Schreibe klar, präzise und natürlich – ohne Floskeln oder künstliche Einleitungen.
+2. Behalte meine Kernaussage bei und passe den Tonfall an den Adressaten an (kollegial-direkt oder sachlich-höflich).
+3. Schlage bei längeren Entwürfen eine kurze und eine ausführlichere Variante vor.
+`
+  },
+  {
+    name: 'energie-fokussieren',
+    title: 'Energie fokussieren',
+    description: 'Aufgaben priorisieren, Zeit einteilen und den Überblick behalten',
+    icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
+    content: `---
+name: energie-fokussieren
+description: Hilft beim Priorisieren von Aufgaben, Tagesplanung und Fokus-Blöcken
+---
+
+# Energie fokussieren
+
+Wenn ich viele Aufgaben habe oder meinen Tag strukturieren möchte:
+
+1. Ordne Aufgaben nach Wirkung und Dringlichkeit (maximal 3 Hauptprioritäten für heute).
+2. Zerlege große Vorhaben in den nächsten konkreten 15-Minuten-Schritt.
+3. Halte den Plan übersichtlich und realistisch.
+`
+  },
+  {
+    name: 'neue-ideen-generieren',
+    title: 'Neue Ideen generieren',
+    description: 'Kreative Ansätze finden und den eigenen Horizont erweitern',
+    icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.6 1 1.5 1 2.5h6c0-1 .3-1.9 1-2.5A6 6 0 0 0 12 3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    content: `---
+name: neue-ideen-generieren
+description: Entwickelt strukturierte, kreative Ideen und Lösungsansätze beim Brainstorming
+---
+
+# Neue Ideen generieren
+
+Beim Brainstorming oder wenn ich nach neuen Ideen frage:
+
+1. Liefere unterschiedliche Richtungen (pragmatisch, ungewöhnlich, schnell umsetzbar).
+2. Begründe kurz pro Idee, warum sie funktioniert und was der erste Schritt wäre.
+3. Stelle am Ende eine gezielte Rückfrage, um die beste Richtung zu vertiefen.
+`
+  },
+  {
+    name: 'weitere-perspektiven',
+    title: 'Weitere Perspektiven',
+    description: 'Entwürfe und Pläne aus verschiedenen Blickwinkeln prüfen',
+    icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
+    content: `---
+name: weitere-perspektiven
+description: Prüft Pläne, Entscheidungen oder Texte kritisch aus mehreren Blickwinkeln
+---
+
+# Weitere Perspektiven
+
+Wenn ich einen Plan, eine Entscheidung oder ein Konzept vorstelle:
+
+1. Beleuchte das Vorhaben aus mindestens drei relevanten Perspektiven (z. B. Nutzer, Technik/Umsetzung, Risiken).
+2. Benenne blinde Flecken oder Annahmen konstruktiv und konkret.
+3. Schlage vor, wie sich die wichtigsten Risiken einfach absichern lassen.
+`
+  },
+  {
+    name: 'besprechungen-vorbereiten',
+    title: 'Vorbereitung auf Besprechungen',
+    description: 'Wichtige Punkte, Fragen und Agenden vorab zusammenstellen',
+    icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 2v4M16 2v4M3 10h18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+    content: `---
+name: besprechungen-vorbereiten
+description: Bereitet Termine und Besprechungen mit Agenda, Kontext und offenen Fragen vor
+---
+
+# Vorbereitung auf Besprechungen
+
+Wenn ich mich auf ein Meeting oder Gespräch vorbereite:
+
+1. Fasse das Ziel des Gesprächs in einem Satz zusammen.
+2. Erstelle eine knappe Agenda mit den 3–5 wichtigsten Gesprächspunkten und klaren Fragen.
+3. Falls Kalender, Mails oder Tickets verbunden sind, berücksichtige den aktuellen Stand.
+`
+  },
+  {
+    name: 'rechnungen-sortieren',
+    title: 'Rechnungen sortieren',
+    description: 'Rechnungen aus ~/Downloads prüfen und nach Monat ablegen',
+    icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M14 2v6h6M8 13h8M8 17h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+    content: `---
+name: rechnungen-sortieren
+description: Sortiert PDF-Rechnungen und Belege aus ~/Downloads übersichtlich nach Jahr und Monat
+---
+
+# Rechnungen sortieren
+
+1. Suche im Ordner ~/Downloads nach PDF-Rechnungen oder Belegen.
+2. Lies Rechnungsdatum und Aussteller aus dem Dokument.
+3. Schlage eine saubere Benennung (YYYY-MM-DD_Aussteller.pdf) und den Zielordner vor, bevor Dateien verschoben werden.
+`
+  }
+];
+
+function skillIcon(name) {
+  const starter = STARTER_SKILLS.find((s) => s.name === name);
+  if (starter) return starter.icon;
+  return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>';
+}
+
 // ---------- Navigation ----------
 
+const CUSTOMIZE_PAGES = new Set(['discover', 'catalog', 'skills']);
+const MORE_PAGES = new Set([
+  'servers',
+  'tools',
+  'instructions',
+  'memory',
+  'rules',
+  'secrets',
+  'log',
+  'doctor',
+  'profile'
+]);
+
 function show(page) {
-  document.querySelectorAll('nav button[data-page]').forEach((b) => b.classList.toggle('on', b.dataset.page === page));
-  document.querySelectorAll('.page').forEach((p) => p.classList.toggle('hidden', p.id !== page));
-  if (page === 'log') {
+  const target = page || 'discover';
+  const isCustomize = CUSTOMIZE_PAGES.has(target);
+  document.querySelectorAll('nav button[data-page]').forEach((b) => {
+    if (b.id === 'navCustomize') b.classList.toggle('on', isCustomize);
+    else b.classList.toggle('on', b.dataset.page === target);
+  });
+  if (MORE_PAGES.has(target) && $('moreMenu').classList.contains('hidden')) {
+    $('moreMenu').classList.remove('hidden');
+    $('moreToggle').setAttribute('aria-expanded', 'true');
+  }
+  const tabs = $('customizeTabs');
+  if (tabs) {
+    tabs.style.visibility = isCustomize ? 'visible' : 'hidden';
+    tabs.querySelectorAll('.gem-tab').forEach((t) => t.classList.toggle('on', t.dataset.tab === target));
+  }
+  document.querySelectorAll('.page').forEach((p) => p.classList.toggle('hidden', p.id !== target));
+  if (target === 'log') {
     renderLog();
     renderAudit();
   }
-  if (page === 'rules') loadRules();
-  if (page === 'memory') loadMemory();
-  if (page === 'doctor') renderDoctor();
-  if (page === 'chats') renderChats();
-  if (page === 'secrets') renderSecrets();
-  if (page === 'profile') loadProfile();
-  if (page === 'catalog') renderConnectors();
-  if (page === 'tasks') renderTasks();
+  if (target === 'rules') loadRules();
+  if (target === 'memory') loadMemory();
+  if (target === 'doctor') renderDoctor();
+  if (target === 'chats') renderChats();
+  if (target === 'secrets') renderSecrets();
+  if (target === 'profile') loadProfile();
+  if (target === 'catalog' || target === 'discover') renderConnectors();
+  if (target === 'skills' || target === 'discover') renderSkills();
+  if (target === 'tasks') renderTasks();
 }
+
 document.querySelectorAll('nav button[data-page]').forEach((b) => {
   b.onclick = () => show(b.dataset.page);
 });
+document.querySelectorAll('.gem-tab[data-tab]').forEach((b) => {
+  b.onclick = () => show(b.dataset.tab);
+});
+document.querySelectorAll('[data-go-tab]').forEach((b) => {
+  b.onclick = () => show(b.dataset.goTab);
+});
+if ($('moreToggle')) {
+  $('moreToggle').onclick = () => {
+    const open = $('moreMenu').classList.toggle('hidden');
+    $('moreToggle').setAttribute('aria-expanded', String(!open));
+  };
+}
+if ($('logoHome')) $('logoHome').onclick = () => show('discover');
+if ($('navSearchBtn')) {
+  $('navSearchBtn').onclick = () => {
+    show('catalog');
+    setTimeout(() => $('q')?.focus(), 30);
+  };
+}
+if ($('profileAvatarBtn')) $('profileAvatarBtn').onclick = () => show('profile');
+if ($('navProfileLoc')) $('navProfileLoc').onclick = () => show('profile');
+if ($('discoverNewSkill')) $('discoverNewSkill').onclick = () => skillDialog(null);
+if ($('addCustomConnector')) $('addCustomConnector').onclick = () => serverDialog(null);
+
 document.addEventListener('click', (e) => {
   const o = e.target.closest('[data-open]');
   if (o) {
@@ -68,11 +268,45 @@ async function load(force) {
   $('auraDir').textContent = S.auraDir;
   $('agentOn').checked = S.agentEnabled;
   $('agentVersion').value = S.agentVersion;
+  if ($('profileAvatarBtn')) {
+    const initial = (S.profileName || 'Aura').trim().charAt(0).toUpperCase() || 'A';
+    $('profileAvatarBtn').textContent = initial;
+    $('profileAvatarBtn').title = S.profileName ? `Profil: ${S.profileName}` : 'Profil';
+  }
+  if ($('navLocText')) {
+    $('navLocText').textContent = S.profileName ? `${S.profileName} · Aus deinem Profil` : 'Aus deinem Profil';
+  }
   renderOverview();
   renderTools();
   renderServers();
+  await renderConnectors();
   renderSkills();
+  renderSidebarChats();
   if (document.activeElement !== $('agentsMd') && !mdDirty) $('agentsMd').value = S.agentsMd;
+}
+
+async function renderSidebarChats() {
+  const box = $('sidebarChats');
+  if (!box) return;
+  try {
+    const list = await z.chats();
+    if (!list.length) {
+      box.innerHTML = '<div class="sidebar-chat-empty">Noch keine gespeicherten Chats</div>';
+      return;
+    }
+    box.innerHTML = list
+      .slice(0, 10)
+      .map(
+        (c) =>
+          `<button type="button" class="sidebar-chat-item" data-side-chat="${esc(c.id)}" title="${esc(c.title)}">${esc(c.title)}</button>`
+      )
+      .join('');
+    box.querySelectorAll('[data-side-chat]').forEach((b) => {
+      b.onclick = () => show('chats');
+    });
+  } catch {
+    box.innerHTML = '';
+  }
 }
 
 function activeToolCount() {
@@ -216,7 +450,7 @@ const SANDBOX_BADGE = {
 function renderServers() {
   if (!S.servers.length) {
     $('serverList').innerHTML =
-      '<div class="empty">Noch keine MCP-Server. Füge einen aus dem <a href="#" id="toCatalog">MCP-Katalog</a> hinzu oder trage ihn selbst ein.</div>';
+      '<div class="empty">Noch keine MCP-Server. Füge einen über <a href="#" id="toCatalog">Connectors</a> hinzu oder trage ihn selbst ein.</div>';
     $('toCatalog').onclick = (e) => {
       e.preventDefault();
       show('catalog');
@@ -248,19 +482,17 @@ function renderServers() {
         ${s.auth === 'oauth' ? (s.signedIn ? '<span class="badge ok">angemeldet</span>' : '<span class="badge bad">Anmeldung nötig</span>') : ''}
         ${SANDBOX_BADGE[s.sandbox] || ''}
         ${s.disabled ? '' : `<span class="badge">${s.tools.length} Werkzeuge</span>`}
-        <span class="grow"></span>${s.auth === 'oauth' ? (s.signedIn ? `<button class="small" data-signout="${esc(s.name)}">Abmelden</button>` : `<button class="small primary" data-signin="${esc(s.name)}">Anmelden</button>`) : ''}<button class="small" data-edit="${esc(s.name)}">Bearbeiten</button><button class="small danger" data-remove="${esc(s.name)}">Entfernen</button></div>
+        <span class="grow"></span>${s.auth === 'oauth' ? (s.signedIn ? `<button type="button" class="small" data-signout="${esc(s.name)}">Abmelden</button>` : `<button type="button" class="small primary" data-signin="${esc(s.name)}">Anmelden</button>`) : ''}<button type="button" class="small" data-edit="${esc(s.name)}">Bearbeiten</button><button type="button" class="small danger" data-remove="${esc(s.name)}">Entfernen</button></div>
       <div class="cmd">${esc(s.command)}${s.env.length ? ' · Variablen: ' + esc(s.env.join(', ')) : ''}${s.secretRefs.length ? ' · Schlüssel: ' + esc(s.secretRefs.join(', ')) : ''}</div>
-      ${s.plainSecrets.length ? `<div class="warnbox"><span>${esc(s.plainSecrets.join(', '))} steht im Klartext in mcp.json.</span><button class="small" data-protect="${esc(s.name)}">Verschlüsselt speichern</button></div>` : ''}
-      ${s.error && !s.disabled ? `<div class="err">${esc(s.error)}${s.drift ? ` <button class="small primary" data-drift="${esc(s.name)}">Änderung prüfen</button>` : ''}</div>` : ''}${tools}</div>`;
+      ${s.plainSecrets.length ? `<div class="warnbox"><span>${esc(s.plainSecrets.join(', '))} steht im Klartext in mcp.json.</span><button type="button" class="small" data-protect="${esc(s.name)}">Verschlüsselt speichern</button></div>` : ''}
+      ${s.error && !s.disabled ? `<div class="err">${esc(s.error)}${s.drift ? ` <button type="button" class="small primary" data-drift="${esc(s.name)}">Änderung prüfen</button>` : ''}</div>` : ''}${tools}</div>`;
     })
     .join('');
-  // Drift protection (AURA-97): show what changed, approve or keep paused.
   $('serverList')
     .querySelectorAll('[data-drift]')
     .forEach((b) => {
       b.onclick = () => driftDialog(b.dataset.drift);
     });
-  // OAuth sign-in (AURA-95): opens the browser; the Zentrale waits until the user is back.
   $('serverList')
     .querySelectorAll('[data-signin]')
     .forEach((b) => {
@@ -459,10 +691,10 @@ async function renderTasks() {
         ${t.running ? '<span class="badge ok">läuft</span>' : ''}
         ${t.waiting ? '<span class="badge bad" title="Freigabe im Aura-Fenster (Wartet auf dich)">wartet auf dich</span>' : ''}
         ${t.lastStatus === 'error' ? '<span class="badge bad">Fehler</span>' : ''}
-        <span class="grow"></span>${t.running ? `<button class="small" data-task-stop="${esc(t.id)}">Stoppen</button>` : ''}<button class="small danger" data-task-remove="${esc(t.id)}">Löschen</button></div>
+        <span class="grow"></span>${t.running ? `<button type="button" class="small" data-task-stop="${esc(t.id)}">Stoppen</button>` : ''}<button type="button" class="small danger" data-task-remove="${esc(t.id)}">Löschen</button></div>
         <div class="cmd">${esc(t.prompt)}</div>
-        <div class="muted small">Nächster Lauf: ${esc(when(t.nextRun))}${t.lastRun ? ` · Zuletzt: ${esc(when(t.lastRun))}` : ''}</div>
-        ${t.lastText ? `<div class="desc">${esc(t.lastText)}</div>` : ''}</div>`
+        <div class="muted small" style="padding:0 18px 12px">Nächster Lauf: ${esc(when(t.nextRun))}${t.lastRun ? ` · Zuletzt: ${esc(when(t.lastRun))}` : ''}</div>
+        ${t.lastText ? `<div class="desc" style="padding:0 18px 14px">${esc(t.lastText)}</div>` : ''}</div>`
     )
     .join('');
   $('taskList')
@@ -520,40 +752,224 @@ $('addBriefing').onclick = () =>
     'Einrichten'
   );
 
-// ---------- Verbindungen: Aura-Katalog (AURA-96) ----------
+// ---------- Connectors (Google-Gemini-Stil, 2-Spalten-Grid) ----------
 
-let connectorEntries = [];
-async function renderConnectors() {
-  connectorEntries = await z.connectors();
-  const label = { coming: 'Kommt bald', advanced: 'Für Fortgeschrittene' };
-  $('connectorList').innerHTML = connectorEntries
-    .map((c) => {
-      const server = c.server ? S.servers.find((s) => s.name === c.server) : null;
-      const state = server
-        ? server.auth === 'oauth' && !server.signedIn
-          ? '<span class="badge bad">Anmeldung nötig</span>'
-          : '<span class="badge ok">Verbunden</span>'
-        : label[c.status]
-          ? `<span class="badge">${esc(label[c.status])}</span>`
+function buildConnectorItems(filterQuery = '') {
+  const q = filterQuery.trim().toLowerCase();
+  const usedServers = new Set();
+  const items = [];
+
+  for (const c of connectorEntries) {
+    const server = c.server && S ? S.servers.find((s) => s.name === c.server) : null;
+    if (server) usedServers.add(server.name);
+    const connected = !!server && !server.disabled && (!server.auth || server.signedIn) && !server.error;
+    const needsAttention = !!server && (server.error || (server.auth === 'oauth' && !server.signedIn));
+    let badge = '';
+    if (server) {
+      if (server.disabled) badge = '<span class="badge">pausiert</span>';
+      else if (server.auth === 'oauth' && !server.signedIn) badge = '<span class="badge bad">Anmeldung nötig</span>';
+      else if (server.error) badge = '<span class="badge bad">Fehler</span>';
+      else badge = '<span class="badge ok">Verbunden</span>';
+    } else if (c.status === 'advanced') {
+      badge = '<span class="badge">Anleitung</span>';
+    } else if (c.status === 'coming') {
+      badge = '<span class="badge">Kommt bald</span>';
+    }
+    items.push({
+      kind: 'catalog',
+      id: c.id,
+      title: c.title,
+      description: c.description,
+      icon: connectorIcon(c.id),
+      connected,
+      needsAttention,
+      hasServer: !!server,
+      serverName: server ? server.name : null,
+      badge
+    });
+  }
+
+  // Eigene MCP-Server ebenfalls direkt unter Connectors anzeigen
+  if (S && S.servers) {
+    for (const s of S.servers) {
+      if (usedServers.has(s.name)) continue;
+      const connected = !s.disabled && (!s.auth || s.signedIn) && !s.error;
+      const needsAttention = !s.disabled && (!!s.error || (s.auth === 'oauth' && !s.signedIn));
+      const badge = s.disabled
+        ? '<span class="badge">pausiert</span>'
+        : needsAttention
+          ? '<span class="badge bad">Prüfen</span>'
+          : '<span class="badge ok">Verbunden</span>';
+      items.push({
+        kind: 'server',
+        id: s.name,
+        title: s.name,
+        description: s.tools.length ? `${s.tools.length} Werkzeuge · ${s.command}` : s.command,
+        icon: connectorIcon(s.name),
+        connected,
+        needsAttention,
+        hasServer: true,
+        serverName: s.name,
+        badge
+      });
+    }
+  }
+
+  if (!q) return items;
+  return items.filter(
+    (it) =>
+      it.title.toLowerCase().includes(q) ||
+      String(it.description || '')
+        .toLowerCase()
+        .includes(q)
+  );
+}
+
+function renderConnectorGrid(container, items) {
+  if (!container) return;
+  if (!items.length) {
+    container.innerHTML = '<div class="empty" style="grid-column:1/-1">Keine passenden Connectors gefunden.</div>';
+    return;
+  }
+  container.innerHTML = items
+    .map((it) => {
+      const dot = it.connected
+        ? '<span class="gem-dot" title="Verbunden"></span>'
+        : it.needsAttention
+          ? '<span class="gem-dot bad" title="Prüfung nötig"></span>'
           : '';
-      const action =
-        c.status === 'coming'
-          ? ''
-          : c.status === 'advanced'
-            ? `<a href="#" data-url="${esc(c.homepage)}" class="small">Anleitung</a>`
-            : server
-              ? `<button class="small" data-connect="${esc(c.id)}">Neu einrichten</button>`
-              : `<button class="small primary" data-connect="${esc(c.id)}">Verbinden</button>`;
-      return `<div class="result connector"><div class="top"><span class="title">${esc(c.title)}</span>
-        <span class="badge ok">Von Aura geprüft</span>${state}<span class="grow"></span>${action}</div>
-        <div class="desc">${esc(c.description)}</div><div class="muted small">Anbieter: ${esc(c.publisher)}</div></div>`;
+      const actIcon = it.hasServer ? ICON_DOTS : ICON_PLUS;
+      const actTitle = it.hasServer ? `${it.title} verwalten` : `${it.title} verbinden`;
+      return `<div class="gem-item" data-c-kind="${esc(it.kind)}" data-c-id="${esc(it.id)}" data-c-server="${esc(it.serverName || '')}">
+        <div class="gem-icon">${it.icon}${dot}</div>
+        <div class="gem-body">
+          <div class="gem-title">${esc(it.title)}${it.badge}</div>
+          <div class="gem-desc" title="${esc(it.description)}">${esc(it.description)}</div>
+        </div>
+        <button type="button" class="gem-act" title="${esc(actTitle)}" aria-label="${esc(actTitle)}">${actIcon}</button>
+      </div>`;
     })
     .join('');
-  $('connectorList')
-    .querySelectorAll('[data-connect]')
-    .forEach((b) => {
-      b.onclick = () => connectDialog(b.dataset.connect);
-    });
+
+  container.querySelectorAll('.gem-item').forEach((row) => {
+    row.onclick = () => {
+      const kind = row.dataset.cKind;
+      const id = row.dataset.cId;
+      const serverName = row.dataset.cServer;
+      if (kind === 'server') {
+        connectorManageDialog(null, serverName);
+        return;
+      }
+      const entry = connectorEntries.find((c) => c.id === id);
+      if (!entry) return;
+      if (serverName) {
+        connectorManageDialog(entry, serverName);
+      } else if (entry.status === 'advanced' && entry.homepage) {
+        dialog(
+          entry.title,
+          `<p class="small muted">${esc(entry.description)}</p>
+          <p class="small">Für ${esc(entry.title)} ist ein eigenes Google-Cloud-OAuth-Projekt nötig. Du kannst den Server über die Anleitung einrichten oder einen eigenen MCP-Server eintragen.</p>
+          <p><a href="#" data-url="${esc(entry.homepage)}" class="button-link">Anleitung öffnen ↗</a></p>`,
+          async () => {
+            serverDialog(entry.title);
+            return null;
+          },
+          'Als MCP-Server eintragen'
+        );
+      } else {
+        connectDialog(entry.id);
+      }
+    };
+  });
+}
+
+async function renderConnectors() {
+  connectorEntries = await z.connectors();
+  const query = $('q') ? $('q').value : '';
+  const allItems = buildConnectorItems(query);
+  renderConnectorGrid($('connectorList'), allItems);
+  renderConnectorGrid($('discoverConnectors'), buildConnectorItems('').slice(0, 6));
+}
+
+function connectorManageDialog(entry, serverName) {
+  const s = S && S.servers ? S.servers.find((x) => x.name === serverName) : null;
+  if (!s) {
+    if (entry) connectDialog(entry.id);
+    return;
+  }
+  const title = entry ? entry.title : s.name;
+  const desc = entry ? entry.description : s.command;
+  const statusBadge = s.disabled
+    ? '<span class="badge">Pausiert</span>'
+    : s.error
+      ? '<span class="badge bad">Fehler</span>'
+      : '<span class="badge ok">Verbunden</span>';
+
+  dialog(
+    `${title} ${s.disabled ? '(pausiert)' : ''}`,
+    `<p class="small muted">${esc(desc)} ${statusBadge}</p>
+    ${s.error && !s.disabled ? `<div class="warnbox" style="margin:0 0 12px"><span>${esc(s.error)}</span></div>` : ''}
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line)">
+      <span>Connector aktiv</span>
+      <label class="switch"><input type="checkbox" id="mConnToggle"${s.disabled ? '' : ' checked'}><span></span></label>
+    </div>
+    ${
+      s.tools.length
+        ? `<p class="small muted" style="margin:12px 0 6px">${s.tools.length} freigegebene Werkzeuge: ${esc(
+            s.tools
+              .slice(0, 10)
+              .map((t) => t.title)
+              .join(', ')
+          )}${s.tools.length > 10 ? ' …' : ''}</p>`
+        : ''
+    }
+    <div class="row" style="margin-top:16px;flex-wrap:wrap">
+      ${entry && entry.status === 'ready' ? `<button type="button" id="mConnReconf" class="small">Zugangsdaten ändern</button>` : ''}
+      ${s.auth === 'oauth' ? `<button type="button" id="mConnOauth" class="small">${s.signedIn ? 'Abmelden' : 'Im Browser anmelden'}</button>` : ''}
+      <button type="button" id="mConnEdit" class="small">Technisch bearbeiten</button>
+      <button type="button" id="mConnServers" class="small">Werkzeug-Regeln</button>
+      <span class="grow"></span>
+      <button type="button" id="mConnRemove" class="small danger">Trennen</button>
+    </div>`,
+    async () => {
+      const wantEnabled = $('mConnToggle').checked;
+      if (wantEnabled === !!s.disabled) {
+        await z.toggleServer(s.name, wantEnabled);
+        await load();
+      }
+      return null;
+    },
+    'Fertig'
+  );
+
+  if ($('mConnReconf')) {
+    $('mConnReconf').onclick = () => connectDialog(entry.id);
+  }
+  if ($('mConnOauth')) {
+    $('mConnOauth').onclick = async () => {
+      if (s.signedIn) await z.disconnectServer(s.name);
+      else await z.connectServer(s.name);
+      $('dlg').classList.add('hidden');
+      await load();
+    };
+  }
+  if ($('mConnEdit')) {
+    $('mConnEdit').onclick = () => serverDialog(s.name);
+  }
+  if ($('mConnServers')) {
+    $('mConnServers').onclick = () => {
+      $('dlg').classList.add('hidden');
+      show('servers');
+    };
+  }
+  if ($('mConnRemove')) {
+    $('mConnRemove').onclick = async () => {
+      if (!confirm(`Verbindung zu „${title}“ trennen?`)) return;
+      await z.removeServer(s.name);
+      $('dlg').classList.add('hidden');
+      await load();
+    };
+  }
 }
 
 // Guided setup: steps, a link to where the token is made, one field per value. OAuth entries sign in right away.
@@ -624,36 +1040,54 @@ window.api.onNavigate?.(async (nav) => {
   }
 });
 
-// ---------- Katalog ----------
+// ---------- Katalog & MCP-Registry-Suche ----------
 
 let lastResults = [];
+if ($('q')) {
+  $('q').addEventListener('input', () => {
+    renderConnectors();
+    if (!$('q').value.trim() && $('registryBlock')) {
+      $('registryBlock').classList.add('hidden');
+    }
+  });
+}
+
 $('searchForm').onsubmit = async (e) => {
   e.preventDefault();
-  $('results').innerHTML = '<p class="muted">Suche …</p>';
+  renderConnectors();
+  const query = $('q').value.trim();
+  if (!query) return;
+  if ($('registryBlock')) $('registryBlock').classList.remove('hidden');
+  $('results').innerHTML = '<div class="muted small" style="grid-column:1/-1">Suche im MCP-Verzeichnis …</div>';
   let r;
   try {
-    r = await z.searchRegistry($('q').value);
+    r = await z.searchRegistry(query);
   } catch (err) {
     r = { error: String(err.message || err) };
   }
   if (r.error) {
-    $('results').innerHTML = `<p class="bad">${esc(r.error)}</p>`;
+    $('results').innerHTML = `<div class="bad small" style="grid-column:1/-1">${esc(r.error)}</div>`;
     return;
   }
   lastResults = r.results;
   if (!lastResults.length) {
-    $('results').innerHTML = '<p class="muted">Nichts gefunden.</p>';
+    $('results').innerHTML =
+      '<div class="muted small" style="grid-column:1/-1">Keine weiteren Server im Verzeichnis gefunden.</div>';
     return;
   }
   const installed = new Set(S.servers.map((s) => s.name));
   $('results').innerHTML = lastResults
-    .map(
-      (x, i) => `
-    <div class="result"><div class="top"><span class="title">${esc(x.title)}</span><span class="badge">${esc(x.kind)}</span><span class="badge">v${esc(x.version)}</span>
-      <span class="grow"></span>${x.repo ? `<a href="#" data-url="${esc(x.repo)}" class="small">Quellcode</a>` : ''}
-      <button class="small primary" data-install="${i}"${x.kind === 'unbekannt' ? ' disabled' : ''}>${installed.has(x.title) ? 'Nochmal hinzufügen' : 'Hinzufügen'}</button></div>
-      <div class="desc">${esc(x.description)}</div><div class="muted small">${esc(x.name)}</div></div>`
-    )
+    .map((x, i) => {
+      const isInstalled = installed.has(x.title);
+      return `<div class="gem-item" data-install="${i}">
+        <div class="gem-icon">${connectorIcon(x.title)}${isInstalled ? '<span class="gem-dot"></span>' : ''}</div>
+        <div class="gem-body">
+          <div class="gem-title">${esc(x.title)} <span class="badge">${esc(x.kind)}</span></div>
+          <div class="gem-desc" title="${esc(x.description)}">${esc(x.description || x.name)}</div>
+        </div>
+        <button type="button" class="gem-act" title="${isInstalled ? 'Erneut einrichten' : 'Hinzufügen'}"${x.kind === 'unbekannt' ? ' disabled' : ''}>${isInstalled ? ICON_DOTS : ICON_PLUS}</button>
+      </div>`;
+    })
     .join('');
   $('results')
     .querySelectorAll('[data-install]')
@@ -688,52 +1122,115 @@ function installDialog(x) {
       const r = await z.installRegistry({ name: $('iName').value.trim(), server: x.server, env });
       if (r.error) return r.error;
       await load();
-      show('servers');
+      show('catalog');
       return null;
     },
     'Hinzufügen'
   );
 }
 
-// ---------- Skills ----------
+// ---------- Skills (Google-Gemini-Stil, 2-Spalten-Grid) ----------
 
-function renderSkills() {
-  if (!S.skills.length) {
-    $('skillList').innerHTML =
-      '<div class="empty">Noch keine Skills. Lege einen an oder kopiere Skill-Ordner nach ~/.aura/skills.</div>';
+function buildSkillItems(filterQuery = '') {
+  const q = filterQuery.trim().toLowerCase();
+  const installedByName = new Map((S ? S.skills : []).map((k) => [k.name, k]));
+  const items = [];
+
+  // Zuerst alle installierten Skills
+  for (const k of S ? S.skills : []) {
+    const starter = STARTER_SKILLS.find((st) => st.name === k.name);
+    items.push({
+      installed: true,
+      name: k.name,
+      title: starter ? starter.title : k.name,
+      description: k.description || 'Eigener Skill',
+      enabled: k.enabled,
+      icon: skillIcon(k.name)
+    });
+  }
+
+  // Danach Starter-Skills, die noch nicht installiert sind
+  for (const st of STARTER_SKILLS) {
+    if (installedByName.has(st.name)) continue;
+    items.push({
+      installed: false,
+      name: st.name,
+      title: st.title,
+      description: st.description,
+      enabled: false,
+      icon: st.icon,
+      starterContent: st.content
+    });
+  }
+
+  if (!q) return items;
+  return items.filter(
+    (it) =>
+      it.title.toLowerCase().includes(q) ||
+      it.name.toLowerCase().includes(q) ||
+      String(it.description || '')
+        .toLowerCase()
+        .includes(q)
+  );
+}
+
+function renderSkillGrid(container, items) {
+  if (!container) return;
+  if (!items.length) {
+    container.innerHTML = '<div class="empty" style="grid-column:1/-1">Keine passenden Skills gefunden.</div>';
     return;
   }
-  $('skillList').innerHTML = S.skills
-    .map(
-      (k) => `
-    <div class="item"><div class="name">${esc(k.name)}</div><div class="desc">${esc(k.description)}<br><span class="small">${esc(k.dir)}</span></div>
-    <div class="side"><label class="switch"><input type="checkbox" data-skill="${esc(k.name)}"${k.enabled ? ' checked' : ''}><span></span></label>
-    <button class="small" data-sedit="${esc(k.name)}">Bearbeiten</button><button class="small danger" data-sdel="${esc(k.name)}">Löschen</button></div></div>`
-    )
+  container.innerHTML = items
+    .map((it) => {
+      const dot = it.installed ? (it.enabled ? '<span class="gem-dot" title="Aktiv"></span>' : '') : '';
+      const badge = it.installed
+        ? it.enabled
+          ? '<span class="badge ok">Aktiv</span>'
+          : '<span class="badge">Aus</span>'
+        : '';
+      const actIcon = it.installed ? ICON_DOTS : ICON_PLUS;
+      const actTitle = it.installed ? `Skill „${it.title}“ bearbeiten` : `Skill „${it.title}“ hinzufügen`;
+      return `<div class="gem-item" data-sk-name="${esc(it.name)}" data-sk-installed="${it.installed ? '1' : '0'}">
+        <div class="gem-icon">${it.icon}${dot}</div>
+        <div class="gem-body">
+          <div class="gem-title">${esc(it.title)}${badge}</div>
+          <div class="gem-desc" title="${esc(it.description)}">${esc(it.description)}</div>
+        </div>
+        <button type="button" class="gem-act" title="${esc(actTitle)}" aria-label="${esc(actTitle)}">${actIcon}</button>
+      </div>`;
+    })
     .join('');
-  $('skillList')
-    .querySelectorAll('[data-skill]')
-    .forEach((c) => {
-      c.onchange = async () => {
-        await z.toggleSkill(c.dataset.skill, c.checked);
-        load();
-      };
-    });
-  $('skillList')
-    .querySelectorAll('[data-sedit]')
-    .forEach((b) => {
-      b.onclick = () => skillDialog(b.dataset.sedit);
-    });
-  $('skillList')
-    .querySelectorAll('[data-sdel]')
-    .forEach((b) => {
-      b.onclick = async () => {
-        if (!confirm(`Skill „${b.dataset.sdel}“ mit seinem Ordner löschen?`)) return;
-        const r = await z.deleteSkill(b.dataset.sdel);
-        if (r.error) alert(r.error);
-        load();
-      };
-    });
+
+  container.querySelectorAll('.gem-item').forEach((row) => {
+    row.onclick = async (e) => {
+      const name = row.dataset.skName;
+      const isInstalled = row.dataset.skInstalled === '1';
+      if (isInstalled) {
+        skillDialog(name);
+      } else {
+        const starter = STARTER_SKILLS.find((s) => s.name === name);
+        if (!starter) return;
+        const clickedAct = e.target.closest('.gem-act');
+        if (clickedAct) {
+          const r = await z.saveSkill({ name: null, content: starter.content, isNew: true });
+          if (r && r.error) alert(r.error);
+          await load();
+        } else {
+          skillDialog(null, starter.content, starter.title);
+        }
+      }
+    };
+  });
+}
+
+function renderSkills() {
+  const q = $('skillSearch') ? $('skillSearch').value : '';
+  renderSkillGrid($('skillList'), buildSkillItems(q));
+  renderSkillGrid($('discoverSkills'), buildSkillItems('').slice(0, 6));
+}
+
+if ($('skillSearch')) {
+  $('skillSearch').addEventListener('input', () => renderSkills());
 }
 
 const SKILL_TEMPLATE = `---
@@ -749,20 +1246,44 @@ Schritt für Schritt, was Aura tun soll:
 2. …
 `;
 
-async function skillDialog(name) {
+async function skillDialog(name, initialContent = null, customTitle = null) {
   const k = name ? await z.getSkill(name) : null;
+  const meta = name && S && S.skills ? S.skills.find((x) => x.name === name) : null;
   dialog(
-    name ? `Skill „${name}“` : 'Neuer Skill',
+    customTitle ? `Skill „${customTitle}“ hinzufügen` : name ? `Skill „${name}“` : 'Skill erstellen',
     `
-    <textarea id="sContent" class="editor" spellcheck="false">${esc(k ? k.content : SKILL_TEMPLATE)}</textarea>
-    <div class="hint">Oben zwischen den <code>---</code>: <b>name</b> (Kleinbuchstaben, Ziffern, Minus) und <b>description</b>. Daran erkennt das Modell, wann der Skill passt.${k ? ` Ordner: ${esc(k.dir)}` : ''}</div>`,
+    ${
+      meta
+        ? `<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0 12px;margin-bottom:8px;border-bottom:1px solid var(--line)">
+            <span>Skill aktivieren</span>
+            <label class="switch"><input type="checkbox" id="sEnabled"${meta.enabled ? ' checked' : ''}><span></span></label>
+          </div>`
+        : ''
+    }
+    <textarea id="sContent" class="editor" spellcheck="false">${esc(k ? k.content : initialContent || SKILL_TEMPLATE)}</textarea>
+    <div class="hint">Oben zwischen den <code>---</code>: <b>name</b> (Kleinbuchstaben, Ziffern, Minus) und <b>description</b>. Daran erkennt das Modell, wann der Skill passt.${k ? ` Ordner: ${esc(k.dir)}` : ''}</div>
+    ${meta ? `<div style="margin-top:12px"><button type="button" id="sDeleteBtn" class="small danger">Skill löschen</button></div>` : ''}`,
     async () => {
+      if (meta && $('sEnabled')) {
+        const want = $('sEnabled').checked;
+        if (want !== meta.enabled) await z.toggleSkill(name, want);
+      }
       const r = await z.saveSkill({ name, content: $('sContent').value, isNew: !name });
       if (r.error) return r.error;
-      load();
+      await load();
       return null;
-    }
+    },
+    name ? 'Speichern' : 'Hinzufügen'
   );
+  if ($('sDeleteBtn')) {
+    $('sDeleteBtn').onclick = async () => {
+      if (!confirm(`Skill „${name}“ mit seinem Ordner löschen?`)) return;
+      const r = await z.deleteSkill(name);
+      if (r.error) alert(r.error);
+      $('dlg').classList.add('hidden');
+      await load();
+    };
+  }
 }
 $('newSkill').onclick = () => skillDialog(null);
 
@@ -844,9 +1365,9 @@ async function renderSecrets() {
       ].filter(Boolean);
       return `<div class="item"><div class="name">${esc(k.name)} ${status}${k.hint ? ` <span class="badge">${esc(k.hint)}</span>` : ''}</div>
       <div class="desc">${meta.length ? meta.join(' · ') + '<br>' : ''}${k.note ? esc(k.note) + ' · ' : ''}${used}${k.updated ? ' · geändert ' + esc(fmtDate(k.updated)) : ''}</div>
-      <div class="side">${k.builtin || k.kind === 'login' ? '' : `<button class="small" data-copy="${esc(k.name)}" title="\${secret:${esc(k.name)}} kopieren">Verweis kopieren</button>`}
-      <button class="small" data-replace="${esc(k.name)}">${k.builtin && !k.set ? 'Festlegen' : 'Ersetzen'}</button>
-      ${k.builtin && !k.set ? '' : `<button class="small danger" data-sdel2="${esc(k.name)}">Löschen</button>`}</div></div>`;
+      <div class="side">${k.builtin || k.kind === 'login' ? '' : `<button type="button" class="small" data-copy="${esc(k.name)}" title="\${secret:${esc(k.name)}} kopieren">Verweis kopieren</button>`}
+      <button type="button" class="small" data-replace="${esc(k.name)}">${k.builtin && !k.set ? 'Festlegen' : 'Ersetzen'}</button>
+      ${k.builtin && !k.set ? '' : `<button type="button" class="small danger" data-sdel2="${esc(k.name)}">Löschen</button>`}</div></div>`;
     })
     .join('');
   const list = $('secretList');
@@ -1045,7 +1566,7 @@ async function loadMemory() {
           .map(
             (f) => `<div class="item"><div class="name">${esc(f.text)}</div>
       <div class="desc"><span class="badge">${esc(MEM_SOURCE[f.source] || f.source)}</span> ${esc(fmtDate(f.created * 1000))}${f.last_used ? ' · zuletzt genutzt ' + esc(fmtDate(f.last_used * 1000)) : ''}</div>
-      <div class="side"><button class="small" data-medit="${esc(f.id)}">Ändern</button><button class="small danger" data-mdel="${esc(f.id)}">Löschen</button></div></div>`
+      <div class="side"><button type="button" class="small" data-medit="${esc(f.id)}">Ändern</button><button type="button" class="small danger" data-mdel="${esc(f.id)}">Löschen</button></div></div>`
           )
           .join('')}`
     )
@@ -1098,7 +1619,7 @@ async function renderDoctor() {
     .map(
       (c) => `
     <tr><td class="${c.state === 'ok' ? 'ok' : 'bad'}">${DOC_ICON[c.state] || ''}</td><td>${esc(c.name)}</td><td>${esc(c.detail)}</td>
-    <td class="args">${esc(c.fix)}${c.action ? ` <button class="small" data-doc-action="${esc(c.action)}">Installieren</button>` : ''}</td></tr>`
+    <td class="args">${esc(c.fix)}${c.action ? ` <button type="button" class="small" data-doc-action="${esc(c.action)}">Installieren</button>` : ''}</td></tr>`
     )
     .join('')}</table>`;
   $('doctorList')
@@ -1114,6 +1635,7 @@ $('runDoctor').onclick = renderDoctor;
 
 async function renderChats() {
   const list = await z.chats();
+  renderSidebarChats();
   if (!list.length) {
     $('chatList').innerHTML = '<div class="empty">Noch keine gespeicherten Chats.</div>';
     return;
@@ -1122,7 +1644,7 @@ async function renderChats() {
     .map(
       (c) => `
     <div class="item"><div class="name" style="font-family:inherit">${esc(c.title)}</div><div class="desc">${esc(fmtTime(c.updated))} · ${esc(c.preview)}</div>
-    <div class="side"><button class="small danger" data-cdel="${esc(c.id)}">Löschen</button></div></div>`
+    <div class="side"><button type="button" class="small danger" data-cdel="${esc(c.id)}">Löschen</button></div></div>`
     )
     .join('');
   $('chatList')

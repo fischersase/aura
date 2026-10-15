@@ -14,16 +14,38 @@ let chatId = newChatId(); // unter dieser ID wird der Chat im Verlauf gespeicher
 let incognito = false;
 let includeScreen = false;
 let live = null;
+let sessionRestoredOnce = false;
 
-// ---------- Öffnen / Schließen (Kreis → Pille → Fenster) ----------
+// ---------- Öffnen / Minimieren / Schließen ----------
 
 function setCompact() {
-  card.classList.toggle('compact', chatHistory.length === 0 && !live && !streaming);
+  card.classList.toggle(
+    'compact',
+    !card.classList.contains('minimized') && chatHistory.length === 0 && !live && !streaming
+  );
+}
+
+function updateMinTitle() {
+  const el = $('minTitle');
+  if (!el) return;
+  if (streaming) {
+    el.textContent = 'Aura arbeitet …';
+    return;
+  }
+  const firstUser = chatHistory.find((m) => m.role === 'user');
+  const raw = firstUser
+    ? firstUser.parts
+        .map((p) => p.text)
+        .filter(Boolean)
+        .join(' ')
+        .trim()
+    : '';
+  el.textContent = raw ? raw.slice(0, 44) : 'Aura · Weiterfragen …';
 }
 
 function openAnim() {
   card.getAnimations().forEach((a) => a.cancel());
-  card.classList.remove('hidden');
+  card.classList.remove('hidden', 'minimized');
   setCompact();
   const W = card.offsetWidth;
   const H = card.offsetHeight;
@@ -63,6 +85,35 @@ function openAnim() {
   setTimeout(() => input.focus(), 60);
 }
 
+function minimizeAnim() {
+  card.getAnimations().forEach((a) => a.cancel());
+  card.classList.remove('hidden', 'compact');
+  card.classList.add('minimized');
+  updateMinTitle();
+  card.animate(
+    [
+      { opacity: 0.7, transform: 'translateY(6px) scale(.94)' },
+      { opacity: 1, transform: 'none' }
+    ],
+    { duration: 220, easing: SPRING }
+  );
+}
+
+function restoreAnim() {
+  card.getAnimations().forEach((a) => a.cancel());
+  card.classList.remove('hidden', 'minimized');
+  setCompact();
+  card.animate(
+    [
+      { opacity: 0.85, transform: 'translateY(10px) scale(.92)' },
+      { opacity: 1, transform: 'none' }
+    ],
+    { duration: 260, easing: SPRING }
+  );
+  scrollDown(true);
+  setTimeout(() => input.focus(), 40);
+}
+
 function closeAnim() {
   const a = card.animate(
     [
@@ -72,12 +123,13 @@ function closeAnim() {
     { duration: 200, easing: 'cubic-bezier(.4,0,1,1)', fill: 'forwards' }
   );
   a.onfinish = () => {
+    card.classList.remove('minimized');
     card.classList.add('hidden');
     a.cancel();
   };
 }
 
-// Jedes Öffnen startet einen neuen Chat (außer Gemini Live läuft gerade).
+// Startet ausdrücklich einen neuen leeren Chat (über den + Knopf).
 function resetChat() {
   if (streaming) window.api.abortChat(streaming.id);
   // Deleting the (unsaved) incognito chat makes the agent forget its session (chat.forget, AURA-106).
@@ -90,16 +142,43 @@ function resetChat() {
   showView('chat');
   autosize();
   setBusy(false);
+  updateMinTitle();
 }
 
-window.api.onPanelOpen(({ startLive, corner }) => {
-  if (!live && !streaming) resetChat(); // laufender Auftrag bleibt sichtbar
+window.api.onPanelOpen(async ({ startLive, corner }) => {
+  // Laufende oder begonnene Session behalten, damit man direkt weiterfragen kann!
+  // Beim allerersten Öffnen nach Programmstart automatisch die letzte gespeicherte Session laden, falls vorhanden.
+  if (!sessionRestoredOnce) {
+    sessionRestoredOnce = true;
+    if (!chatHistory.length && !incognito && !live && !streaming) {
+      try {
+        const all = await window.api.listChats();
+        if (all && all.length) await loadChat(all[0].id);
+      } catch {}
+    }
+  }
   window.api.getUsage().then(showUsage);
   document.body.classList.toggle('corner-left', /left/.test(corner || ''));
   document.body.classList.toggle('corner-top', /top/.test(corner || ''));
   window.api.ignoreMouse(!card.matches(':hover'));
   openAnim();
   if (startLive) startLiveMode();
+});
+window.api.onPanelMinimize(({ corner } = {}) => {
+  if (dictation) finishDictation('keep');
+  if (corner) {
+    document.body.classList.toggle('corner-left', /left/.test(corner));
+    document.body.classList.toggle('corner-top', /top/.test(corner));
+  }
+  minimizeAnim();
+});
+window.api.onPanelRestore(({ corner } = {}) => {
+  if (corner) {
+    document.body.classList.toggle('corner-left', /left/.test(corner));
+    document.body.classList.toggle('corner-top', /top/.test(corner));
+  }
+  window.api.getUsage().then(showUsage);
+  restoreAnim();
 });
 window.api.onPanelClose(() => {
   if (dictation) finishDictation('keep'); // Panel zu: Text nicht verlieren, aber auch nicht ungefragt senden
@@ -109,9 +188,10 @@ window.api.onPanelClose(() => {
 // Klicks auf die transparenten Bereiche des Fensters gehen an die App dahinter.
 card.addEventListener('mouseenter', () => window.api.ignoreMouse(false));
 card.addEventListener('mouseleave', () => window.api.ignoreMouse(true));
-// Unter Linux kommen Klicks neben die Karte im (durchsichtigen) Fenster an: wie ein Klick daneben schließen.
+// Unter Linux kommen Klicks neben die Karte im (durchsichtigen) Fenster an: in die Ecke minimieren statt schließen.
 document.addEventListener('mousedown', (e) => {
-  if (!card.contains(e.target) && !live && !streaming && !dictation) window.api.hidePanel();
+  if (!card.contains(e.target) && !live && !streaming && !dictation && !card.classList.contains('minimized'))
+    window.api.minimizePanel();
 });
 
 document.addEventListener('keydown', (e) => {
@@ -123,14 +203,22 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     e.preventDefault();
     if (!$('historyView').classList.contains('hidden')) showView('chat');
+    else if (!card.classList.contains('minimized')) window.api.minimizePanel();
     else window.api.hidePanel();
   }
 });
 
+$('minimizeBtn').onclick = () => window.api.minimizePanel();
+$('restoreBtn').onclick = () => window.api.restorePanel();
+$('minCloseBtn').onclick = (e) => {
+  e.stopPropagation();
+  window.api.hidePanel();
+};
 $('closeBtn').onclick = () => window.api.hidePanel();
 $('openSettings').onclick = () => window.api.openSettings();
 $('openZentrale').onclick = () => window.api.openZentrale();
 $('newChat').onclick = () => {
+  sessionRestoredOnce = true;
   resetChat();
   setCompact();
   input.focus();
@@ -249,6 +337,7 @@ function setBusy(on) {
   sendBtn.innerHTML = on
     ? '<svg viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>'
     : '<svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
+  updateMinTitle();
 }
 
 function send() {
@@ -388,6 +477,7 @@ async function loadChat(id) {
       el.querySelector('.body').innerHTML = markdown(text);
     }
   }
+  updateMinTitle();
   showView('chat');
   scrollDown(true);
 }
