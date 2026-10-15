@@ -97,7 +97,7 @@ let liveActive = false;
 let currentDisplay = null;
 const ramblerState = { recording: false, busy: false, saved: null, selection: '', last: null };
 
-if (!app.requestSingleInstanceLock()) app.quit();
+if (!app.requestSingleInstanceLock({ version: app.getVersion() })) app.quit();
 
 // Befehle per Kommandozeile, z. B. für eigene Tastenkürzel in GNOME/KDE:
 //   aura --toggle | --live | --rambler | --settings | --zentrale | --zentrale-web
@@ -113,7 +113,13 @@ function handleArgs(argv) {
   return true;
 }
 
-app.on('second-instance', (_e, argv) => {
+app.on('second-instance', (_e, argv, _cwd, data) => {
+  // Wurde Aura per apt upgrade aktualisiert, startet ein Klick auf das App-Icon automatisch die neue Version.
+  if (data && typeof data === 'object' && 'version' in data && data.version && data.version !== app.getVersion()) {
+    app.relaunch({ args: argv.slice(1) });
+    app.quit();
+    return;
+  }
   if (!app.isReady() || handleArgs(argv)) return;
   if (store.load().setupDone) zentrale.open(ICON, { page: 'chat' });
   else openSetup();
@@ -580,7 +586,8 @@ async function screenshotJpeg(display, maxWidth = 1600) {
 // ---------- Kosten ----------
 
 function usageSummary() {
-  return { ...usage.summary(store.load().monthlyBudgetUsd), local: store.isLocal() };
+  const s = store.load();
+  return { ...usage.summary(s.monthlyBudgetUsd), local: store.isLocal(), theme: s.theme || 'dark' };
 }
 
 function broadcastUsage() {

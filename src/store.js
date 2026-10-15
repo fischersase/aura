@@ -27,6 +27,7 @@ const DEFAULTS = {
   liveModel: 'gemini-3.8-live',
   liveVoice: '',
   language: 'Deutsch',
+  theme: 'dark',
   panelCorner: 'bottom-right',
   // Panel size chosen by the user (resize grip / enlarge button); null = default.
   panelSize: null,

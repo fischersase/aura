@@ -16,11 +16,13 @@ test('panel supports minimizing to bottom-right pill and preserves active chat s
   assert.match(panelHtml, /id="minimizedBar"/);
   assert.match(panelHtml, /id="minimizeBtn"/);
   assert.match(panelHtml, /id="restoreBtn"/);
-  assert.match(panelHtml, /<meta name="color-scheme" content="dark">/);
+  assert.match(panelHtml, /<meta name="color-scheme" content="dark light">/);
 
   assert.doesNotMatch(panelCss, /prefers-color-scheme:\s*light/);
+  assert.match(panelCss, /:root\[data-theme="light"\]/);
   assert.match(panelCss, /\.card\.minimized/);
   assert.match(panelCss, /\.min-bar/);
+  assert.match(panelJs, /applyPanelTheme/);
 
   // Opening the panel must not wipe the current conversation via resetChat()
   const openBlock = panelJs.slice(
