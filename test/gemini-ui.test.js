@@ -16,6 +16,8 @@ test('panel supports minimizing to bottom-right pill and preserves active chat s
   assert.match(panelHtml, /id="minimizedBar"/);
   assert.match(panelHtml, /id="minimizeBtn"/);
   assert.match(panelHtml, /id="restoreBtn"/);
+  assert.match(panelHtml, /id="deleteCurrentChat"/);
+  assert.match(panelHtml, /id="historyClearAll"/);
   assert.match(panelHtml, /<meta name="color-scheme" content="dark light">/);
 
   assert.doesNotMatch(panelCss, /prefers-color-scheme:\s*light/);
@@ -54,6 +56,8 @@ test('Aura Zentrale implements minimalist dark Google Gemini layout for Connecto
   assert.match(zHtml, /<search>/);
   assert.match(zHtml, /id="themeToggle"/);
   assert.match(zHtml, /id="chat"/);
+  assert.match(zHtml, /id="zChatDeleteBtn"/);
+  assert.match(zHtml, /id="deleteAllChats"/);
   assert.match(zHtml, /id="settings"/);
   assert.match(zHtml, /id="addCronTask"/);
   assert.match(zHtml, /id="rulesQuickList"/);
@@ -63,6 +67,7 @@ test('Aura Zentrale implements minimalist dark Google Gemini layout for Connecto
   assert.match(zCss, /\.gem-grid/);
   assert.match(zCss, /\.gem-item/);
   assert.match(zCss, /\.nav-scroll/);
+  assert.match(zCss, /\.sidebar-chat-del/);
 
   assert.match(zJs, /STARTER_SKILLS/);
   assert.match(zJs, /schreibstil-anpassen/);
@@ -70,6 +75,7 @@ test('Aura Zentrale implements minimalist dark Google Gemini layout for Connecto
   assert.match(zJs, /renderSkillGrid/);
   assert.match(zJs, /expandedServers/);
   assert.match(zJs, /openChatInZentrale/);
+  assert.match(zJs, /data-side-del/);
   assert.match(zJs, /renderQuickRules/);
   assert.match(zJs, /loadSettingsPage/);
 });

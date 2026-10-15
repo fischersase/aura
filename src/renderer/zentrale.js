@@ -237,11 +237,13 @@ function renderZChatMessages() {
   const emptyEl = $('zChatEmpty');
   const listEl = $('zChatMessages');
   const clearBtn = $('zChatClearBtn');
+  const delBtn = $('zChatDeleteBtn');
   if (!emptyEl || !listEl) return;
   const hasMessages = activeChatHistory.length > 0;
   emptyEl.classList.toggle('hidden', hasMessages);
   listEl.classList.toggle('hidden', !hasMessages);
   if (clearBtn) clearBtn.classList.toggle('hidden', !hasMessages);
+  if (delBtn) delBtn.classList.toggle('hidden', !hasMessages);
   if (!hasMessages) {
     listEl.innerHTML = '';
     return;
@@ -331,6 +333,14 @@ if ($('navNewChat')) {
 }
 if ($('zChatClearBtn')) {
   $('zChatClearBtn').onclick = () => resetZentraleChat();
+}
+if ($('zChatDeleteBtn')) {
+  $('zChatDeleteBtn').onclick = async () => {
+    const idToDelete = activeChatId;
+    resetZentraleChat();
+    await z.deleteChat(idToDelete).catch(() => {});
+    renderSidebarChats();
+  };
 }
 if ($('zChatForm')) {
   $('zChatForm').onsubmit = (e) => {
@@ -503,11 +513,23 @@ async function renderSidebarChats() {
       .slice(0, 15)
       .map(
         (c) =>
-          `<button type="button" class="sidebar-chat-item${c.id === activeChatId && activeChatHistory.length ? ' on' : ''}" data-side-chat="${esc(c.id)}" title="${esc(c.title)}">${esc(c.title)}</button>`
+          `<div class="sidebar-chat-row${c.id === activeChatId && activeChatHistory.length ? ' on' : ''}">` +
+          `<button type="button" class="sidebar-chat-item" data-side-chat="${esc(c.id)}" title="${esc(c.title)}">${esc(c.title)}</button>` +
+          `<button type="button" class="sidebar-chat-del" data-side-del="${esc(c.id)}" title="Chat löschen" aria-label="Chat löschen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 11v6M14 11v6M6 7l1 12h10l1-12M9 7V4h6v3"/></svg></button>` +
+          `</div>`
       )
       .join('');
     box.querySelectorAll('[data-side-chat]').forEach((b) => {
       b.onclick = () => openChatInZentrale(b.dataset.sideChat);
+    });
+    box.querySelectorAll('[data-side-del]').forEach((b) => {
+      b.onclick = async (e) => {
+        e.stopPropagation();
+        const delId = b.dataset.sideDel;
+        await z.deleteChat(delId);
+        if (delId === activeChatId) resetZentraleChat();
+        else renderSidebarChats();
+      };
     });
   } catch {
     box.innerHTML = '';
@@ -2434,6 +2456,7 @@ $('runDoctor').onclick = renderDoctor;
 async function renderChats() {
   const list = await z.chats();
   renderSidebarChats();
+  if ($('deleteAllChats')) $('deleteAllChats').classList.toggle('hidden', !list.length);
   if (!list.length) {
     $('chatList').innerHTML = '<div class="empty">Noch keine gespeicherten Chats.</div>';
     return;
@@ -2463,10 +2486,27 @@ async function renderChats() {
     .forEach((b) => {
       b.onclick = async (e) => {
         e.stopPropagation();
-        await z.deleteChat(b.dataset.cdel);
+        const delId = b.dataset.cdel;
+        await z.deleteChat(delId);
+        if (delId === activeChatId) {
+          activeChatId = newZChatId();
+          activeChatHistory = [];
+          renderZChatMessages();
+        }
         renderChats();
       };
     });
+}
+if ($('deleteAllChats')) {
+  $('deleteAllChats').onclick = async () => {
+    const list = await z.chats();
+    if (!list.length) return;
+    for (const c of list) await z.deleteChat(c.id);
+    activeChatId = newZChatId();
+    activeChatHistory = [];
+    renderZChatMessages();
+    renderChats();
+  };
 }
 
 load();

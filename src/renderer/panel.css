@@ -281,8 +281,9 @@ button svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke
 .hist-item:hover, .hist-item.current { background: var(--bg-2); }
 .hist-item .t { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hist-item .p { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
-.hist-item .del { width: 28px; height: 28px; opacity: 0; }
+.hist-item .del { width: 28px; height: 28px; opacity: 0.65; color: var(--muted); transition: opacity .15s, color .15s, background .15s; }
 .hist-item:hover .del { opacity: 1; }
+.hist-item .del:hover, #deleteCurrentChat:hover, #historyClearAll:hover { opacity: 1; color: var(--bad); background: var(--bg-3); }
 .hist-empty { color: var(--muted); font-size: 14px; padding: 24px 10px; text-align: center; }
 .chip.icon-chip { padding-left: 8px; padding-right: 8px; }
 

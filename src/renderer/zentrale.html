@@ -170,6 +170,7 @@
       <div class="zchat-composer-bar">
         <span id="zChatModelInfo" class="muted small"></span>
         <span class="grow"></span>
+        <button type="button" id="zChatDeleteBtn" class="pill-btn small danger hidden" title="Diesen Chat aus der Historie löschen">Chat löschen</button>
         <button type="button" id="zChatClearBtn" class="pill-btn small hidden">Neuer Chat</button>
         <button type="submit" id="zChatSendBtn" class="primary small">Senden</button>
       </div>
@@ -586,7 +587,7 @@
 
   <!-- Chats -->
   <section id="chats" class="page hidden">
-    <h1>Gespeicherte Chats</h1>
+    <div class="head"><h1>Gespeicherte Chats</h1><span class="grow"></span><button type="button" id="deleteAllChats" class="danger hidden">Alle löschen</button></div>
     <p class="lead">Klicke auf einen Chat, um ihn direkt hier in der Zentrale zu öffnen und weiterzuschreiben.</p>
     <div id="chatList" class="list"></div>
   </section>
