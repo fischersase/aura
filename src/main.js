@@ -54,6 +54,8 @@ const R = (f) => path.join(__dirname, 'renderer', f);
 const ICON = path.join(__dirname, '..', 'assets', 'icon.png');
 const PANEL_W = 440;
 const PANEL_H = 620;
+const PANEL_MIN_W = 304;
+const PANEL_MIN_H = 68;
 const MARGIN = 4; // + 12 px Schattenrand im Panel-Fenster = 16 px Abstand
 const RAMBLER_W = 420;
 const RAMBLER_H = 92;
@@ -90,6 +92,7 @@ app.commandLine.appendSwitch('enable-features', features.join(','));
 
 let overlay, panel, ramblerBar, settingsWin, setupWin, sttWin, tray;
 let panelOpen = false;
+let panelMinimized = false;
 let liveActive = false;
 let currentDisplay = null;
 const ramblerState = { recording: false, busy: false, saved: null, selection: '', last: null };
@@ -174,8 +177,16 @@ function createPanel() {
   panel.setContentProtection(true);
   panel.loadFile(R('panel.html'));
   panel.on('blur', () => {
-    // Wie auf dem Googlebook: Klick daneben schließt das Fenster, außer Live oder der Agent läuft.
-    if (panelOpen && !liveActive && !agentRuns && !panelBusy && !panel.webContents.isDevToolsOpened()) closePanel();
+    // Klick daneben minimiert das Fenster in die untere rechte Ecke, statt es ganz verschwinden zu lassen.
+    if (
+      panelOpen &&
+      !panelMinimized &&
+      !liveActive &&
+      !agentRuns &&
+      !panelBusy &&
+      !panel.webContents.isDevToolsOpened()
+    )
+      minimizePanel();
   });
 }
 
@@ -190,7 +201,7 @@ function panelDims(wa) {
 function placePanel(display) {
   const wa = display.workArea;
   const corner = store.load().panelCorner;
-  const { w, h } = panelDims(wa);
+  const { w, h } = panelMinimized ? { w: PANEL_MIN_W, h: PANEL_MIN_H } : panelDims(wa);
   // Anchored to its corner: a bigger panel grows towards the middle of the screen.
   const x = corner.endsWith('left') ? wa.x + MARGIN : wa.x + wa.width - w - MARGIN;
   const y = corner.startsWith('top') ? wa.y + MARGIN : wa.y + wa.height - h - MARGIN;
@@ -250,7 +261,7 @@ function openSetup() {
     title: 'Aura – Einrichtung',
     icon: ICON,
     autoHideMenuBar: true,
-    backgroundColor: '#1f1f1f',
+    backgroundColor: '#131314',
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true }
   });
   setupWin.loadFile(R('setup.html'));
@@ -276,12 +287,12 @@ function openSettings() {
     return;
   }
   settingsWin = new BrowserWindow({
-    width: 560,
-    height: 760,
+    width: 620,
+    height: 780,
     title: 'Aura – Einstellungen',
     icon: ICON,
     autoHideMenuBar: true,
-    backgroundColor: '#1f1f1f',
+    backgroundColor: '#131314',
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true }
   });
   settingsWin.loadFile(R('settings.html'));
@@ -310,6 +321,7 @@ function openPanel({ startLive = false } = {}) {
     openSetup();
     return;
   }
+  panelMinimized = false;
   currentDisplay = displayUnderCursor();
   placeOverlay(currentDisplay);
   placePanel(currentDisplay);
@@ -320,9 +332,41 @@ function openPanel({ startLive = false } = {}) {
   panel.webContents.send('panel:open', { startLive, corner: store.load().panelCorner });
 }
 
+function minimizePanel() {
+  if (!panelOpen || panelMinimized) return;
+  panelMinimized = true;
+  if (liveActive) panel.webContents.send('live:stop');
+  glow('outro');
+  const d = currentDisplay || screen.getDisplayMatching(panel.getBounds());
+  placePanel(d);
+  panel.webContents.send('panel:minimize', { corner: store.load().panelCorner });
+  if (!panel.isVisible()) panel.showInactive();
+}
+
+function restorePanel() {
+  if (!panelOpen) {
+    openPanel();
+    return;
+  }
+  if (!panelMinimized) {
+    panel.show();
+    panel.focus();
+    return;
+  }
+  panelMinimized = false;
+  currentDisplay = currentDisplay || displayUnderCursor();
+  placeOverlay(currentDisplay);
+  placePanel(currentDisplay);
+  glow(idleGlow());
+  panel.show();
+  panel.focus();
+  panel.webContents.send('panel:restore', { corner: store.load().panelCorner });
+}
+
 function closePanel() {
   if (!panelOpen) return;
   panelOpen = false;
+  panelMinimized = false;
   if (liveActive) panel.webContents.send('live:stop');
   glow('outro');
   panel.webContents.send('panel:close');
@@ -333,12 +377,13 @@ function closePanel() {
 }
 
 function toggleGemini() {
-  if (panelOpen) closePanel();
-  else openPanel();
+  if (!panelOpen) openPanel();
+  else if (panelMinimized) restorePanel();
+  else minimizePanel();
 }
 
 function toggleLive() {
-  if (panelOpen) {
+  if (panelOpen && !panelMinimized) {
     panel.webContents.send(liveActive ? 'live:stop' : 'live:start');
     if (!liveActive) {
       panel.show();
@@ -851,7 +896,7 @@ const agentV2 = new AgentBridge({
           tier: req.tier,
           reason: req.reason || ''
         });
-        if (panel && !panelOpen) openPanel();
+        if (panel && (!panelOpen || panelMinimized)) restorePanel();
       }),
     // Rückfrage des Agenten (ask_user) als Karte im Panel.
     ask: (req) =>
@@ -863,7 +908,7 @@ const agentV2 = new AgentBridge({
         answer.taskId = req.taskId;
         v2Questions.set(id, answer);
         sender.send('agent:ask', { chatId: req.taskId, id, question: req.question, options: req.options || [] });
-        if (panel && !panelOpen) openPanel();
+        if (panel && (!panelOpen || panelMinimized)) restorePanel();
       }),
     // Connector search in the official registry (AURA-96): the app does the HTTP request, not the agent.
     searchRegistry: async (req) => {
@@ -926,7 +971,7 @@ const agentV2 = new AgentBridge({
         answer.taskId = req.taskId;
         v2Questions.set(id, answer);
         sender.send('agent:takeover', { chatId: req.taskId, id, reason: String(req.reason || '').slice(0, 300) });
-        if (panel && !panelOpen) openPanel();
+        if (panel && (!panelOpen || panelMinimized)) restorePanel();
       }),
     // Connect card in the panel (AURA-96). Nothing is installed here; "connect" opens the Zentrale pre-filled.
     proposeConnector: (req) =>
@@ -942,7 +987,7 @@ const agentV2 = new AgentBridge({
             store.save({ declinedConnectors: [...declined] });
           }
           if (d === 'connect') {
-            closePanel();
+            minimizePanel();
             zentrale.open(ICON, { page: 'catalog', connect: String(req.id), query: String(req.title || '') });
           }
           resolve({ decision: d });
@@ -960,7 +1005,7 @@ const agentV2 = new AgentBridge({
           needs: Array.isArray(req.needs) ? req.needs.map(String) : [],
           risk: String(req.risk || '')
         });
-        if (panel && !panelOpen) openPanel();
+        if (panel && (!panelOpen || panelMinimized)) restorePanel();
       }),
     screenshot: async (maxWidth) => {
       noteAgentScreenshot();
@@ -1477,6 +1522,8 @@ ipcMain.on('pointer:show', (_e, p) => {
 ipcMain.on('pointer:clear', () => overlay && overlay.webContents.send('pointer:clear'));
 
 ipcMain.on('panel:hide', () => closePanel());
+ipcMain.on('panel:minimize', () => minimizePanel());
+ipcMain.on('panel:restore', () => restorePanel());
 
 // Overlay meldet, dass weder Glow noch Hinweise sichtbar sind: ganz ausblenden.
 ipcMain.on('overlay:idle', () => {

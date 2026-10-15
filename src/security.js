@@ -78,6 +78,8 @@ const IPC_ACCESS = {
   'agent:openFile': ['settings.html'],
   'panel:busy': PANEL,
   'panel:hide': PANEL,
+  'panel:minimize': PANEL,
+  'panel:restore': PANEL,
   'panel:setSize': PANEL,
   'panel:getSize': PANEL,
   'panel:ignoreMouse': PANEL,

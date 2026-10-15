@@ -30,14 +30,14 @@ function open(icon, nav) {
     return;
   }
   win = new BrowserWindow({
-    width: 1080,
-    height: 760,
-    minWidth: 760,
-    minHeight: 520,
+    width: 1160,
+    height: 780,
+    minWidth: 780,
+    minHeight: 540,
     title: 'Aura Zentrale',
     icon,
     autoHideMenuBar: true,
-    backgroundColor: '#1b1c1d',
+    backgroundColor: '#0e0e10',
     webPreferences: { preload: path.join(__dirname, 'preload-zentrale.js'), contextIsolation: true }
   });
   win.loadFile(path.join(__dirname, 'renderer', 'zentrale.html'));

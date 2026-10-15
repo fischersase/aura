@@ -25,7 +25,11 @@ contextBridge.exposeInMainWorld('api', {
   // Panel
   onPanelOpen: on('panel:open'),
   onPanelClose: on('panel:close'),
+  onPanelMinimize: on('panel:minimize'),
+  onPanelRestore: on('panel:restore'),
   hidePanel: () => ipcRenderer.send('panel:hide'),
+  minimizePanel: () => ipcRenderer.send('panel:minimize'),
+  restorePanel: () => ipcRenderer.send('panel:restore'),
   setPanelSize: (size) => ipcRenderer.invoke('panel:setSize', size),
   getPanelSize: () => ipcRenderer.invoke('panel:getSize'),
   ignoreMouse: (v) => ipcRenderer.send('panel:ignoreMouse', v),

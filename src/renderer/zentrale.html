@@ -2,36 +2,230 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
+<meta name="color-scheme" content="dark">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:">
 <meta name="referrer" content="no-referrer">
 <title>Aura Zentrale</title>
 <link rel="stylesheet" href="zentrale.css">
 </head>
 <body>
-<nav>
-  <div class="logo"><img src="../../assets/icon.png" alt="">Aura Zentrale</div>
-  <button data-page="overview" class="on">Übersicht</button>
-  <button data-page="profile">Profil</button>
-  <button data-page="secrets">Schlüssel &amp; Konten</button>
-  <button data-page="tools">Werkzeuge</button>
-  <button data-page="rules">Regeln</button>
-  <button data-page="servers">MCP-Server</button>
-  <button data-page="catalog">Verbindungen</button>
-  <button data-page="tasks">Aufgaben</button>
-  <button data-page="skills">Skills</button>
-  <button data-page="instructions">Anweisungen</button>
-  <button data-page="memory">Gedächtnis</button>
-  <button data-page="log">Aktionsprotokoll</button>
-  <button data-page="chats">Chats</button>
-  <button data-page="doctor">Systemprüfung</button>
+<nav aria-label="Hauptnavigation">
+  <div class="nav-top">
+    <button type="button" class="logo-btn" id="logoHome" title="Aura Zentrale">
+      <img src="../../assets/icon.png" alt="">
+      <span>Aura</span>
+    </button>
+    <button type="button" class="icon-btn" id="navSearchBtn" title="Connectors &amp; Skills durchsuchen">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    </button>
+  </div>
+
+  <div class="nav-group">
+    <button type="button" data-page="overview">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+      <span>Übersicht</span>
+    </button>
+    <button type="button" data-page="tasks">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+      <span>Geplant</span>
+    </button>
+    <button type="button" data-page="discover" id="navCustomize" class="on">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+      <span>Anpassen</span>
+    </button>
+  </div>
+
+  <div class="nav-more-wrap">
+    <button type="button" id="moreToggle" class="nav-more-btn" aria-expanded="false">
+      <span>Mehr</span>
+      <svg viewBox="0 0 24 24" class="chev" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+    <div id="moreMenu" class="nav-sub hidden">
+      <button type="button" data-page="catalog">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        <span>Connectors</span>
+      </button>
+      <button type="button" data-page="skills">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z"/></svg>
+        <span>Skills</span>
+      </button>
+      <button type="button" data-page="servers">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/><circle cx="7" cy="7" r="1"/><circle cx="7" cy="17" r="1"/></svg>
+        <span>MCP-Server</span>
+      </button>
+      <button type="button" data-page="tools">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4l-6 6a2 2 0 0 0 2.8 2.8l6-6a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.8-2.8 2.6-2.6z"/></svg>
+        <span>Werkzeuge</span>
+      </button>
+      <button type="button" data-page="instructions">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>
+        <span>Anweisungen</span>
+      </button>
+      <button type="button" data-page="memory">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a7 7 0 0 0-7 7c0 2.5 1.3 4.7 3.3 6v3a2 2 0 0 0 2 2h3.4a2 2 0 0 0 2-2v-3c2-1.3 3.3-3.5 3.3-6a7 7 0 0 0-7-7z"/></svg>
+        <span>Gedächtnis</span>
+      </button>
+      <button type="button" data-page="rules">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <span>Regeln</span>
+      </button>
+      <button type="button" data-page="secrets">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="m10.85 12.15 8.15-8.15M16 7l3 3M19 4l2 2"/></svg>
+        <span>Schlüssel &amp; Konten</span>
+      </button>
+      <button type="button" data-page="log">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>
+        <span>Aktionsprotokoll</span>
+      </button>
+      <button type="button" data-page="doctor">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>
+        <span>Systemprüfung</span>
+      </button>
+      <button type="button" data-page="profile">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.8-3.8 5-6 8-6s6.2 2.2 8 6"/></svg>
+        <span>Profil</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="nav-chats-section">
+    <div class="nav-section-head">
+      <span>Alle</span>
+      <button type="button" data-page="chats" class="nav-section-link" title="Alle gespeicherten Chats verwalten">Verwalten</button>
+    </div>
+    <div id="sidebarChats" class="sidebar-chats"></div>
+  </div>
+
   <div class="grow"></div>
-  <button id="openWeb" class="app-only" title="Öffnet die Zentrale in deinem Standardbrowser">Im Browser öffnen</button>
-  <div id="ver" class="muted small"></div>
+
+  <div class="nav-footer">
+    <button type="button" class="nav-loc" id="navProfileLoc" title="Profil &amp; Standort bearbeiten">
+      <span class="loc-dot" aria-hidden="true"></span>
+      <span id="navLocText">Aus deinem Profil</span>
+    </button>
+    <div class="nav-footer-row">
+      <button type="button" id="openWeb" class="app-only" title="Öffnet die Zentrale in deinem Standardbrowser">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
+        <span>Im Browser öffnen</span>
+      </button>
+    </div>
+    <div id="ver" class="muted small nav-ver"></div>
+  </div>
 </nav>
 
 <main>
+  <!-- Top Bar im Google-Gemini-Stil -->
+  <header class="topbar">
+    <div class="topbar-brand">Aura</div>
+    <div id="customizeTabs" class="gem-tabs" role="tablist" aria-label="Aura anpassen">
+      <button type="button" role="tab" data-tab="discover" class="gem-tab on">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polygon points="10,10 16,8 14,14 8,16"/></svg>
+        <span>Entdecken</span>
+      </button>
+      <button type="button" role="tab" data-tab="catalog" class="gem-tab">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2"/></svg>
+        <span>Connectors</span>
+      </button>
+      <button type="button" role="tab" data-tab="skills" class="gem-tab">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z"/><path d="M19 16l.9 2.1L22 19l-2.1.9L19 22l-.9-2.1L16 19l2.1-.9L19 16z"/></svg>
+        <span>Skills</span>
+      </button>
+    </div>
+    <button type="button" id="profileAvatarBtn" class="avatar-btn" title="Profil">A</button>
+  </header>
+
+  <!-- Entdecken (Unified Customize Landing Page wie in Google Gemini) -->
+  <section id="discover" class="page">
+    <div class="gem-hero">
+      <h1>Aura anpassen</h1>
+      <p class="lead">Verbinde deine bevorzugten Apps und passe an, wie Aura Aufgaben erledigt.</p>
+    </div>
+
+    <div class="gem-block">
+      <div class="gem-block-head">
+        <div>
+          <h2>Connectors</h2>
+          <p class="muted">Apps verknüpfen, um fundiertere Antworten zu erhalten</p>
+        </div>
+        <button type="button" class="pill-btn" data-go-tab="catalog">Alle ansehen</button>
+      </div>
+      <div id="discoverConnectors" class="gem-grid"></div>
+    </div>
+
+    <div class="gem-block">
+      <div class="gem-block-head">
+        <div>
+          <h2>Skills</h2>
+          <p class="muted">Individuelle Fähigkeiten für bestimmte Aufgaben erstellen</p>
+        </div>
+        <div class="gem-block-actions">
+          <button type="button" class="pill-btn" id="discoverNewSkill">+ Skill erstellen</button>
+          <button type="button" class="pill-btn" data-go-tab="skills">Alle ansehen</button>
+        </div>
+      </div>
+      <div id="discoverSkills" class="gem-grid"></div>
+    </div>
+  </section>
+
+  <!-- Connectors (Katalog & verbundene Dienste) -->
+  <section id="catalog" class="page hidden">
+    <div class="gem-hero-row">
+      <div>
+        <h1>Connectors</h1>
+        <p class="lead">Apps verknüpfen, um fundiertere Antworten zu erhalten</p>
+      </div>
+      <div class="gem-block-actions">
+        <button type="button" class="pill-btn" id="addCustomConnector">+ Eigener MCP-Server</button>
+      </div>
+    </div>
+
+    <search>
+      <form id="searchForm" class="gem-search">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="q" type="search" placeholder="Suchen" spellcheck="false" autocomplete="off">
+        <button type="submit" class="pill-btn small">Im MCP-Verzeichnis suchen</button>
+      </form>
+    </search>
+
+    <div id="connectorList" class="gem-grid"></div>
+
+    <div id="registryBlock" class="gem-block hidden">
+      <div class="gem-block-head">
+        <div>
+          <h2>Weitere Server im offiziellen MCP-Verzeichnis</h2>
+          <p class="muted small">Gefunden auf registry.modelcontextprotocol.io. Diese Server hat Aura nicht vorab geprüft – jede ihrer Aktionen fragt vorher nach.</p>
+        </div>
+      </div>
+      <div id="results" class="gem-grid"></div>
+    </div>
+  </section>
+
+  <!-- Skills -->
+  <section id="skills" class="page hidden">
+    <div class="gem-hero-row">
+      <div>
+        <h1>Skills</h1>
+        <p class="lead">Individuelle Fähigkeiten für bestimmte Aufgaben erstellen</p>
+      </div>
+      <div class="gem-block-actions">
+        <button type="button" class="pill-btn app-only" data-open="skills">Ordner öffnen</button>
+        <button type="button" id="newSkill" class="pill-btn primary-tonal">+ Skill erstellen</button>
+      </div>
+    </div>
+
+    <search>
+      <div class="gem-search">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="skillSearch" type="search" placeholder="Suchen" spellcheck="false" autocomplete="off">
+      </div>
+    </search>
+
+    <div class="gem-subhead">Erste Schritte &amp; installierte Skills</div>
+    <div id="skillList" class="gem-grid"></div>
+  </section>
+
   <!-- Übersicht -->
-  <section id="overview" class="page">
+  <section id="overview" class="page hidden">
     <div class="head"><h1>Übersicht</h1><span id="verBadge" class="badge" title="Installierte Version"></span></div>
     <p class="lead">Hier siehst und steuerst du, was Aura als Agent darf und womit es arbeitet.</p>
     <div class="tiles" id="tiles"></div>
@@ -50,7 +244,7 @@
       <h3>Zentrale im Browser</h3>
       <p class="small">Die Zentrale läuft auch in deinem Browser, nur auf diesem PC (<code>127.0.0.1</code>) und mit einem geheimen Zugangslink, der bei jedem Start von Aura neu erzeugt wird.</p>
       <p class="small muted" id="webState"></p>
-      <div class="row" style="margin:0"><button id="openWeb2" class="app-only">Im Browser öffnen</button><button id="resetWeb">Alle Browser abmelden</button></div>
+      <div class="row" style="margin:0"><button type="button" id="openWeb2" class="app-only">Im Browser öffnen</button><button type="button" id="resetWeb">Alle Browser abmelden</button></div>
     </div>
     <div class="card">
       <h3>So funktioniert die Freigabe</h3>
@@ -61,7 +255,7 @@
 
   <!-- Profil -->
   <section id="profile" class="page hidden">
-    <div class="head"><h1>Profil</h1><span class="grow"></span><span id="pStatus" class="muted small"></span><button id="saveProfile" class="primary">Speichern</button></div>
+    <div class="head"><h1>Profil</h1><span class="grow"></span><span id="pStatus" class="muted small"></span><button type="button" id="saveProfile" class="primary">Speichern</button></div>
     <p class="lead">Was Aura über dich wissen darf, damit Antworten besser passen. Das Profil bleibt auf diesem PC und geht nur als Teil der Anweisung an das Modell, das du nutzt.</p>
     <div class="card form">
       <label for="pName">Name oder wie Aura dich ansprechen soll</label><input type="text" id="pName" maxlength="200" autocomplete="off">
@@ -82,7 +276,7 @@
 
   <!-- Schlüssel -->
   <section id="secrets" class="page hidden">
-    <div class="head"><h1>Schlüssel &amp; Konten</h1><span class="grow"></span><button id="newLogin">Website-Login hinzufügen</button><button id="newSecret" class="primary">Schlüssel hinzufügen</button></div>
+    <div class="head"><h1>Schlüssel &amp; Konten</h1><span class="grow"></span><button type="button" id="newLogin">Website-Login hinzufügen</button><button type="button" id="newSecret" class="primary">Schlüssel hinzufügen</button></div>
     <p class="lead">API-Keys, Tokens, Anmeldungen und Passwörter für Gemini, MCP-Server und Dienste. Aura speichert sie verschlüsselt im Schlüsselspeicher deines Systems und zeigt sie nie wieder an; du kannst sie nur ersetzen oder löschen. In einem MCP-Server verwendest du sie als <code>${secret:NAME}</code> in Variablen, Headern oder Argumenten.</p>
     <div id="secretProtection" class="card small"></div>
     <div id="secretList" class="list"></div>
@@ -98,50 +292,36 @@
   <!-- MCP-Server -->
   <section id="servers" class="page hidden">
     <div class="head"><h1>MCP-Server</h1><span class="grow"></span>
-      <button id="reloadServers">Neu verbinden</button>
-      <button id="addServer" class="primary">Server hinzufügen</button></div>
+      <button type="button" id="reloadServers">Neu verbinden</button>
+      <button type="button" id="addServer" class="primary">Server hinzufügen</button></div>
     <p class="lead">MCP-Server geben Aura zusätzliche Werkzeuge, z. B. Browser-Steuerung, Kalender oder eigene Skripte. Gespeichert in <code>~/.aura/mcp.json</code> (<a href="#" data-open="mcp">im Ordner zeigen</a>).</p>
     <div id="serverList"></div>
   </section>
 
-  <!-- Katalog -->
-  <section id="catalog" class="page hidden">
-    <h1>Verbindungen</h1>
-    <p class="lead">Verbinde Aura mit deinen Diensten. Die Einträge unten hat Aura geprüft und fertig eingerichtet: Du meldest dich nur an oder trägst einen Zugangsschlüssel ein; Aura zeigt dir, wo du ihn bekommst.</p>
-    <div id="connectorList" class="connectors"></div>
-    <h2>Weitere Server im offiziellen MCP-Verzeichnis</h2>
-    <p class="lead small">Suche in registry.modelcontextprotocol.io. Diese Server hat Aura <b>nicht</b> geprüft: Jede ihrer Aktionen fragt vorher nach. Installiere nur Server, deren Herkunft du vertraust.</p>
-    <form id="searchForm" class="row"><input id="q" type="search" placeholder="z. B. playwright, github, notion, kalender" spellcheck="false"><button class="primary">Suchen</button></form>
-    <div id="results"></div>
-  </section>
-
   <!-- Geplante Aufgaben (AURA-121) -->
   <section id="tasks" class="page hidden">
-    <h1>Aufgaben</h1>
-    <p class="lead">Was Aura später oder regelmäßig für dich erledigt. Neue Aufgaben legst du im Chat an, z. B. „Erinnere mich morgen um 9 an den Zahnarzt“ oder „Fass mir werktags um 8 meine Termine zusammen“. Aura führt sie aus, solange Aura läuft (auch nur im Infobereich); ist der Rechner aus oder im Ruhezustand, holt Aura einen verpassten Lauf einmal nach.</p>
-    <div class="row"><button id="addBriefing" class="primary">Tagesbriefing einrichten</button></div>
+    <div class="gem-hero-row">
+      <div>
+        <h1>Geplant</h1>
+        <p class="lead">Was Aura später oder regelmäßig für dich erledigt. Neue Aufgaben legst du im Chat an, z. B. „Erinnere mich morgen um 9 an den Zahnarzt“ oder „Fass mir werktags um 8 meine Termine zusammen“.</p>
+      </div>
+      <div class="gem-block-actions">
+        <button type="button" id="addBriefing" class="pill-btn primary-tonal">+ Tagesbriefing einrichten</button>
+      </div>
+    </div>
     <div id="taskList" class="list"></div>
-  </section>
-
-  <!-- Skills -->
-  <section id="skills" class="page hidden">
-    <div class="head"><h1>Skills</h1><span class="grow"></span>
-      <button data-open="skills">Ordner öffnen</button>
-      <button id="newSkill" class="primary">Neuer Skill</button></div>
-    <p class="lead">Skills sind Anleitungen (<code>SKILL.md</code>), die Aura bei passenden Aufgaben lädt. Format wie bei Claude, Gemini CLI und Codex (agentskills.io). Ordner: <code>~/.aura/skills</code> und <code>~/.agents/skills</code>.</p>
-    <div id="skillList" class="list"></div>
   </section>
 
   <!-- Anweisungen -->
   <section id="instructions" class="page hidden">
-    <div class="head"><h1>Anweisungen (AGENTS.md)</h1><span class="grow"></span><span id="mdStatus" class="muted small"></span><button id="saveMd" class="primary">Speichern</button></div>
+    <div class="head"><h1>Anweisungen (AGENTS.md)</h1><span class="grow"></span><span id="mdStatus" class="muted small"></span><button type="button" id="saveMd" class="primary">Speichern</button></div>
     <p class="lead">Was Aura immer wissen oder beachten soll, z. B. wo deine Dateien liegen oder wie es antworten soll. Text in <code>&lt;!-- --&gt;</code> wird ignoriert.</p>
     <textarea id="agentsMd" class="editor" spellcheck="false"></textarea>
   </section>
 
   <!-- Regeln (Agent v2) -->
   <section id="rules" class="page hidden">
-    <div class="head"><h1>Regeln (Agent v2)</h1><span class="grow"></span><span id="ruleStatus" class="muted small"></span><button id="saveRules" class="primary">Speichern</button></div>
+    <div class="head"><h1>Regeln (Agent v2)</h1><span class="grow"></span><span id="ruleStatus" class="muted small"></span><button type="button" id="saveRules" class="primary">Speichern</button></div>
     <p class="lead">Was Aura ohne Rückfrage darf (<code>allow</code>), wo es immer fragen soll (<code>ask</code>) und was nie (<code>deny</code>).
       „Immer erlauben“ auf einer Freigabekarte legt hier eine Regel an. Zugangsdaten und Systemzerstörung bleiben immer gesperrt.</p>
     <p class="muted small" id="rulesFile"></p>
@@ -152,7 +332,7 @@
   <section id="memory" class="page hidden">
     <div class="head"><h1>Gedächtnis</h1><span class="grow"></span><span id="memStatus" class="muted small"></span>
       <label class="check"><input type="checkbox" id="memPause"> Pausieren</label>
-      <button id="memClear" class="danger">Alles löschen</button></div>
+      <button type="button" id="memClear" class="danger">Alles löschen</button></div>
     <p class="lead">Was sich Aura über dich und deinen Rechner gemerkt hat, mit Herkunft: selbst gesagt, gelernt, übernommen oder von dir bearbeitet.
       Zu jeder Anfrage nutzt Aura nur die passenden Einträge. Passwörter und Kontodaten speichert Aura nie.
       Im Chat kannst du „Inkognito“ einschalten, dann merkt sich Aura aus diesem Chat nichts.</p>
@@ -161,7 +341,7 @@
 
   <!-- Protokoll -->
   <section id="log" class="page hidden">
-    <div class="head"><h1>Aktionsprotokoll</h1><span class="grow"></span><button data-open="log">Datei im Ordner zeigen (v1)</button><button id="reloadLog">Aktualisieren</button></div>
+    <div class="head"><h1>Aktionsprotokoll</h1><span class="grow"></span><button type="button" data-open="log">Datei im Ordner zeigen (v1)</button><button type="button" id="reloadLog">Aktualisieren</button></div>
     <p class="lead">Alles, was Aura als Agent getan hat, neueste zuerst.</p>
     <h3>Agent v2</h3>
     <div id="auditList"></div>
@@ -171,7 +351,7 @@
 
   <!-- Systemprüfung -->
   <section id="doctor" class="page hidden">
-    <div class="head"><h1>Systemprüfung</h1><span class="grow"></span><button id="runDoctor" class="primary">Erneut prüfen</button></div>
+    <div class="head"><h1>Systemprüfung</h1><span class="grow"></span><button type="button" id="runDoctor" class="primary">Erneut prüfen</button></div>
     <p class="lead">Prüft, ob alles da ist, was der Agent für seine Fähigkeiten braucht.</p>
     <div id="doctorList"></div>
   </section>
@@ -186,7 +366,7 @@
 
 <!-- Dialog -->
 <div id="dlg" class="dlg hidden"><div class="dlg-box"><h2 id="dlgTitle"></h2><div id="dlgBody"></div>
-  <div class="dlg-actions"><span id="dlgError" class="bad small"></span><span class="grow"></span><button id="dlgCancel">Abbrechen</button><button id="dlgOk" class="primary">Speichern</button></div></div></div>
+  <div class="dlg-actions"><span id="dlgError" class="bad small"></span><span class="grow"></span><button type="button" id="dlgCancel">Abbrechen</button><button type="button" id="dlgOk" class="primary">Speichern</button></div></div></div>
 
 <!-- Browser: Zugang abgelaufen -->
 <div id="noAccess" class="dlg hidden"><div class="dlg-box"><h2>Kein Zugang</h2>
