@@ -4,13 +4,51 @@
 // server list (catalog tiers for servers whose URL matches an entry).
 
 /**
- * @typedef {{ name: string, label: string, kind: string, secret: boolean, tokenUrl?: string, help: string[] }} Credential
+ * @typedef {{ name: string, label: string, kind: string, secret: boolean, required?: boolean, tokenUrl?: string, help: string[] }} Credential
  * @typedef {{ id: string, title: string, description: string, keywords: string[], publisher: string,
  *   verified: string, status: string, homepage: string,
  *   config?: { url?: string, auth?: string, headers?: Record<string, string>, command?: string, args?: string[],
  *     env?: Record<string, string>, builtin?: string },
  *   credentials: Credential[], setup?: string[], tiers?: Record<string, string> }} Connector
  */
+
+/** @type {Record<string, string>} */
+const EMAIL_DOMAIN_TYPOS = {
+  gmailcom: 'gmail.com',
+  'gmail.de': 'gmail.com',
+  googlemailcom: 'googlemail.com',
+  gmxde: 'gmx.de',
+  gmxnet: 'gmx.net',
+  webde: 'web.de',
+  't-onlinede': 't-online.de',
+  tonlinede: 't-online.de',
+  icloudcom: 'icloud.com',
+  outlookcom: 'outlook.com',
+  outlookde: 'outlook.de',
+  hotmailcom: 'hotmail.com',
+  yahoocom: 'yahoo.com',
+  yahoode: 'yahoo.de'
+};
+
+/**
+ * Normalizes an email address (auto-fixing common missing-dot domain typos like @gmailcom) and validates syntax.
+ * @param {string} raw
+ * @param {string} label
+ */
+function normalizeEmail(raw, label) {
+  const addr = String(raw || '').trim();
+  if (!addr.includes('@')) {
+    throw new Error(`Bitte eine gültige E-Mail-Adresse für „${label}“ eintragen (z. B. name@gmail.com).`);
+  }
+  const [local, domainRaw] = addr.split('@', 2);
+  const domainClean = domainRaw.trim().toLowerCase().replace(/\.+$/, '');
+  const domain = EMAIL_DOMAIN_TYPOS[domainClean] || domainClean;
+  const normalized = `${local.trim()}@${domain}`;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+    throw new Error(`Bitte eine gültige E-Mail-Adresse für „${label}“ eintragen (Punkt in der Domain fehlt, z. B. name@gmail.com).`);
+  }
+  return normalized;
+}
 
 /** @type {Connector[]} */
 const CATALOG = /** @type {Connector[]} */ (require('./catalog/connectors.json').connectors);
@@ -63,12 +101,22 @@ function collisions(names) {
  */
 function configFor(entry, values, secretName, store) {
   if (!entry.config || entry.status === 'coming') throw new Error(`„${entry.title}“ ist noch nicht verfügbar.`);
-  for (const c of entry.credentials)
-    if (!String(values[c.name] || '').trim()) throw new Error(`Bitte „${c.label}“ eintragen.`);
+  for (const c of entry.credentials) {
+    if (c.required !== false && !String(values[c.name] || '').trim()) {
+      throw new Error(`Bitte „${c.label}“ eintragen.`);
+    }
+  }
   /** @type {Record<string, string>} */
   const refs = {};
   for (const c of entry.credentials) {
-    const value = String(values[c.name]).trim();
+    let value = String(values[c.name] || '').trim();
+    if (!value) {
+      refs[c.name] = '';
+      continue;
+    }
+    if (c.kind === 'email') {
+      value = normalizeEmail(value, c.label);
+    }
     if (c.secret) {
       const n = secretName(c.name);
       store(n, value, `${entry.title}: ${c.label}`);
@@ -107,7 +155,7 @@ function registrySummary(r) {
   };
 }
 
-const BUILTINS = new Set(['mail']);
+const BUILTINS = new Set(['mail', 'google_workspace']);
 
 /**
  * A connector shipped with Aura ({"builtin": "mail"} in mcp.json) becomes a command with Aura's own Python

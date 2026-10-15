@@ -42,7 +42,47 @@ PROVIDERS: dict[str, tuple[str, int, str, int, bool]] = {
     "icloud.com": ("imap.mail.me.com", 993, "smtp.mail.me.com", 587, False),
     "me.com": ("imap.mail.me.com", 993, "smtp.mail.me.com", 587, False),
     "t-online.de": ("secureimap.t-online.de", 993, "securesmtp.t-online.de", 465, True),
+    "outlook.com": ("outlook.office365.com", 993, "smtp.office365.com", 587, False),
+    "outlook.de": ("outlook.office365.com", 993, "smtp.office365.com", 587, False),
+    "hotmail.com": ("outlook.office365.com", 993, "smtp.office365.com", 587, False),
+    "live.com": ("outlook.office365.com", 993, "smtp.office365.com", 587, False),
+    "office365.com": ("outlook.office365.com", 993, "smtp.office365.com", 587, False),
+    "yahoo.com": ("imap.mail.yahoo.com", 993, "smtp.mail.yahoo.com", 465, True),
+    "yahoo.de": ("imap.mail.yahoo.com", 993, "smtp.mail.yahoo.com", 465, True),
 }
+
+DOMAIN_TYPOS: dict[str, str] = {
+    "gmailcom": "gmail.com",
+    "gmailde": "gmail.com",
+    "googlemailcom": "googlemail.com",
+    "gmxde": "gmx.de",
+    "gmxnet": "gmx.net",
+    "gmxat": "gmx.at",
+    "webde": "web.de",
+    "posteode": "posteo.de",
+    "posteonet": "posteo.net",
+    "icloudcom": "icloud.com",
+    "mecom": "me.com",
+    "tonlinede": "t-online.de",
+    "t-onlinede": "t-online.de",
+    "outlookcom": "outlook.com",
+    "outlookde": "outlook.de",
+    "hotmailcom": "hotmail.com",
+    "livecom": "live.com",
+    "yahoocom": "yahoo.com",
+    "yahoode": "yahoo.de",
+}
+
+
+def normalize_email_address(raw: str) -> str:
+    """Normalizes an email address and heals common missing-dot domain typos (e.g. @gmailcom -> @gmail.com)."""
+    addr = raw.strip()
+    if "@" not in addr:
+        return addr
+    local, domain = addr.rsplit("@", 1)
+    clean_domain = DOMAIN_TYPOS.get(domain.lower().strip(), domain.lower().strip())
+    return f"{local.strip()}@{clean_domain}"
+
 
 # --- Filter for one-time codes and login links (FR-PAR-042) ---
 _LINK = re.compile(
@@ -152,7 +192,7 @@ class Account:
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> Account:
         env = dict(os.environ if env is None else env)
-        address = env.get("MAIL_ADDRESS", "").strip()
+        address = normalize_email_address(env.get("MAIL_ADDRESS", ""))
         password = env.get("MAIL_PASSWORD", "").replace(
             " ", ""
         )  # Google shows app passwords in groups of four
@@ -160,10 +200,13 @@ class Account:
             raise RuntimeError(
                 "E-Mail-Adresse oder App-Passwort fehlt (Aura Zentrale → Verbindungen → E-Mail)."
             )
-        preset = PROVIDERS.get(address.rsplit("@", 1)[-1].lower())
+        domain = address.rsplit("@", 1)[-1].lower() if "@" in address else ""
+        preset = PROVIDERS.get(domain)
         imap_host = env.get("MAIL_IMAP_HOST") or (preset[0] if preset else "")
         if not imap_host:
-            raise RuntimeError("Unbekannter Mail-Anbieter: bitte IMAP- und SMTP-Server angeben.")
+            raise RuntimeError(
+                f"Unbekannter Mail-Anbieter ({domain or address}): bitte E-Mail-Adresse prüfen oder IMAP- und SMTP-Server angeben."
+            )
         return cls(
             address,
             password,

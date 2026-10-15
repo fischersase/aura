@@ -174,7 +174,7 @@
     {
       "id": "google-workspace",
       "title": "Google Workspace (Gmail, Kalender, Drive)",
-      "description": "Gmail, Google Kalender und Drive über ein eigenes Google-Cloud-Projekt. Für Fortgeschrittene; für Mails reicht meist der Eintrag „E-Mail (IMAP/SMTP)“.",
+      "description": "Gmail-Mails lesen, suchen und senden, Google-Kalender-Termine abfragen und anlegen sowie Google-Drive-Dokumente durchsuchen und lesen.",
       "keywords": [
         "google",
         "gmail",
@@ -184,13 +184,84 @@
         "termine",
         "drive",
         "docs",
+        "sheets",
         "workspace"
       ],
-      "publisher": "Google",
+      "publisher": "Aura",
       "verified": "aura",
-      "status": "advanced",
-      "homepage": "https://github.com/fischersase/aura/blob/main/docs/specs/personal-agent.md",
-      "credentials": []
+      "status": "available",
+      "homepage": "https://github.com/fischersase/aura/blob/main/agent/src/aura_agent/connectors/google_workspace.py",
+      "credentials": [
+        {
+          "name": "GOOGLE_EMAIL",
+          "label": "Google-E-Mail-Adresse",
+          "kind": "email",
+          "secret": false,
+          "help": [
+            "Deine Gmail- oder Google-Workspace-Adresse, z. B. name@gmail.com."
+          ]
+        },
+        {
+          "name": "GOOGLE_APP_PASSWORD",
+          "label": "Google App-Passwort",
+          "kind": "app-password",
+          "secret": true,
+          "tokenUrl": "https://myaccount.google.com/apppasswords",
+          "help": [
+            "Im Google-Konto muss die Bestätigung in zwei Schritten eingeschaltet sein.",
+            "Den Link öffnen, als Namen „Aura“ eingeben und „Erstellen“ klicken.",
+            "Das 16-stellige App-Passwort kopieren und hier einfügen (Leerzeichen werden automatisch entfernt)."
+          ]
+        },
+        {
+          "name": "GOOGLE_CALENDAR_ICAL_URL",
+          "label": "Google Kalender Privatadresse im iCal-Format (optional)",
+          "kind": "url",
+          "secret": true,
+          "required": false,
+          "tokenUrl": "https://calendar.google.com/calendar/u/0/r/settings",
+          "help": [
+            "Optional für sofortigen Kalender-Lesezugriff ohne Cloud-Projekt: In den Google-Kalender-Einstellungen links deinen Kalender anklicken.",
+            "Nach unten zu „Kalender integrieren“ scrollen und die „Privatadresse im iCal-Format“ (endet auf basic.ics) hier einfügen."
+          ]
+        },
+        {
+          "name": "GOOGLE_OAUTH_TOKEN",
+          "label": "Google OAuth-Token oder token.json (optional, für Drive & Termine anlegen)",
+          "kind": "api-token",
+          "secret": true,
+          "required": false,
+          "tokenUrl": "https://developers.google.com/oauthplayground",
+          "help": [
+            "Optional für Google Drive und das Erstellen von Kalender-Terminen: OAuth-Access-Token, Inhalt einer token.json oder Pfad zu deiner autorisierten Token-Datei eintragen."
+          ]
+        }
+      ],
+      "review": {
+        "date": "2026-10-15",
+        "source": "Built into Aura (agent/src/aura_agent/connectors/google_workspace.py), runs in the sandbox",
+        "tools": "workspace_gmail_search/workspace_gmail_read/workspace_calendar_events/workspace_drive_search/workspace_drive_read read (T0); workspace_gmail_send/workspace_calendar_create write (T2)"
+      },
+      "config": {
+        "builtin": "google_workspace",
+        "env": {
+          "GOOGLE_EMAIL": "${credential:GOOGLE_EMAIL}",
+          "GOOGLE_APP_PASSWORD": "${credential:GOOGLE_APP_PASSWORD}",
+          "GOOGLE_CALENDAR_ICAL_URL": "${credential:GOOGLE_CALENDAR_ICAL_URL}",
+          "GOOGLE_OAUTH_TOKEN": "${credential:GOOGLE_OAUTH_TOKEN}"
+        }
+      },
+      "setup": [
+        "Google-E-Mail-Adresse und App-Passwort eintragen (Kalender-iCal-Link oder OAuth-Token optional ergänzen) und auf „Verbinden“ klicken."
+      ],
+      "tiers": {
+        "workspace_gmail_search": "T0",
+        "workspace_gmail_read": "T0",
+        "workspace_calendar_events": "T0",
+        "workspace_drive_search": "T0",
+        "workspace_drive_read": "T0",
+        "*": "T2"
+      }
     }
   ]
 }
