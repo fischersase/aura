@@ -70,8 +70,11 @@ function load() {
 /** @param {Record<string, any>} patch */
 function save(patch) {
   const next = { ...load(), ...patch };
-  fs.mkdirSync(path.dirname(file()), { recursive: true });
-  fs.writeFileSync(file(), JSON.stringify(next, null, 2));
+  const target = file();
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  const tmp = `${target}.tmp.${process.pid}`;
+  fs.writeFileSync(tmp, JSON.stringify(next, null, 2), { mode: 0o600 });
+  fs.renameSync(tmp, target);
   cache = next;
   return next;
 }

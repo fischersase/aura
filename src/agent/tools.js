@@ -57,6 +57,7 @@ const RISKY_ARGS = {
   tree: /(^|\s)-o(\s|$)/,
   fd: /(^|\s)(-x|-X|--exec\S*)(\s|$)/,
   fdfind: /(^|\s)(-x|-X|--exec\S*)(\s|$)/,
+  rg: /(^|\s)(--pre|--pre-glob)(\s|=|$)/,
   date: /(^|\s)(-s|--set)/
 };
 
@@ -70,7 +71,7 @@ function readsEnv(c) {
 
 function isReadOnly(command) {
   const c = String(command || '').trim();
-  if (!c || /[;&<>`\n\r]|\$\(|\$\{/.test(c) || readsEnv(c)) return false;
+  if (!c || /[;&<>()`\n\r]|\$\(|\$\{/.test(c) || readsEnv(c)) return false;
   return c.split('|').every((seg) => {
     const words = seg.trim().split(/\s+/);
     const name = (words[0] || '').toLowerCase();

@@ -588,7 +588,7 @@ const chatAborts = new Map();
 ipcMain.handle('settings:get', () => store.publicSettings());
 
 ipcMain.handle('settings:save', (_e, patch) => {
-  const { apiKey, ...rest } = patch || {};
+  const { apiKey, apiKeyEnc: _enc, apiKeyPlaintext: _plain, ...rest } = patch || {};
   let keyError = '';
   // eslint-disable-next-line security/detect-possible-timing-attacks -- presence check, not a secret comparison
   if (apiKey !== undefined) {

@@ -77,7 +77,11 @@ export default class AuraBridge extends Extension {
     const w = this._find(id);
     if (!w) return false;
     if (w.minimized) w.unminimize();
-    w.maximize(Meta.MaximizeFlags.BOTH);
+    if (Meta.MaximizeFlags && Meta.MaximizeFlags.BOTH !== undefined) {
+      w.maximize(Meta.MaximizeFlags.BOTH);
+    } else {
+      w.maximize();
+    }
     return true;
   }
 
