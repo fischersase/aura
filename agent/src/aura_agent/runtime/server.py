@@ -211,6 +211,7 @@ class AgentServer:
             self.settings.home,
             self.settings.max_llm_calls,
             episodes_db=self.settings.data_dir / "memory.db",
+            aura_dir=self.settings.aura_dir,
         )
         self.controller.memory_paused = self.settings.memory_paused
         if self._model is None and p.get("warmUp", True) and self.settings.provider == "ollama":
@@ -310,6 +311,7 @@ class AgentServer:
     async def shutdown(self, _p: dict[str, Any]) -> dict[str, Any]:
         if self.controller:
             await self.controller.cancel_all()
+            await self.controller.close()
         asyncio.get_running_loop().call_later(0.05, self.peer.closed.set)
         return {}
 

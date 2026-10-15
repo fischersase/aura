@@ -298,7 +298,7 @@ def _process_running(app: App) -> bool:
     if not app.binary:
         return False
     if IS_WINDOWS:
-        import psutil
+        import psutil  # pyright: ignore[reportMissingModuleSource]
 
         want = app.binary.lower()
         return any((p.info.get("name") or "").lower() == want for p in psutil.process_iter(["name"]))

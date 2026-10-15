@@ -50,7 +50,10 @@ async def test_user_mcp_server_tiers_and_results(tmp_path):
     ctl = TaskController(
         build_runner(settings, llm, browser=False), host, AuditLog(settings.data_dir / "audit"), settings.home
     )
-    await run(ctl)
+    try:
+        await run(ctl)
+    finally:
+        await ctl.close()
     assert [a["tool"] for a in host.approvals] == ["mcp_notes_add_note"]  # lesen T0, ping T1, anlegen T2
     assert "Brot kaufen" in notes.read_text()
     inner = [r for req in llm.requests for r in tool_responses(req)]

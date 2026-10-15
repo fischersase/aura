@@ -99,8 +99,12 @@ async def run_command(command: str, cwd: str = "~", timeout_s: int = 120) -> dic
         out = b""
         with contextlib.suppress(Exception):
             out = await asyncio.wait_for(proc.stdout.read(), 2) if proc.stdout else b""
+        with contextlib.suppress(Exception):
+            await asyncio.wait_for(proc.wait(), 2)
     except asyncio.CancelledError:
         _kill(proc)
+        with contextlib.suppress(Exception):
+            await asyncio.wait_for(proc.wait(), 2)
         raise
     finally:
         if task:
