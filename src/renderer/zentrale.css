@@ -224,27 +224,69 @@ nav button[data-page].on {
   flex-direction: column;
   gap: 2px;
 }
+.sidebar-chat-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 999px;
+  padding-right: 4px;
+}
+.sidebar-chat-row:hover {
+  background: var(--hover-bg);
+}
+.sidebar-chat-row.on {
+  background: var(--nav-active);
+}
 .sidebar-chat-item {
   display: block;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   text-align: left;
-  padding: 7px 14px;
+  padding: 7px 8px 7px 14px;
   border-radius: 999px;
-  background: none;
+  background: none !important;
   color: var(--nav-item);
   font-size: 13px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.sidebar-chat-item:hover {
-  background: var(--hover-bg);
+.sidebar-chat-row:hover .sidebar-chat-item {
   color: var(--text);
 }
-.sidebar-chat-item.on {
-  background: var(--nav-active);
+.sidebar-chat-row.on .sidebar-chat-item {
   color: var(--nav-active-text);
   font-weight: 500;
+}
+.sidebar-chat-del {
+  width: 26px !important;
+  height: 26px !important;
+  padding: 0 !important;
+  flex: 0 0 26px;
+  border-radius: 50% !important;
+  background: none !important;
+  color: var(--muted);
+  display: grid !important;
+  place-items: center;
+  opacity: 0.55;
+  transition: opacity .15s, color .15s, background .15s;
+}
+.sidebar-chat-row:hover .sidebar-chat-del {
+  opacity: 0.9;
+}
+.sidebar-chat-del:hover {
+  opacity: 1 !important;
+  color: var(--bad) !important;
+  background: var(--hover-bg) !important;
+}
+.sidebar-chat-del svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .sidebar-chat-empty {
   padding: 6px 14px;

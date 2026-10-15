@@ -49,9 +49,13 @@ function setCompact() {
     'compact',
     !card.classList.contains('minimized') && chatHistory.length === 0 && !live && !streaming
   );
+  const delBtn = $('deleteCurrentChat');
+  if (delBtn) delBtn.classList.toggle('hidden', chatHistory.length === 0);
 }
 
 function updateMinTitle() {
+  const delBtn = $('deleteCurrentChat');
+  if (delBtn) delBtn.classList.toggle('hidden', chatHistory.length === 0);
   const el = $('minTitle');
   if (!el) return;
   if (streaming) {
@@ -270,6 +274,16 @@ $('newChat').onclick = () => {
   setCompact();
   input.focus();
 };
+if ($('deleteCurrentChat')) {
+  $('deleteCurrentChat').onclick = async () => {
+    const idToDelete = chatId;
+    sessionRestoredOnce = true;
+    resetChat();
+    setCompact();
+    input.focus();
+    await window.api.deleteChat(idToDelete).catch(() => {});
+  };
+}
 
 // ---------- Markdown (klein, sicher) ----------
 
@@ -470,6 +484,7 @@ async function showHistory() {
   const list = $('historyList');
   list.innerHTML = '';
   const all = await window.api.listChats();
+  if ($('historyClearAll')) $('historyClearAll').classList.toggle('hidden', !all.length);
   if (!all.length) {
     list.innerHTML = '<div class="hist-empty">Noch keine gespeicherten Chats.</div>';
     return;
@@ -487,7 +502,7 @@ async function showHistory() {
     const el = document.createElement('div');
     el.className = 'hist-item' + (c.id === chatId ? ' current' : '');
     el.innerHTML =
-      '<div><div class="t"></div><div class="p"></div></div><button class="icon del" title="Löschen"><svg viewBox="0 0 24 24"><path d="M5 7h14M10 11v6M14 11v6M6 7l1 12h10l1-12M9 7V4h6v3"/></svg></button>';
+      '<div><div class="t"></div><div class="p"></div></div><button class="icon del" title="Chat löschen"><svg viewBox="0 0 24 24"><path d="M5 7h14M10 11v6M14 11v6M6 7l1 12h10l1-12M9 7V4h6v3"/></svg></button>';
     el.querySelector('.t').textContent = c.title;
     el.querySelector('.p').textContent =
       new Date(c.updated).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) +
@@ -496,7 +511,13 @@ async function showHistory() {
     el.querySelector('.del').onclick = async (e) => {
       e.stopPropagation();
       await window.api.deleteChat(c.id);
-      if (c.id === chatId) chatId = newChatId(); // offener Chat wird beim nächsten Senden neu gespeichert
+      if (c.id === chatId) {
+        sessionRestoredOnce = true;
+        chatHistory = [];
+        messages.innerHTML = '';
+        chatId = newChatId();
+        updateMinTitle();
+      }
       showHistory();
     };
     list.appendChild(el);
@@ -532,6 +553,19 @@ async function loadChat(id) {
 $('historyBtn').onclick = showHistory;
 $('historyBack').onclick = () => showView('chat');
 $('historyClose').onclick = () => window.api.hidePanel();
+if ($('historyClearAll')) {
+  $('historyClearAll').onclick = async () => {
+    const all = await window.api.listChats();
+    if (!all.length) return;
+    for (const c of all) await window.api.deleteChat(c.id);
+    sessionRestoredOnce = true;
+    chatHistory = [];
+    messages.innerHTML = '';
+    chatId = newChatId();
+    updateMinTitle();
+    showHistory();
+  };
+}
 
 // ---------- Agent: Schritte und Freigaben ----------
 
