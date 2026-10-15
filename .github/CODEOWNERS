@@ -1,6 +1,2 @@
-# Reviews for everything; security-relevant parts are listed for visibility.
+# Default code owner for all files in the repository
 * @fischersase
-/agent/src/aura_agent/harness/ @fischersase
-/agent/src/aura_agent/policy/ @fischersase
-/.github/ @fischersase
-/packaging/ @fischersase

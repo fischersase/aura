@@ -178,12 +178,15 @@ function currentTheme() {
   }
 }
 
-function applyTheme(theme) {
+function applyTheme(theme, persist = false) {
   const t = theme === 'light' ? 'light' : 'dark';
   document.documentElement.dataset.theme = t;
   try {
     localStorage.setItem('aura-theme', t);
   } catch {}
+  if (persist && z && typeof z.saveSettings === 'function') {
+    z.saveSettings({ theme: t }).catch(() => {});
+  }
   if ($('themeIconSun')) {
     $('themeIconSun').innerHTML = t === 'light' ? ICON_MOON : ICON_SUN;
   }
@@ -194,10 +197,10 @@ function applyTheme(theme) {
     $('cfgThemeSelect').value = t;
   }
 }
-applyTheme(currentTheme());
+applyTheme(currentTheme(), false);
 
 if ($('themeToggle')) {
-  $('themeToggle').onclick = () => applyTheme(currentTheme() === 'light' ? 'dark' : 'light');
+  $('themeToggle').onclick = () => applyTheme(currentTheme() === 'light' ? 'dark' : 'light', true);
 }
 
 // ---------- Eingebauter Gemini-Chat in der Zentrale ----------
@@ -2246,7 +2249,7 @@ if ($('cfgProvider')) {
 
 if ($('cfgThemeSelect')) {
   $('cfgThemeSelect').onchange = () => {
-    applyTheme($('cfgThemeSelect').value);
+    applyTheme($('cfgThemeSelect').value, true);
   };
 }
 
@@ -2309,6 +2312,7 @@ if ($('cfgSaveBtn')) {
       monthlyBudget: Number($('cfgMonthlyBudget').value) || 0,
       whisperModel: $('cfgWhisperModel').value,
       language: $('cfgLanguage').value,
+      theme: ($('cfgThemeSelect') && $('cfgThemeSelect').value) || currentTheme(),
       panelCorner: $('cfgPanelCorner').value,
       glowEnabled: $('cfgGlowEnabled').checked,
       autostart: $('cfgAutostart').checked,

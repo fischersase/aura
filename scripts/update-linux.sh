@@ -16,11 +16,7 @@ deb="$tmp/$ASSET"
 installed="$(dpkg-query -W -f='${Version}' "$PKG" 2>/dev/null || true)"
 echo "Installiert: ${installed:-keine}"
 
-install_and_restart() {
-  # Prüfen, dass wirklich ein .deb angekommen ist (und keine Fehlerseite)
-  dpkg-deb --info "$1" >/dev/null
-  # --reinstall: gleiche Versionsnummer, aber neuer Stand (Testbau); --allow-downgrades nur, wenn ausdrücklich gewollt
-  sudo apt install -y --reinstall ${FORCE:+--allow-downgrades} "$1"
+restart_aura() {
   # Laufendes Aura beenden und neu starten
   pkill -f /opt/Aura/aura 2>/dev/null || true
   sleep 1
@@ -29,6 +25,14 @@ install_and_restart() {
     echo "Aura neu gestartet."
   fi
   echo "Jetzt installiert: $(dpkg-query -W -f='${Version}' "$PKG")"
+}
+
+install_and_restart() {
+  # Prüfen, dass wirklich ein .deb angekommen ist (und keine Fehlerseite)
+  dpkg-deb --info "$1" >/dev/null
+  # --reinstall: gleiche Versionsnummer, aber neuer Stand (Testbau); --allow-downgrades nur, wenn ausdrücklich gewollt
+  sudo apt install -y --reinstall ${FORCE:+--allow-downgrades} "$1"
+  restart_aura
 }
 
 if [ "${1:-}" = "--local" ]; then
@@ -43,7 +47,7 @@ fi
 # Mit eingetragener Aura-Paketquelle ist apt der normale Weg.
 if [ -z "${FORCE:-}" ] && [ -e /etc/apt/sources.list.d/aura.sources ]; then
   sudo apt update -q && sudo apt install -y --only-upgrade "$PKG"
-  echo "Jetzt installiert: $(dpkg-query -W -f='${Version}' "$PKG")"
+  restart_aura
   exit 0
 fi
 

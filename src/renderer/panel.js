@@ -6,6 +6,32 @@ const input = $('input');
 const sendBtn = $('sendBtn');
 const SPRING = 'cubic-bezier(.34, 1.56, .64, 1)';
 
+// ---------- Erscheinungsbild (Dunkel- / Hellmodus synchron zur Zentrale) ----------
+
+function readStoredTheme() {
+  try {
+    const t = localStorage.getItem('aura-theme');
+    if (t === 'light' || t === 'dark') return t;
+  } catch {}
+  return null;
+}
+
+function applyPanelTheme(theme) {
+  const t = theme === 'light' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = t;
+  try {
+    localStorage.setItem('aura-theme', t);
+  } catch {}
+}
+
+applyPanelTheme(readStoredTheme() || 'dark');
+
+window.addEventListener('storage', (e) => {
+  if (e.key === 'aura-theme' && e.newValue) {
+    applyPanelTheme(e.newValue);
+  }
+});
+
 let chatHistory = [];
 let streaming = null; // { id, el, text }
 const newChatId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -146,6 +172,16 @@ function resetChat() {
 }
 
 window.api.onPanelOpen(async ({ startLive, corner }) => {
+  const storedTheme = readStoredTheme();
+  if (storedTheme) applyPanelTheme(storedTheme);
+  else {
+    window.api
+      .getSettings()
+      .then((s) => {
+        if (s && s.theme) applyPanelTheme(s.theme);
+      })
+      .catch(() => {});
+  }
   // Laufende oder begonnene Session behalten, damit man direkt weiterfragen kann!
   // Beim allerersten Öffnen nach Programmstart automatisch die letzte gespeicherte Session laden, falls vorhanden.
   if (!sessionRestoredOnce) {
@@ -165,6 +201,8 @@ window.api.onPanelOpen(async ({ startLive, corner }) => {
   if (startLive) startLiveMode();
 });
 window.api.onPanelMinimize(({ corner } = {}) => {
+  const storedTheme = readStoredTheme();
+  if (storedTheme) applyPanelTheme(storedTheme);
   if (dictation) finishDictation('keep');
   if (corner) {
     document.body.classList.toggle('corner-left', /left/.test(corner));
@@ -173,6 +211,8 @@ window.api.onPanelMinimize(({ corner } = {}) => {
   minimizeAnim();
 });
 window.api.onPanelRestore(({ corner } = {}) => {
+  const storedTheme = readStoredTheme();
+  if (storedTheme) applyPanelTheme(storedTheme);
   if (corner) {
     document.body.classList.toggle('corner-left', /left/.test(corner));
     document.body.classList.toggle('corner-top', /top/.test(corner));
@@ -995,6 +1035,7 @@ window.api.getSettings().then((s) => {
   includeScreen = !!s.includeScreenInChat;
   $('appVer').textContent = s.version ? 'v' + s.version : '';
   $('screenToggle').classList.toggle('on', includeScreen);
+  if (!readStoredTheme() && s.theme) applyPanelTheme(s.theme);
 });
 
 // ---------- Live ----------
@@ -1087,6 +1128,10 @@ window.api.onLiveStop((reason) => stopLiveMode(reason));
 const costEl = $('cost');
 function showUsage(u) {
   if (!u) return;
+  if (u.theme === 'light' || u.theme === 'dark') {
+    const localTheme = readStoredTheme();
+    if (!localTheme || localTheme === u.theme) applyPanelTheme(u.theme);
+  }
   costEl.classList.toggle('local', !!u.local);
   if (u.local) {
     costEl.querySelector('span').textContent = 'lokal · 0 $';
