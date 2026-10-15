@@ -47,6 +47,8 @@ class AgentBridge {
     this.chatIds = chatIds || null;
     /** @type {import('child_process').ChildProcessWithoutNullStreams | null} */
     this.proc = null;
+    /** @type {fs.WriteStream | null} */
+    this.log = null;
     /** @type {InstanceType<typeof Peer> | null} */
     this.peer = null;
     /** @type {Promise<any> | null} */
@@ -97,10 +99,12 @@ class AgentBridge {
     const proc = spawn(python, ['-I', '-m', 'aura_agent'], {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...process.env, PYTHONUNBUFFERED: '1', PYTHONNOUSERSITE: '1', PYTHONUTF8: '1' },
-      windowsHide: true
+      windowsHide: true,
+      detached: process.platform !== 'win32'
     });
     this.proc = proc;
     const log = this.logStream();
+    this.log = log;
     log.write(`\n--- Start ${new Date().toISOString()} (${python}) ---\n`);
     proc.stderr.pipe(log);
     const peer = new Peer((line) => {
@@ -304,6 +308,10 @@ class AgentBridge {
         try {
           execFile('taskkill', ['/F', '/T', '/PID', String(this.proc.pid)], { windowsHide: true }, () => {});
         } catch {}
+      } else if (this.proc.pid) {
+        try {
+          process.kill(-this.proc.pid, 'SIGKILL');
+        } catch {}
       }
       try {
         this.proc.kill('SIGKILL');
@@ -321,6 +329,12 @@ class AgentBridge {
     if (proc !== this.proc) return;
     const reason = `Agent-Prozess beendet (${signal || 'Code ' + code})`;
     if (this.peer) this.peer.close(reason);
+    if (this.log) {
+      try {
+        this.log.end();
+      } catch {}
+      this.log = null;
+    }
     for (const id of [...this.tasks.keys()]) this.finish(id, new Error(reason), null);
     this.proc = null;
     this.peer = null;
@@ -336,13 +350,19 @@ class AgentBridge {
     try {
       proc.stdin.end();
     } catch {}
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       if (proc.exitCode === null) {
+        if (process.platform !== 'win32' && proc.pid) {
+          try {
+            process.kill(-proc.pid, 'SIGKILL');
+          } catch {}
+        }
         try {
           proc.kill('SIGKILL');
         } catch {}
       }
     }, 1500);
+    timer.unref?.();
     this.onExit(proc, null, 'beendet');
   }
 }

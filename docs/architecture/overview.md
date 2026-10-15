@@ -87,7 +87,7 @@ All windows use [src/preload.js](../../src/preload.js) with `contextIsolation: t
 | [tools](../../agent/src/aura_agent/tools/) | Tool functions with `@aura_tool` tier metadata: files, shell, desktop/windows, apps, ui (a11y), pointer, screen, system (media, volume, gsettings), win_settings, memory, interaction (`todo_write`, `ask_user`), browser toolset | `files.py`, `system.py`, `desktop.py`, `browser.py` | 2010 |
 | [platform](../../agent/src/aura_agent/platform/) | OS backends: X11, GNOME Wayland, Win32, AT-SPI/UIA helpers, Windows apps/audio/media/registry/shell, process groups | `x11.py`, `gnome_wayland.py`, `win32.py`, `atspi.py`, `uia_helper.py` | 1469 |
 | [agents](../../agent/src/aura_agent/agents/) | Root agent `aura` (instruction, tools) and specialists `browser`, `apps` | `root.py`, `specialists.py` | 240 |
-| [models](../../agent/src/aura_agent/models/) | `OllamaLlm` on native `/api/chat` ([ADR 0002](../adr/0002-eigener-ollama-adapter.md)); tool-call repair | `ollama_llm.py`, `repair.py` | 428 |
+| [models](../../agent/src/aura_agent/models/) | `OllamaLlm` on native `/api/chat` ([ADR 0002](../adr/0002-custom-ollama-adapter.md)); tool-call repair | `ollama_llm.py`, `repair.py` | 428 |
 | [memory](../../agent/src/aura_agent/memory/) | `MEMORY.md` facts (+ archive), secret filter | `store.py` | 107 |
 | [extensions](../../agent/src/aura_agent/extensions/) | User MCP servers → `integrations` specialist; skills (`activate_skill`) | `mcp.py`, `skills.py` | 217 |
 | [testing](../../agent/src/aura_agent/testing/) | Fakes for tests/evals: host, MPRIS, scripted LLM, GTK/Win test apps, notes MCP | | 430 |
@@ -135,19 +135,19 @@ sequenceDiagram
    success claim contradicts failed verification; episode text is added to the memory service.
 4. **Agents.** [agents/root.py](../../agent/src/aura_agent/agents/root.py): root `aura` with built-in tools, memory
    tools, `activate_skill`, and specialists as `AgentTool`: `browser` (Playwright MCP,
-   [ADR 0009](../adr/0009-browser-spezialist.md)), `apps` (AT-SPI/UIA, [ADR 0010](../adr/0010-programme-ueber-atspi.md)),
+   [ADR 0009](../adr/0009-browser-specialist.md)), `apps` (AT-SPI/UIA, [ADR 0010](../adr/0010-desktop-apps-via-at-spi.md)),
    `integrations` (user MCP servers). All share one model.
-5. **Guard.** [harness/guard.py](../../agent/src/aura_agent/harness/guard.py) ([ADR 0003](../adr/0003-freigaben-in-der-huelle.md)):
+5. **Guard.** [harness/guard.py](../../agent/src/aura_agent/harness/guard.py) ([ADR 0003](../adr/0003-approvals-in-the-harness.md)):
    unknown tool → error; loop guard (warn at 3, stop at 5 identical calls); required args; tier (T3 → blocked);
    policy (`deny` > `ask` > `allow`, [policy/engine.py](../../agent/src/aura_agent/policy/engine.py)); plan-first for bulk
    requests; `before_tool` hooks; approval via `host.approve` (timeout 600 s → deny; `task` = rest of task,
    `always` = new rule in `policy.toml`); after the tool: verification (`verified`), taint marking and exfil inputs
    ([policy/exfil.py](../../agent/src/aura_agent/policy/exfil.py)), result clipping (12 000 chars), audit, `after_tool` hooks.
-6. **Context.** `ContextManagerPlugin` trims images/old results within a task ([ADR 0004](../adr/0004-kontext-innerhalb-eines-auftrags.md)).
-7. **Perception order:** API → accessibility → browser DOM → pixels ([ADR 0005](../adr/0005-wahrnehmung-api-vor-pixeln.md)).
+6. **Context.** `ContextManagerPlugin` trims images/old results within a task ([ADR 0004](../adr/0004-context-within-a-task.md)).
+7. **Perception order:** API → accessibility → browser DOM → pixels ([ADR 0005](../adr/0005-perception-api-before-pixels.md)).
 
-Default local model and evaluation: [ADR 0007](../adr/0007-lokales-standardmodell.md), [ADR 0008](../adr/0008-eval-suite.md).
-Bundled Python: [ADR 0006](../adr/0006-python-buendeln.md). Wayland/Windows: [ADR 0011](../adr/0011-wayland-gnome-erweiterung.md), [ADR 0012](../adr/0012-windows-backend.md).
+Default local model and evaluation: [ADR 0007](../adr/0007-local-default-model.md), [ADR 0008](../adr/0008-eval-suite.md).
+Bundled Python: [ADR 0006](../adr/0006-bundle-python.md). Wayland/Windows: [ADR 0011](../adr/0011-wayland-gnome-extension.md), [ADR 0012](../adr/0012-windows-backend.md).
 
 ## IPC catalog (renderer ↔ main)
 

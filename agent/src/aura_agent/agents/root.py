@@ -18,28 +18,35 @@ from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 from ..extensions.skills import list_skills, make_activate_skill, prompt_addon
 from ..memory.store import FactStore
 from ..platform import a11y
-from ..platform.base import IS_WINDOWS
+from ..platform.base import IS_MACOS, IS_WINDOWS
 from ..runtime.context import current
 from ..runtime.settings import AgentSettings
+from ..tools.apps import list_apps
 from ..tools.connectors import make_connector_tools
 from ..tools.context import ContextService, make_context_tools
 from ..tools.desktop import launch_app, list_windows, open_target, window_action
 from ..tools.files import edit_file, find_files, list_dir, move_path, read_file, trash, write_file
 from ..tools.interaction import ask_user, todo_write
 from ..tools.memory import make_memory_tools
+from ..tools.packages import install_software, network_status, search_software
+from ..tools.pointer import click_at, clipboard, drag_mouse, move_mouse, press_keys, scroll_at, type_text
+from ..tools.processes import manage_background_process, start_background_process
 from ..tools.schedule import cancel_scheduled_task, list_scheduled_tasks, schedule_task
 from ..tools.screen import screenshot
 from ..tools.shell import run_command
 from ..tools.system import media_control, media_status, now_text, system_info, volume
+from ..tools.ui import ui_act, ui_set_text, ui_snapshot
+from ..tools.web import download_file, web_fetch, web_search
 
 if IS_WINDOWS:
     from ..tools.win_settings import dark_mode, settings
 else:
     from ..tools.system import dark_mode, settings
 from .specialists import apps_agent, browser_agent
+from .subagents import make_subagent_tools
 
-OS_NAME = "Windows" if IS_WINDOWS else "Linux"
-SHELL_NAME = "PowerShell" if IS_WINDOWS else "bash"
+OS_NAME = "Windows" if IS_WINDOWS else ("macOS" if IS_MACOS else "Linux")
+SHELL_NAME = "PowerShell" if IS_WINDOWS else ("zsh/bash" if IS_MACOS else "bash")
 DELETE_CMD = "Remove-Item oder del" if IS_WINDOWS else "rm"
 SETTINGS_EXAMPLES = (
     "Dateiendungen anzeigen, Benachrichtigungen aus …" if IS_WINDOWS else "Nachtlicht, Nicht stören …"
@@ -48,10 +55,28 @@ SETTINGS_EXAMPLES = (
 TOOLS = [
     todo_write,
     ask_user,
+    web_search,
+    web_fetch,
+    download_file,
+    search_software,
+    install_software,
+    network_status,
+    list_apps,
     launch_app,
     open_target,
     list_windows,
     window_action,
+    ui_snapshot,
+    ui_act,
+    ui_set_text,
+    screenshot,
+    click_at,
+    move_mouse,
+    drag_mouse,
+    scroll_at,
+    type_text,
+    press_keys,
+    clipboard,
     media_status,
     media_control,
     volume,
@@ -66,7 +91,8 @@ TOOLS = [
     move_path,
     trash,
     run_command,
-    screenshot,
+    start_background_process,
+    manage_background_process,
     schedule_task,
     list_scheduled_tasks,
     cancel_scheduled_task,
@@ -77,6 +103,8 @@ TOOLS = [
 ROOT_TOOL_NAMES = {fn.__name__ for fn in TOOLS} | {
     "browser",
     "apps",
+    "define_subagent",
+    "invoke_subagent",
     "remember",
     "forget",
     "recall",
@@ -155,25 +183,27 @@ def instruction(
             ),
             (
                 "## Werkzeuge (immer das passende eigene Werkzeug vor der Shell)\n"
-                "- Programme öffnen: launch_app (prüft, ob das Fenster erscheint). Webseiten, Dateien, Ordner: open_target.\n"
-                "- Fenster: list_windows, window_action (focus, minimize, maximize, close).\n"
+                "- Programme prüfen & öffnen: list_apps, launch_app (prüft, ob das Fenster erscheint). Webseiten, Dateien, Ordner: open_target.\n"
+                "- Software suchen & installieren: search_software (Flatpak, APT, Snap, Winget, Homebrew durchsuchen), install_software (geprüftes Paket installieren), download_file (Installationspaket oder Datei mit SHA-256 herunterladen).\n"
+                "- Web-Recherche (schnell ohne Browser-Fenster): web_search (Suchmaschine), web_fetch (Webseite/Dokumentation als Text lesen).\n"
+                "- Netzwerk- & VPN-Verifikation: network_status (prüft aktive VPN-Tunnel, Schnittstellen sowie öffentliche IP-Adresse, Land, Stadt und Provider).\n"
+                "- Fenster & Desktop-Steuerung (Computer-Use): list_windows, window_action (focus, minimize, maximize, close), ui_snapshot, ui_act, ui_set_text sowie visuell über screenshot, click_at, move_mouse, drag_mouse, scroll_at, type_text, press_keys und clipboard.\n"
+                "- Hintergrundprozesse: start_background_process (für langlaufende Dienste, VPN-Clients, Server), manage_background_process (list, status, output, send_input, stop).\n"
+                "- Subagenten (Antigravity-Architektur): invoke_subagent (Typen: 'research', 'computer', 'system', 'self' oder parallel über subagents=[...]) und define_subagent (eigenen Spezial-Subagenten definieren).\n"
                 "- Musik und Videos: media_status, media_control (play, pause, next, previous); nie per Tastatur oder Prozess-Kill.\n"
                 f"- Lautstärke: volume. Dunkelmodus: dark_mode. Andere Einstellungen ({SETTINGS_EXAMPLES}): settings.\n"
                 "- Dateien: list_dir, find_files, read_file; schreiben mit write_file, kleine Änderungen mit edit_file, "
                 f"verschieben oder kopieren mit move_path (beide legen fehlende Ordner selbst an). Löschen nur mit trash (Papierkorb), nie mit {DELETE_CMD}.\n"
                 + (
-                    "- Webseiten bedienen (suchen, klicken, Formulare, Musik auf YouTube Music abspielen, Infos von Seiten holen): "
-                    "browser mit einer klaren, vollständigen Aufgabe. Was auf einer Webseite steht, liest immer browser, nie open_target "
-                    "mit screenshot. open_target nur, wenn der Nutzer die Seite selbst ansehen will.\n"
-                    "- Etwas im Internet nachschlagen (Nachrichten, Fakten, Öffnungszeiten): browser mit dem Auftrag, "
-                    "auf DuckDuckGo zu suchen und die Antwort mit Quelle zurückzugeben.\n"
+                    "- Webseiten interaktiv im Browser bedienen (Formulare, Logins, Musik auf YouTube Music abspielen): "
+                    "browser mit einer klaren, vollständigen Aufgabe. open_target nur, wenn der Nutzer die Seite selbst ansehen will.\n"
                     if has_browser
                     else ""
                 )
                 + (
-                    "- In Desktop-Programmen etwas bedienen oder ablesen (Knöpfe, Menüs, Felder, Dialoge, „Was steht im Programm X?“, "
-                    "ein Feld ausfüllen): apps mit einer klaren Aufgabe und dem genauen Programm- oder Fensternamen des Nutzers, "
-                    "auch wenn das Programm schon offen ist.\n"
+                    "- In Desktop-Programmen komplexe Abläufe bedienen oder ablesen (Knöpfe, Menüs, Felder, Dialoge, Bildbearbeitung, VPN-Apps): "
+                    "apps oder invoke_subagent(subagent_type='computer') mit einer klaren Aufgabe und dem genauen Programm- oder Fensternamen, "
+                    "oder direkt über ui_snapshot/ui_act bzw. screenshot/click_at/drag_mouse.\n"
                     if has_apps
                     else ""
                 )
@@ -193,6 +223,20 @@ def instruction(
                 )
                 + "- Was gerade auf dem Bildschirm zu sehen ist: screenshot.\n"
                 + f"- Alles andere: run_command ({SHELL_NAME}). Nur lesende Befehle laufen ohne Rückfrage. Pfade dürfen mit ~ beginnen."
+            ),
+            (
+                "## Autonomer 4-Phasen-Workflow für komplexe PC-, Software- und VPN-Aufgaben\n"
+                "Wenn der Nutzer eine komplexe Aufgabe stellt (z. B. „Verbinde mich mit einem kostenlosen VPN nach Spanien“, "
+                "„Installiere Programm X und bearbeite damit ein Foto“ oder „Richte Werkzeug Y ein und führe Z aus“):\n"
+                "1. **Planung & Recherche**: Lege mit todo_write den Plan an. Prüfe mit list_apps und search_software, was schon installiert "
+                "oder in den System-Paketquellen verfügbar ist. Nutze web_search / web_fetch oder invoke_subagent(subagent_type='research'), "
+                "um die beste, verlässlich funktionierende Lösung für dieses Betriebssystem zu ermitteln und auf Eignung zu prüfen.\n"
+                "2. **Beschaffung & Installation**: Lade benötigte Pakete/Konfigurationen mit download_file herunter oder installiere "
+                "das geprüfte Programm direkt mit install_software.\n"
+                "3. **Ausführung & Programmsteuerung (Hybrid)**:\n"
+                "   - Nennt der Nutzer ein konkretes Desktop-Programm, öffne es mit launch_app und bediene seine Oberfläche (über ui_snapshot/ui_act/ui_set_text oder visuell über screenshot/click_at/drag_mouse/scroll_at/clipboard).\n"
+                "   - Nennt der Nutzer ein Ziel (z. B. VPN nach Spanien), wähle den zuverlässigsten Weg (GUI-App oder System-/Hintergrundprozess via start_background_process) und stelle die Verbindung her.\n"
+                "4. **End-to-End-Verifikation**: Prüfe das Endergebnis objektiv (z. B. bei VPN-Aufgaben zwingend mit network_status prüfen, ob der VPN-Tunnel aktiv ist und public_ip/country dem Zielland entspricht; bei Programmen per ui_snapshot/screenshot oder Dateiprüfung), bevor du Vollzug meldest."
             ),
         ]
         parts.append(
@@ -244,7 +288,9 @@ def build_root(
     episodes: BaseMemoryService | None = None,
 ) -> LlmAgent:
     memory = FactStore(settings.aura_dir)
-    tools: list = list(TOOLS) + make_memory_tools(memory, episodes, settings.memory_paused)
+    tools: list = (
+        list(TOOLS) + make_subagent_tools(model) + make_memory_tools(memory, episodes, settings.memory_paused)
+    )
     tools += make_context_tools(ContextService(settings.location_mode, settings.profile_place))
     if browser is not None:
         tools.append(browser_agent(model, browser))

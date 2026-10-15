@@ -74,6 +74,9 @@ def _act_tier(a: dict[str, Any]) -> tuple[Tier, str]:
         return Tier.T3, CAPTCHA_REASON
     if CONSEQUENTIAL.search(_target_text(a)):
         return Tier.T2, "kann etwas kaufen, senden, löschen oder bestätigen"
+    task = current()
+    if a.get("submit") and task is not None and task.tainted and task.local_data_from:
+        return Tier.T2, "sendet eine Eingabe ab, nachdem fremde Inhalte und lokale Daten gelesen wurden"
     return Tier.T1, ""
 
 
@@ -89,7 +92,21 @@ def _dialog_tier(a: dict[str, Any]) -> tuple[Tier, str]:
 
 
 def _key_tier(a: dict[str, Any]) -> tuple[Tier, str]:
+    key = str(a.get("key", "")).strip().lower()
+    if key in ("enter", "return"):
+        task = current()
+        if task is not None and task.tainted and task.local_data_from:
+            return Tier.T2, "Enter auf einer Webseite nach dem Lesen fremder Inhalte und lokaler Daten"
     return _act_tier(a) if a.get("element") else (Tier.T1, "")
+
+
+def _file_arg_tier(a: dict[str, Any]) -> tuple[Tier, str]:
+    if a.get("filename"):
+        from .files import guarded_change
+
+        res = guarded_change(Tier.T2, "filename")(a)
+        return res if isinstance(res, tuple) else (res, "speichert eine Datei")
+    return Tier.T0, ""
 
 
 def _label(a: dict[str, Any]) -> str:
@@ -104,7 +121,7 @@ def _label(a: dict[str, Any]) -> str:
 METAS = {
     "browser_navigate": ToolMeta(_nav_tier, label=_label),
     "browser_navigate_back": ToolMeta(Tier.T1, label=lambda a: "zurück"),
-    "browser_snapshot": ToolMeta(Tier.T0, label=lambda a: "Seite lesen"),
+    "browser_snapshot": ToolMeta(_file_arg_tier, label=lambda a: "Seite lesen"),
     "browser_find": ToolMeta(Tier.T0, label=_label),
     "browser_click": ToolMeta(_act_tier, label=_label, required=("element",)),
     "browser_type": ToolMeta(
@@ -122,7 +139,7 @@ METAS = {
     "browser_handle_dialog": ToolMeta(
         _dialog_tier, label=lambda a: "Dialog " + ("bestätigen" if a.get("accept") else "abbrechen")
     ),
-    "browser_take_screenshot": ToolMeta(Tier.T0, label=lambda a: "Bildschirmfoto der Seite"),
+    "browser_take_screenshot": ToolMeta(_file_arg_tier, label=lambda a: "Bildschirmfoto der Seite"),
 }
 EXTERNAL.update(METAS)
 

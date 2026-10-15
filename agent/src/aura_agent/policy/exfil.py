@@ -19,7 +19,11 @@ def url_tier(url: str) -> tuple[Tier, str] | None:
     if task is None or not task.tainted or not task.local_data_from:
         return None
     u = urlparse(str(url or ""))
-    if u.scheme in ("http", "https") and (u.query or len(u.path) > 60):
+    has_payload = u.scheme == "mailto" or (
+        u.scheme in ("http", "https")
+        and bool(u.query or u.fragment or u.username or u.password or len(u.path) > 60)
+    )
+    if has_payload:
         return Tier.T2, (
             f"Webadresse kann Daten tragen; der Auftrag hat fremde Inhalte ({', '.join(task.tainted_by[:2])}) "
             f"und lokale Daten ({', '.join(task.local_data_from[:2])}) gelesen"

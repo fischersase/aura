@@ -16,9 +16,9 @@ from pathlib import Path
 from typing import Any, Self
 
 from ..harness.tiers import Tier, aura_tool
-from ..platform.base import IS_WINDOWS
+from ..platform.base import IS_MACOS, IS_WINDOWS
 
-if not IS_WINDOWS:
+if not IS_WINDOWS and not IS_MACOS:
     from dbus_fast import BusType, Message, MessageType, Variant
     from dbus_fast.aio import MessageBus
 
@@ -98,6 +98,27 @@ def _windows_info() -> dict[str, Any]:
     }
 
 
+def _macos_info() -> dict[str, Any]:
+    import subprocess
+
+    ver, _, _ = platform.mac_ver()
+    total_mb = None
+    try:
+        r = subprocess.run(
+            ["sysctl", "-n", "hw.memsize"], capture_output=True, text=True, timeout=2.0, check=False
+        )
+        if r.returncode == 0 and r.stdout.strip().isdigit():
+            total_mb = int(r.stdout.strip()) // 1048576
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    return {
+        "os": f"macOS {ver or platform.release()}",
+        "kernel": platform.release(),
+        "memory_mb": {"total": total_mb, "available": None},
+        "battery": None,
+    }
+
+
 @aura_tool(Tier.T0, label=lambda a: "Systeminfo")
 def system_info() -> dict[str, Any]:
     """Systeminfos: Betriebssystem, Rechnername, CPU, Arbeitsspeicher, freier Speicherplatz, Akku, Uhrzeit."""
@@ -107,6 +128,15 @@ def system_info() -> dict[str, Any]:
             **_windows_info(),
             "host": platform.node(),
             "cpu_cores": os.cpu_count(),
+            "disk_home_gb": {"total": round(disk.total / 1e9), "free": round(disk.free / 1e9)},
+            "now": now_text(),
+        }
+    if IS_MACOS:
+        return {
+            **_macos_info(),
+            "host": platform.node(),
+            "cpu_cores": os.cpu_count(),
+            "load": [round(x, 2) for x in os.getloadavg()],
             "disk_home_gb": {"total": round(disk.total / 1e9), "free": round(disk.free / 1e9)},
             "now": now_text(),
         }
@@ -392,6 +422,22 @@ async def volume(level: int | None = None, mute: bool | None = None) -> dict[str
             "verified": ok,
             **({} if ok else {"error": "Lautstärke wurde nicht wie gewünscht übernommen."}),
         }
+    if IS_MACOS:
+        from ..platform import macos
+
+        if level is None and mute is None:
+            return await asyncio.to_thread(macos.get_volume)
+        state = await asyncio.to_thread(macos.set_volume, level, mute)
+        if state.get("error"):
+            return state
+        ok = (level is None or state["percent"] == max(0, min(int(level), 100))) and (
+            mute is None or state["muted"] == bool(mute)
+        )
+        return {
+            **state,
+            "verified": ok,
+            **({} if ok else {"error": "Lautstärke wurde nicht wie gewünscht übernommen."}),
+        }
     if not shutil.which("pactl"):
         return {"error": "pactl fehlt (Paket pulseaudio-utils)."}
     if level is not None:
@@ -516,6 +562,10 @@ async def dark_mode(on: bool = True) -> dict[str, Any]:
     Args:
       on: true = dunkel, false = hell.
     """
+    if IS_MACOS:
+        from ..platform import macos
+
+        return await asyncio.to_thread(macos.set_dark_mode, on)
     iface = "org.gnome.desktop.interface"
     changed: dict[str, str] = {}
     if await _has_key(iface, "color-scheme"):

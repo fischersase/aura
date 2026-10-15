@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from ..harness.tiers import Tier, aura_tool
-from ..platform.base import IS_WINDOWS, WindowInfo
+from ..platform.base import IS_MACOS, IS_WINDOWS, WindowInfo
 from ..platform.proc import spawn_kwargs
 from ..policy.exfil import url_tier
 from ..policy.paths import path_tier
@@ -26,6 +26,8 @@ from .paths import expand
 
 if IS_WINDOWS:
     from ..platform import win32
+elif IS_MACOS:
+    from ..platform import macos
 else:
     from ..platform import gnome_wayland, x11
 
@@ -59,6 +61,10 @@ EXECUTABLE_SUFFIXES = (
     ".msix",
     ".appx",
     ".appinstaller",
+    ".dmg",
+    ".pkg",
+    ".command",
+    ".app",
 )
 
 
@@ -67,6 +73,8 @@ def _exe_name(pid: int | None) -> str:
         return ""
     if IS_WINDOWS:
         return os.path.basename(win32.exe_path(pid)).lower()
+    if IS_MACOS:
+        return os.path.basename(macos.exe_path(pid)).lower()
     try:
         return os.path.basename(os.readlink(f"/proc/{pid}/exe")).lower()
     except OSError:
@@ -80,8 +88,8 @@ def _matches(app: App, w: WindowInfo) -> bool:
         return True
     if any(t in c or c in t for t in tokens for c in wclass if len(c) > 3 and len(t) > 3):
         return True
-    # Windows: Fenstertitel tragen den Programmnamen („Unbenannt - Editor“, „Rechner“); Store-Apps haben keine Programmdatei.
-    if IS_WINDOWS and len(app.name) > 3:
+    # Windows/macOS: Fenstertitel tragen den Programmnamen („Unbenannt - Editor“, „Rechner“); Store-Apps haben keine Programmdatei.
+    if (IS_WINDOWS or IS_MACOS) and len(app.name) > 3:
         t = w.title.lower()
         n = app.name.lower()
         if t == n or t.endswith((f" - {n}", f" – {n}")) or t.startswith(f"{n} - "):
@@ -93,14 +101,18 @@ def _matches(app: App, w: WindowInfo) -> bool:
 def _windows() -> list[WindowInfo]:
     if IS_WINDOWS:
         return win32.windows()
+    if IS_MACOS:
+        return macos.windows()
     with x11.X11() as x:
         return x.windows()
 
 
 async def _list() -> list[WindowInfo] | None:
-    """Offene Fenster über X11, (unter Wayland) die GNOME-Erweiterung oder user32. None: hier nicht möglich."""
+    """Offene Fenster über X11, (unter Wayland) die GNOME-Erweiterung, macOS oder user32. None: hier nicht möglich."""
     if IS_WINDOWS:
         return await asyncio.to_thread(win32.windows)
+    if IS_MACOS:
+        return await asyncio.to_thread(macos.windows)
     if gnome_wayland.is_wayland():
         try:
             return await gnome_wayland.windows()
@@ -112,7 +124,7 @@ async def _list() -> list[WindowInfo] | None:
 
 
 def _no_windows() -> str:
-    if IS_WINDOWS:
+    if IS_WINDOWS or IS_MACOS:
         return "Fenster lassen sich hier nicht steuern."
     return (
         gnome_wayland.NOT_INSTALLED
@@ -130,6 +142,9 @@ async def _do(window_id: str, action: str) -> None:
             "close": win32.close_window,
         }[action]
         await asyncio.to_thread(fn, window_id)
+        return
+    if IS_MACOS or window_id.startswith("m:"):
+        await asyncio.to_thread(macos.act, window_id, action)
         return
     if window_id.startswith("w"):
         await gnome_wayland.act(window_id, action)
@@ -175,7 +190,7 @@ async def list_windows() -> dict[str, Any]:
 
 def _resolve(window: str, wins: list[WindowInfo]) -> tuple[WindowInfo | None, str]:
     w = window.strip()
-    if w.lower().startswith("0x") or (w.startswith("w") and w[1:].isdigit()):
+    if w.lower().startswith("0x") or (w.startswith("w") and w[1:].isdigit()) or w.startswith("m:"):
         hit = [x for x in wins if x.id == w.lower()]
         return (hit[0], "") if hit else (None, f"Kein Fenster mit ID {w}.")
     q = w.lower()
@@ -200,7 +215,7 @@ def _window_tier(a: dict[str, Any]) -> tuple[Tier, str]:
 
 def _window_label(a: dict[str, Any]) -> str:
     w = str(a.get("window", ""))
-    if w.lower().startswith("0x") and (IS_WINDOWS or x11.available()):
+    if w.lower().startswith("0x") and (IS_WINDOWS or (not IS_MACOS and x11.available())):
         try:
             hit = next((x for x in _windows() if x.id == w.lower()), None)
             if hit:
@@ -279,6 +294,11 @@ def _start(app: App) -> None:
 
         win_apps.launch(app.entry)
         return
+    if IS_MACOS:
+        from ..platform import macos
+
+        macos.launch_bundle(app.entry or {"path": str(app.file or ""), "name": app.name, "id": app.id})
+        return
     if shutil.which("gio"):
         cmd = ["gio", "launch", str(app.file)]
     elif shutil.which("gtk-launch"):
@@ -298,7 +318,7 @@ def _process_running(app: App) -> bool:
     if not app.binary:
         return False
     if IS_WINDOWS:
-        import psutil
+        import psutil  # pyright: ignore[reportMissingModuleSource]
 
         want = app.binary.lower()
         return any((p.info.get("name") or "").lower() == want for p in psutil.process_iter(["name"]))
@@ -443,8 +463,9 @@ async def open_target(target: str) -> dict[str, Any]:
             "verified": None,
             "note": "Geöffnet; ob das Fenster erschien, wird hier nicht geprüft.",
         }
+    open_cmd = "open" if IS_MACOS else "xdg-open"
     proc = await asyncio.create_subprocess_exec(
-        "xdg-open",
+        open_cmd,
         t,
         stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.DEVNULL,
@@ -458,7 +479,7 @@ async def open_target(target: str) -> dict[str, Any]:
     if proc.returncode:
         return {
             "error": (err or b"").decode(errors="replace").strip()
-            or f"xdg-open beendet mit {proc.returncode}"
+            or f"{open_cmd} beendet mit {proc.returncode}"
         }
     return {
         "opened": t,

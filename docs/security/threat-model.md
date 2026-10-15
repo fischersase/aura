@@ -3,7 +3,7 @@
 Status: 2026-10-12, based on `main` at commit 3313787. Jira: AURA-30.
 Owner: maintainers. Review: on every change to a trust boundary, and at least once per release cycle.
 
-Related: [privacy.md](privacy.md), [SECURITY.md](../../SECURITY.md), [ADR 0003 (approvals in the harness)](../adr/0003-freigaben-in-der-huelle.md).
+Related: [privacy.md](privacy.md), [SECURITY.md](../../SECURITY.md), [ADR 0003 (approvals in the harness)](../adr/0003-approvals-in-the-harness.md).
 
 ## 1. Scope and method
 

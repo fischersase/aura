@@ -12,7 +12,7 @@ import shlex
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ..platform.base import IS_WINDOWS
+from ..platform.base import IS_MACOS, IS_WINDOWS
 
 # Shown to the model when a web app is involved (AURA-92): say so honestly instead of clicking around on screenshots.
 WEB_APP_NOTE = (
@@ -24,14 +24,14 @@ WEB_APP_NOTE = (
 
 @dataclass
 class App:
-    id: str  # Linux: Dateiname ohne .desktop; Windows: AppID oder Pfad der Verknüpfung
+    id: str  # Linux: Dateiname ohne .desktop; Windows: AppID oder Pfad der Verknüpfung; macOS: Bundle-ID
     file: Path | None
     name: str
     names: str  # alle Suchbegriffe, klein
     exec: str
     wm_class: str  # StartupWMClass, falls angegeben
-    exe: str = ""  # Windows: Programmdatei, falls bekannt (z. B. "notepad.exe")
-    entry: dict[str, str] = field(default_factory=dict)  # Windows: Startmenü-Eintrag zum Starten
+    exe: str = ""  # Windows/macOS: Programmdatei, falls bekannt (z. B. "notepad.exe")
+    entry: dict[str, str] = field(default_factory=dict)  # Windows/macOS: Eintrag zum Starten
 
     @property
     def is_web_app(self) -> bool:
@@ -47,7 +47,7 @@ class App:
 
     @property
     def binary(self) -> str:
-        if IS_WINDOWS:
+        if IS_WINDOWS or IS_MACOS:
             return self.exe
         try:
             words = [w for w in shlex.split(self.exec) if not w.startswith("%")]
@@ -78,6 +78,8 @@ def app_dirs() -> list[Path]:
 def installed_apps() -> list[App]:
     if IS_WINDOWS:
         return _windows_apps()
+    if IS_MACOS:
+        return _macos_apps()
     apps: dict[str, App] = {}
     for d in app_dirs():
         if not d.is_dir():
@@ -128,6 +130,24 @@ def _windows_apps() -> list[App]:
             entry=e,
         )
         for e in win_apps.entries()
+    ]
+
+
+def _macos_apps() -> list[App]:
+    from ..platform import macos
+
+    return [
+        App(
+            id=b["id"],
+            file=Path(b["path"]),
+            name=b["name"],
+            names=f"{b['name']} {b['stem']} {b['id']}".lower(),
+            exec=b["path"],
+            wm_class=b["stem"],
+            exe=b["exe"],
+            entry=b,
+        )
+        for b in macos.installed_bundles()
     ]
 
 
@@ -223,3 +243,26 @@ def best_matches(apps: list[App], query: str) -> list[App]:
             s -= 40
         scored.append((s - len(a.name) / 100, a))
     return [a for _, a in sorted(scored, key=lambda x: -x[0])]
+
+
+def _list_apps_label(a: dict[str, object]) -> str:
+    q = str(a.get("query") or "").strip()
+    return f"Installierte Programme ({q})" if q else "Installierte Programme"
+
+
+from ..harness.tiers import Tier, aura_tool  # noqa: E402
+
+
+@aura_tool(Tier.T0, label=_list_apps_label)
+def list_apps(query: str = "") -> dict[str, object]:
+    """Listet auf dem Rechner installierte Desktop-Programme auf (optional gefiltert nach Suchbegriff).
+
+    Args:
+      query: Optionaler Suchbegriff, z. B. "gimp", "vpn", "chrome", "editor".
+    """
+    all_apps = installed_apps()
+    matched = best_matches(all_apps, query) if query.strip() else all_apps
+    items = [
+        {"id": a.id, "name": a.name, "binary": a.binary, "is_web_app": a.is_web_app} for a in matched[:40]
+    ]
+    return {"count": len(items), "apps": items}

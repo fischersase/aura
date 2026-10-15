@@ -65,6 +65,14 @@ def test_audit_chain_continues_across_instances(tmp_path):
     assert AuditLog.verify(next(tmp_path.glob("*.jsonl"))) == (True, 2)
 
 
+def test_audit_log_ignores_reserved_envelope_keys(tmp_path):
+    log = AuditLog(tmp_path)
+    entry = log.write("tool_start", hash="fake", prev="fake", ts="spoofed", private_key="secret")
+    assert entry["ts"] != "spoofed"
+    assert entry["private_key"] == "***"
+    assert AuditLog.verify(next(tmp_path.glob("*.jsonl"))) == (True, 1)
+
+
 def test_redact_clips_long_values_and_secrets():
     out = redact({"text": "x" * 2000, "api_key": "k", "nested": {"token": "t", "ok": 1}})
     assert out["api_key"] == "***" and out["nested"] == {"token": "***", "ok": 1}

@@ -469,6 +469,8 @@ async def test_plain_browsing_does_not_ask_for_links(tmp_path):
         assert url_tier(link) is None  # nur Webseiten gelesen: normales Surfen
         ctx.local_data_from.append("read_file")
         assert url_tier(link)[0] == Tier.T2  # Webseite + lokale Datei: Abfluss möglich
+        assert url_tier("https://evil.example/#secret")[0] == Tier.T2
+        assert url_tier("mailto:evil@example.com?body=secret")[0] == Tier.T2
         assert url_tier("https://example.com/") is None  # ohne Daten in der Adresse
     finally:
         CURRENT.reset(token)
@@ -518,6 +520,17 @@ async def test_bulk_request_needs_confirmed_plan(tmp_path):
     assert (tmp_path / "Downloads" / "a.pdf").exists()
     responses = [str(r.response) for req in llm.requests for r in tool_responses(req)[-1:]]
     assert "Plan-Modus" in responses[0] and "abgebrochen" in responses[-1]
+    # nach „Ändern“ ist der Plan noch nicht freigegeben
+    llm_mod = ScriptedLlm([ask, move, "Ich passe den Plan an."])
+    ctl_mod = TaskController(
+        build_runner(settings, llm_mod),
+        FakeHost(answers=["Ändern"]),
+        AuditLog(settings.data_dir / "audit"),
+        settings.home,
+    )
+    ctl_mod.start("t_mod", "c_mod", "Räum meinen Downloads-Ordner auf")
+    await finish(ctl_mod)
+    assert (tmp_path / "Downloads" / "a.pdf").exists()
     # mit Zustimmung: erlaubt
     llm2 = ScriptedLlm([ask, move, "Erledigt."])
     ctl2 = TaskController(

@@ -633,7 +633,7 @@ const chatAborts = new Map();
 ipcMain.handle('settings:get', () => store.publicSettings());
 
 ipcMain.handle('settings:save', (_e, patch) => {
-  const { apiKey, ...rest } = patch || {};
+  const { apiKey, apiKeyEnc: _enc, apiKeyPlaintext: _plain, ...rest } = patch || {};
   let keyError = '';
   // eslint-disable-next-line security/detect-possible-timing-attacks -- presence check, not a secret comparison
   if (apiKey !== undefined) {
@@ -845,7 +845,13 @@ const agentV2 = new AgentBridge({
       numCtx: s.ollamaContext, // dieselbe Kontextlänge wie Chat und Rambler, sonst lädt Ollama das Modell neu
       language: s.language,
       profile: store.profilePrompt(),
-      sessionType: process.platform === 'win32' ? 'windows' : process.env.XDG_SESSION_TYPE || '',
+      sessionType:
+        process.platform === 'win32'
+          ? 'windows'
+          : process.platform === 'darwin'
+            ? 'macos'
+            : process.env.XDG_SESSION_TYPE || '',
+      autoApprove: !!s.autoApprove,
       toolPolicy: s.toolPolicy || {},
       ...browserLauncher(),
       mcpServers: mcpServersForAgent(),
@@ -1019,19 +1025,45 @@ const agentV2 = new AgentBridge({
         return { error: err instanceof Error ? err.message : String(err) };
       }
     },
-    // Maus und Tastatur (Notlösung für Programme ohne Barrierefreiheit). x, y: 0–1000 im letzten Bildschirmfoto.
+    // Maus, Tastatur und Zwischenablage. x, y: 0–1000 im letzten Bildschirmfoto.
     input: async (req) => {
-      if (req.action === 'click') {
+      const toScreenPoint = (nx, ny) => {
         const d = currentDisplay || displayUnderCursor();
         const dip = {
-          x: d.bounds.x + (Number(req.x) / 1000) * d.bounds.width,
-          y: d.bounds.y + (Number(req.y) / 1000) * d.bounds.height
+          x: d.bounds.x + (Number(nx) / 1000) * d.bounds.width,
+          y: d.bounds.y + (Number(ny) / 1000) * d.bounds.height
         };
-        const p =
-          process.platform === 'win32'
-            ? screen.dipToScreenPoint(dip)
-            : { x: dip.x * d.scaleFactor, y: dip.y * d.scaleFactor };
+        if (process.platform === 'win32') return screen.dipToScreenPoint(dip);
+        if (process.platform === 'darwin') return dip;
+        return { x: dip.x * d.scaleFactor, y: dip.y * d.scaleFactor };
+      };
+      if (req.action === 'click') {
+        const p = toScreenPoint(req.x, req.y);
         return agentInput.click(p.x, p.y, { button: req.button === 'right' ? 'right' : 'left', double: !!req.double });
+      }
+      if (req.action === 'move') {
+        const p = toScreenPoint(req.x, req.y);
+        return agentInput.move(p.x, p.y);
+      }
+      if (req.action === 'drag') {
+        const p1 = toScreenPoint(req.x, req.y);
+        const p2 = toScreenPoint(req.endX, req.endY);
+        return agentInput.drag(p1.x, p1.y, p2.x, p2.y, { button: req.button === 'right' ? 'right' : 'left' });
+      }
+      if (req.action === 'scroll') {
+        const p = toScreenPoint(req.x, req.y);
+        return agentInput.scroll(p.x, p.y, {
+          direction: String(req.direction || 'down'),
+          amount: Number(req.amount || 3)
+        });
+      }
+      if (req.action === 'clipboard') {
+        if (req.mode === 'write') {
+          const text = String(req.text || '');
+          clipboard.writeText(text);
+          return { ok: true, length: text.length };
+        }
+        return { ok: true, text: clipboard.readText() };
       }
       if (req.action === 'type') return agentInput.typeText(String(req.text || ''));
       if (req.action === 'keys') return agentInput.pressKeys(String(req.keys || ''));

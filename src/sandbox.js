@@ -189,10 +189,20 @@ function wrap(name, cfg, deps = {}) {
   if (!program) throw new Error(`Startprogramm „${cfg.command}“ nicht gefunden.`);
   const dir = serverDir(auraDir, name);
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-  // Extra read-only paths a connector needs (e.g. the agent's sources in development, AURA-98); never home itself.
-  const extra = (Array.isArray(cfg.roPaths) ? cfg.roPaths : []).filter(
-    (p) => typeof p === 'string' && path.isAbsolute(p) && p !== home && p !== path.dirname(home)
-  );
+  // Extra read-only paths a connector needs (e.g. the agent's sources in development, AURA-98); never home itself
+  // or sensitive user directories (.ssh, .gnupg, .aura, .local, .aws, .kube, .docker, .config/Aura).
+  const forbiddenRoots = [
+    auraDir,
+    ...['.ssh', '.gnupg', '.aura', '.local', '.aws', '.kube', '.docker', '.pki', path.join('.config', 'Aura')].map(
+      (sub) => path.join(home, sub)
+    )
+  ];
+  const extra = (Array.isArray(cfg.roPaths) ? cfg.roPaths : []).filter((p) => {
+    if (typeof p !== 'string' || !path.isAbsolute(p)) return false;
+    const norm = safeRealpath(path.resolve(p));
+    if (norm === path.parse(norm).root || norm === home || norm === path.dirname(home)) return false;
+    return !forbiddenRoots.some((root) => norm === root || norm.startsWith(root + path.sep));
+  });
   const dirs = [...programDirs(program, home), ...extra];
   const binDirs = [...new Set([path.dirname(program), ...dirs.map((d) => path.join(d, 'bin'))])];
   return {

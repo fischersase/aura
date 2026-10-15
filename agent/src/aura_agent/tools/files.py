@@ -36,11 +36,14 @@ def guarded_change(base: Tier | TierFn, *keys: str) -> TierFn:
     inner = guarded(base, *keys)
 
     def tier(a: dict[str, Any]) -> Tier | tuple[Tier, str]:
+        paths = tuple(expand(a.get(k) or "~", _home()) for k in keys)
+        if blocked := path_tier(*paths, check_tree=True):
+            return blocked
         result = inner(a)
         level = result[0] if isinstance(result, tuple) else result
         if level == Tier.T3:
             return result
-        control = control_tier(*(expand(a.get(k) or "~", _home()) for k in keys))
+        control = control_tier(*paths, check_tree=True)
         if control and control[0] >= level:
             return control
         return result
@@ -408,6 +411,10 @@ def _move_tier(a: dict[str, Any]) -> tuple[Tier, str]:
     dst = expand(a.get("destination"), _home())
     src = expand(a.get("source"), _home())
     target = _target(src, dst, str(a.get("destination", "")))
+    if blocked := path_tier(target):
+        return blocked
+    if control := control_tier(target):
+        return control
     if target.exists():
         return Tier.T2, "überschreibt ein vorhandenes Ziel"
     return Tier.T1, ""
@@ -435,9 +442,9 @@ def move_path(source: str, destination: str, copy: bool = False) -> dict[str, An
     target.parent.mkdir(parents=True, exist_ok=True)
     if copy:
         if src.is_dir():
-            shutil.copytree(src, target, dirs_exist_ok=True)
+            shutil.copytree(src, target, symlinks=True, dirs_exist_ok=True)
         else:
-            shutil.copy2(src, target)
+            shutil.copy2(src, target, follow_symlinks=False)
     else:
         shutil.move(str(src), str(target))
     ok = target.exists() and (copy or not src.exists())

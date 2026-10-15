@@ -252,6 +252,8 @@ ALL_ARGS_IN = {
 NATIVE_RISKY = {
     "arp": re.compile(r"(^|\s)[-/](d|s)(\s|$)", re.IGNORECASE),
     "git": BASH_RISKY_ARGS["git"],
+    "nvidia-smi": BASH_RISKY_ARGS["nvidia-smi"],
+    "tree": BASH_RISKY_ARGS["tree"],
 }
 
 # Umgebungsvariablen ohne Geheimnisse; $env:GEMINI_API_KEY und Co. fragen (AURA-13).
@@ -327,12 +329,13 @@ FORBIDDEN = [
         "Systempasswörter",
     ),
     (re.compile(r"aura[\\/]secrets|\.aura[\\/]secrets", _I), "Aura-Schlüssel"),
+    (re.compile(r"aura[\\/]agent[\\/](audit|sessions\.db)", _I), "Protokoll und Gedächtnis von Aura"),
     # AURA-16: Cloud-CLIs, Entwicklerwerkzeuge, .env-Dateien
     (
         re.compile(
-            r"\.(netrc|git-credentials|npmrc|pypirc|vault-token)\b|\.aws[\\/](credentials|config|sso)|"
-            r"\.docker[\\/]config\.json|\.kube[\\/]config|gcloud[\\/]|(^|[\s\\/~])\.azure([\\/]|\s|$)|"
-            r"github cli['\"]?[\\/]hosts\.yml|\.config[\\/]gh[\\/]hosts\.yml|\.cargo[\\/]credentials|npm[\\/]etc[\\/]npmrc",
+            r"\.(netrc|pgpass|git-credentials|npmrc|pypirc|vault-token)\b|\.aws([\\/\s'\"]|$)|"
+            r"\.docker[\\/]config\.json|\.kube([\\/\s'\"]|$)|gcloud[\\/]|(^|[\s\\/~])\.azure([\\/]|\s|$)|"
+            r"github cli['\"]?([\\/\s]|$)|\.config[\\/]gh([\\/\s'\"]|$)|\.cargo[\\/]credentials|npm[\\/]etc[\\/]npmrc",
             _I,
         ),
         "Zugangsdaten",
@@ -383,6 +386,7 @@ TYPOGRAPHIC_QUOTES = re.compile(r"[‘’‚‛“”„]")
 # Außerhalb von Texten und Skriptblöcken: alles, womit PowerShell weitere Befehle oder .NET ausführen kann.
 CONTROL = re.compile(r"[;&`\n\r#<>=()\[\]]|\$\(|@\(|@\{|\$\{|::|\.\w+\s*\(")
 HARMLESS_REDIRECTS = re.compile(r"\s(2|\*)>\s*\$null\b|\s2>&1\b", _I)
+_PLACEHOLDER = re.compile(r"'\x00(\d+)\x00'")
 
 # Erlaubte Bausteine in Skriptblöcken: $_-Eigenschaften, Vergleiche, Zahlen, Texte, Klammern.
 _BLOCK_TOKENS = [
@@ -394,15 +398,15 @@ _BLOCK_TOKENS = [
         r"-(c|i)?(eq|ne|gt|ge|lt|le|like|notlike|match|notmatch|contains|notcontains|in|notin|is|isnot)\b",
         r"-(and|or|not|xor)\b",
         r"\d+(\.\d+)?(kb|mb|gb|tb|pb)?\b",
-        r"''",
+        r"'(?:\x00\d+\x00)?'",
         r"[()!,+*/%]",
         r"-(?=[\s\d])",
     )
 ]
 
 
-def _strip_strings(c: str) -> tuple[str, str]:
-    """Ersetzt Texte in Anführungszeichen durch ''. Zweiter Wert: Grund, falls die Prüfung abbrechen muss."""
+def _strip_strings(c: str, literals: list[str] | None = None) -> tuple[str, str]:
+    """Ersetzt Texte in Anführungszeichen durch Platzhalter. Zweiter Wert: Grund, falls die Prüfung abbrechen muss."""
     out: list[str] = []
     i, n = 0, len(c)
     while i < n:
@@ -424,12 +428,21 @@ def _strip_strings(c: str) -> tuple[str, str]:
             inner = c[i + 1 : j]
             if ch == '"' and ("$(" in inner or "${" in inner):
                 return "", "Befehl in einem Text"
-            out.append("''")
+            if literals is not None:
+                idx = len(literals)
+                literals.append(inner)
+                out.append(f"'\x00{idx}\x00'")
+            else:
+                out.append("''")
             i = j + 1
         else:
             out.append(ch)
             i += 1
     return "".join(out), ""
+
+
+def _restore_word(word: str, literals: list[str]) -> str:
+    return _PLACEHOLDER.sub(lambda m: literals[int(m.group(1))], word)
 
 
 def _block_safe(body: str) -> bool:
@@ -505,7 +518,8 @@ def _classify_powershell(command: str) -> tuple[Tier, str]:
     env = _env_reason(c)
     if env:
         return Tier.T2, env
-    s, why = _strip_strings(c)
+    literals: list[str] = []
+    s, why = _strip_strings(c, literals)
     if why:
         return Tier.T2, why
     s, why = _strip_blocks(s)
@@ -516,13 +530,16 @@ def _classify_powershell(command: str) -> tuple[Tier, str]:
         return Tier.T2, "verkettete, umgeleitete oder zusammengesetzte Befehle"
     segments = s.split("|")
     if len(segments) == 1:
-        words = s.split()
-        if words and _t1([words[0].lower(), *words[1:]]):
+        raw_words = [_restore_word(w, literals) for w in s.split()]
+        if raw_words and not s.split()[0].startswith("'") and _t1([raw_words[0].lower(), *raw_words[1:]]):
             return Tier.T1, "legt nur etwas Neues an"
     for segment in segments:
-        words = segment.split()
-        if not words:
+        raw_tokens = segment.split()
+        if not raw_tokens:
             return Tier.T2, "leeres Segment"
+        if raw_tokens[0].startswith("'"):
+            return Tier.T2, "startet ein Programm über einen Text"
+        words = [_restore_word(w, literals) for w in raw_tokens]
         if "\\" in words[0] or "/" in words[0]:
             return Tier.T2, "startet ein Programm über einen Pfad"
         name = words[0].lower()
@@ -547,6 +564,6 @@ def _classify_powershell(command: str) -> tuple[Tier, str]:
                 return Tier.T2, reason
         if name == "certutil" and len(words) > 4:
             return Tier.T2, "„certutil“ mit weiteren Argumenten"
-        if REMOTE.search(segment):
+        if REMOTE.search(" ".join(words)):
             return Tier.T2, "greift auf einen anderen Rechner zu"
     return Tier.T0, "nur lesend"
