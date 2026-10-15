@@ -19,12 +19,23 @@ test('daily triggers: next matching day and time, weekdays respected', () => {
   assert.match(describe(t), /täglich um 09:00 Uhr \(Mo, Di, Mi, Do, Fr\)/);
 });
 
+test('cron triggers: 5-field cron expressions and nextRun', () => {
+  const t = validTrigger({ kind: 'cron', expr: '0 8 * * 1-5' }, 0);
+  assert.deepStrictEqual(t, { kind: 'cron', expr: '0 8 * * 1-5' });
+  // Tuesday 2026-10-13 10:00 → Wednesday 2026-10-14 08:00
+  assert.strictEqual(nextRun(t, at('2026-10-13T10:00')), at('2026-10-14T08:00'));
+  // Friday 2026-10-16 10:00 → Monday 2026-10-19 08:00
+  assert.strictEqual(nextRun(t, at('2026-10-16T10:00')), at('2026-10-19T08:00'));
+  assert.match(describe(t), /Cron: 0 8 \* \* 1-5/);
+});
+
 test('invalid triggers are refused with a clear message', () => {
   const now = at('2026-10-13T10:00');
   assert.throws(() => validTrigger({ kind: 'interval', minutes: 1 }, now), /15 Minuten/);
   assert.throws(() => validTrigger({ kind: 'once', at: '2020-01-01T00:00' }, now), /Vergangenheit/);
   assert.throws(() => validTrigger({ kind: 'daily', time: '25:00' }, now), /Uhrzeit/);
-  assert.throws(() => validTrigger({ kind: 'cron', expr: '* * * * *' }, now), /Unbekannte/);
+  assert.throws(() => validTrigger({ kind: 'cron', expr: '* * * * *' }, now), /15 Minuten/);
+  assert.throws(() => validTrigger({ kind: 'unknown' }, now), /Unbekannte/);
 });
 
 function scheduler(clock, run) {

@@ -19,7 +19,7 @@ let win = null;
 
 /**
  * @param {string} icon
- * @param {{ page?: string, connect?: string, query?: string }} [nav] e.g. from the connect card (AURA-96)
+ * @param {{ page?: string, connect?: string, query?: string, chatId?: string | null }} [nav] e.g. from the connect card or panel
  */
 function open(icon, nav) {
   const navigate = () => nav && win && !win.isDestroyed() && win.webContents.send('z:navigate', nav);
@@ -295,6 +295,8 @@ const API = {
   state: (force) => state(force),
   log: () => readLog(),
   chats: () => chats.list(),
+  getChat: (id) => chats.get(String(id || '')),
+  saveChat: (chat) => chats.save(chat),
   deleteChat: (id) => chats.remove(id),
 
   setPolicy({ tool, policy }) {

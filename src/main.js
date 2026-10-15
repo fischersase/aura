@@ -90,7 +90,7 @@ if (IS_LINUX) {
 }
 app.commandLine.appendSwitch('enable-features', features.join(','));
 
-let overlay, panel, ramblerBar, settingsWin, setupWin, sttWin, tray;
+let overlay, panel, ramblerBar, setupWin, sttWin, tray;
 let panelOpen = false;
 let panelMinimized = false;
 let liveActive = false;
@@ -115,7 +115,7 @@ function handleArgs(argv) {
 
 app.on('second-instance', (_e, argv) => {
   if (!app.isReady() || handleArgs(argv)) return;
-  if (store.load().setupDone) openSettings();
+  if (store.load().setupDone) zentrale.open(ICON, { page: 'chat' });
   else openSetup();
 });
 
@@ -281,28 +281,7 @@ ipcMain.on('setup:done', () => {
 });
 
 function openSettings() {
-  if (settingsWin && !settingsWin.isDestroyed()) {
-    settingsWin.show();
-    settingsWin.focus();
-    return;
-  }
-  settingsWin = new BrowserWindow({
-    width: 620,
-    height: 780,
-    title: 'Aura – Einstellungen',
-    icon: ICON,
-    autoHideMenuBar: true,
-    backgroundColor: '#131314',
-    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true }
-  });
-  settingsWin.loadFile(R('settings.html'));
-  // Beim Aufnehmen neuer Kürzel sollen die alten nicht auslösen.
-  settingsWin.on('focus', () => globalShortcut.unregisterAll());
-  settingsWin.on('blur', () => registerHotkeys());
-  settingsWin.on('closed', () => {
-    settingsWin = null;
-    registerHotkeys();
-  });
+  zentrale.open(ICON, { page: 'settings' });
 }
 
 // ---------- Glow und Panel ----------
@@ -606,7 +585,7 @@ function usageSummary() {
 
 function broadcastUsage() {
   const u = usageSummary();
-  for (const w of [panel, settingsWin]) if (w && !w.isDestroyed()) w.webContents.send('usage:update', u);
+  if (panel && !panel.isDestroyed()) panel.webContents.send('usage:update', u);
   return u;
 }
 
@@ -630,9 +609,7 @@ const CHAT_SYSTEM = (lang) =>
 
 const chatAborts = new Map();
 
-ipcMain.handle('settings:get', () => store.publicSettings());
-
-ipcMain.handle('settings:save', (_e, patch) => {
+function saveSettingsPatch(patch) {
   const { apiKey, apiKeyEnc: _enc, apiKeyPlaintext: _plain, ...rest } = patch || {};
   let keyError = '';
   // eslint-disable-next-line security/detect-possible-timing-attacks -- presence check, not a secret comparison
@@ -650,16 +627,20 @@ ipcMain.handle('settings:save', (_e, patch) => {
   broadcastUsage();
   preloadStt().catch(() => {});
   return { settings: store.publicSettings(), failedHotkeys: failed, ...(keyError ? { keyError } : {}) };
-});
+}
 
-ipcMain.handle('settings:testKey', async (_e, key) => {
+async function testGeminiKey(key) {
   try {
     await gemini.testKey((key || '').trim() || store.getApiKey());
     return { ok: true };
   } catch (err) {
     return { ok: false, message: String(err.message || err) };
   }
-});
+}
+
+ipcMain.handle('settings:get', () => store.publicSettings());
+ipcMain.handle('settings:save', (_e, patch) => saveSettingsPatch(patch));
+ipcMain.handle('settings:testKey', (_e, key) => testGeminiKey(key));
 
 ipcMain.on('settings:open', () => openSettings());
 ipcMain.on('open:external', (_e, url) => {
@@ -1454,7 +1435,7 @@ Object.assign(zentrale.API, {
       return { error: err instanceof Error ? err.message : String(err) };
     }
   },
-  // Scheduled tasks (AURA-121): list, pause/resume, delete.
+  // Scheduled tasks (AURA-121): list, pause/resume, delete, runNow.
   tasks: () =>
     scheduler.list().map((t) => ({
       ...t,
@@ -1462,7 +1443,8 @@ Object.assign(zentrale.API, {
     })),
   toggleTask: ({ id, enabled } = {}) => scheduler.setEnabled(String(id || ''), !!enabled),
   removeTask: (id) => scheduler.remove(String(id || '')),
-  // Ready-made tasks from the Zentrale (AURA-123), e.g. the daily briefing.
+  runTask: (id) => scheduler.runNow(String(id || '')),
+  // Ready-made or custom tasks/cronjobs from the Zentrale (AURA-123).
   addTask: ({ title, prompt, trigger, onlyIfNew } = {}) => {
     try {
       return { task: scheduler.add({ title, prompt, trigger, onlyIfNew: !!onlyIfNew }) };
@@ -1482,12 +1464,89 @@ Object.assign(zentrale.API, {
     const r = await oauth.disconnect(String(name || ''));
     await agentMcp.sync(true).catch(() => {});
     return r;
+  },
+  // Settings & Models inside Aura Zentrale
+  getSettings: () => ({ ...store.publicSettings(), usage: usageSummary() }),
+  saveSettings: (patch) => saveSettingsPatch(patch),
+  testKey: (key) => testGeminiKey(key),
+  ollamaStatus: async (url) => {
+    const u = url || store.load().ollamaUrl;
+    const remote = !ollama.isLocalUrl(u);
+    try {
+      const v = await ollama.version(u);
+      const models = await ollama.listModels(u);
+      return { ok: true, version: v, models, recommended: ollama.RECOMMENDED, remote };
+    } catch (err) {
+      return { ok: false, message: String(err.message || err), recommended: ollama.RECOMMENDED, remote };
+    }
+  },
+  ollamaPull: async ({ url, name } = {}) => {
+    try {
+      await ollama.pull(url || store.load().ollamaUrl, String(name || ''), () => {});
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, message: String(err.message || err) };
+    }
+  },
+  // Built-in Gemini Chat inside Aura Zentrale
+  askChat: async ({ chatId, history } = {}) => {
+    try {
+      const over = budgetError();
+      if (over) return { error: over };
+      const s = store.load();
+      const contents = JSON.parse(JSON.stringify(Array.isArray(history) ? history : []));
+      if (!contents.length) return { error: 'Keine Nachricht angegeben.' };
+      let text = '';
+      const onText = (chunk) => {
+        text += chunk;
+      };
+      if (s.agentEnabled && agentVersion() === 'v2' && agentV2.available()) {
+        const last = contents[contents.length - 1] || { parts: [] };
+        const promptText = (last.parts || [])
+          .filter((p) => p.text)
+          .map((p) => p.text)
+          .join('\n');
+        const taskId = `zchat-${Date.now()}`;
+        const done = await agentV2.runTask({ taskId, chatId: chatId || taskId, text: promptText }, { onText });
+        if (done && done.text && !text) text = done.text;
+        if (done && done.usage && s.provider === 'gemini') {
+          usage.addTokens(s.chatModel, {
+            promptTokenCount: done.usage.prompt,
+            candidatesTokenCount: done.usage.output
+          });
+          broadcastUsage();
+        }
+      } else if (store.isLocal()) {
+        await ollama.streamChat({
+          url: s.ollamaUrl,
+          model: s.ollamaModel,
+          history: contents,
+          system: CHAT_SYSTEM(s.language),
+          onText
+        });
+      } else {
+        const res = await gemini.streamChat({
+          apiKey: store.getApiKey(),
+          model: s.chatModel,
+          history: contents,
+          system: CHAT_SYSTEM(s.language),
+          onText
+        });
+        usage.addTokens(s.chatModel, res.usage);
+        broadcastUsage();
+      }
+      const nextHistory = [...contents, { role: 'model', parts: [{ text }] }];
+      if (chatId) chats.save({ id: String(chatId), history: nextHistory });
+      return { text, history: nextHistory };
+    } catch (err) {
+      return { error: String(err.message || err) };
+    }
   }
 });
 zentrale.register();
-ipcMain.on('zentrale:open', () => {
-  closePanel();
-  zentrale.open(ICON);
+ipcMain.on('zentrale:open', (_e, nav) => {
+  minimizePanel();
+  zentrale.open(ICON, nav || { page: 'chat' });
 });
 
 // Chat-Verlauf
@@ -1648,8 +1707,7 @@ ipcMain.on('stt:result', (_e, { id, text, error }) => {
 
 // Fortschritt beim ersten Laden des Whisper-Modells an Rambler und Panel weitergeben.
 ipcMain.on('stt:progress', (_e, p) => {
-  for (const w of [ramblerBar, panel, settingsWin, setupWin])
-    if (w && !w.isDestroyed()) w.webContents.send('stt:progress', p);
+  for (const w of [ramblerBar, panel, setupWin]) if (w && !w.isDestroyed()) w.webContents.send('stt:progress', p);
 });
 
 // Spracheingabe im Chat: Aufnahme → Text. Lokal mit Whisper (nichts verlässt den Rechner), sonst mit einem

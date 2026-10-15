@@ -164,6 +164,189 @@ function skillIcon(name) {
   return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>';
 }
 
+// ---------- Theme (Darkmode / Brightmode) ----------
+
+const ICON_SUN =
+  '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>';
+const ICON_MOON = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+
+function currentTheme() {
+  try {
+    return localStorage.getItem('aura-theme') === 'light' ? 'light' : 'dark';
+  } catch {
+    return 'dark';
+  }
+}
+
+function applyTheme(theme) {
+  const t = theme === 'light' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = t;
+  try {
+    localStorage.setItem('aura-theme', t);
+  } catch {}
+  if ($('themeIconSun')) {
+    $('themeIconSun').innerHTML = t === 'light' ? ICON_MOON : ICON_SUN;
+  }
+  if ($('themeToggle')) {
+    $('themeToggle').title = t === 'light' ? 'Zu Dunkelmodus wechseln' : 'Zu Hellmodus (Brightmode) wechseln';
+  }
+  if ($('cfgThemeSelect')) {
+    $('cfgThemeSelect').value = t;
+  }
+}
+applyTheme(currentTheme());
+
+if ($('themeToggle')) {
+  $('themeToggle').onclick = () => applyTheme(currentTheme() === 'light' ? 'dark' : 'light');
+}
+
+// ---------- Eingebauter Gemini-Chat in der Zentrale ----------
+
+const newZChatId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+let activeChatId = newZChatId();
+let activeChatHistory = [];
+let zChatBusy = false;
+
+function zMarkdown(src) {
+  const out = [];
+  const blocks = String(src || '').split(/```/);
+  blocks.forEach((block, i) => {
+    if (i % 2 === 1) {
+      out.push('<pre><code>' + esc(block.replace(/^[^\n]*\n/, '')) + '</code></pre>');
+      return;
+    }
+    const paragraphs = block
+      .trim()
+      .split(/\n{2,}/)
+      .filter(Boolean);
+    for (const p of paragraphs) {
+      const formatted = esc(p)
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/\n/g, '<br>');
+      out.push(`<p>${formatted}</p>`);
+    }
+  });
+  return out.join('') || `<p>${esc(src)}</p>`;
+}
+
+function renderZChatMessages() {
+  const emptyEl = $('zChatEmpty');
+  const listEl = $('zChatMessages');
+  const clearBtn = $('zChatClearBtn');
+  if (!emptyEl || !listEl) return;
+  const hasMessages = activeChatHistory.length > 0;
+  emptyEl.classList.toggle('hidden', hasMessages);
+  listEl.classList.toggle('hidden', !hasMessages);
+  if (clearBtn) clearBtn.classList.toggle('hidden', !hasMessages);
+  if (!hasMessages) {
+    listEl.innerHTML = '';
+    return;
+  }
+  listEl.innerHTML = activeChatHistory
+    .map((m) => {
+      const text = (m.parts || [])
+        .map((p) => p.text)
+        .filter(Boolean)
+        .join('\n');
+      if (m.role === 'user') {
+        return `<div class="zchat-msg user">${esc(text)}</div>`;
+      }
+      return `<div class="zchat-msg model">${zMarkdown(text)}</div>`;
+    })
+    .join('');
+  listEl.scrollTop = listEl.scrollHeight;
+}
+
+function resetZentraleChat() {
+  activeChatId = newZChatId();
+  activeChatHistory = [];
+  renderZChatMessages();
+  renderSidebarChats();
+  if ($('zChatInput')) $('zChatInput').focus();
+}
+
+async function openChatInZentrale(id) {
+  show('chat');
+  if (!id) {
+    resetZentraleChat();
+    return;
+  }
+  try {
+    const c = await z.getChat(id);
+    if (c && Array.isArray(c.history)) {
+      activeChatId = c.id;
+      activeChatHistory = c.history;
+      renderZChatMessages();
+      renderSidebarChats();
+    } else {
+      resetZentraleChat();
+    }
+  } catch {
+    resetZentraleChat();
+  }
+}
+
+async function sendZentraleChat(textOverride) {
+  if (zChatBusy) return;
+  const inputEl = $('zChatInput');
+  const text = (textOverride !== undefined ? textOverride : inputEl ? inputEl.value : '').trim();
+  if (!text) return;
+  if (inputEl && textOverride === undefined) inputEl.value = '';
+  activeChatHistory.push({ role: 'user', parts: [{ text }] });
+  renderZChatMessages();
+  zChatBusy = true;
+  if ($('zChatSendBtn')) {
+    $('zChatSendBtn').disabled = true;
+    $('zChatSendBtn').textContent = 'Antwortet …';
+  }
+  try {
+    const res = await z.askChat({ chatId: activeChatId, history: activeChatHistory });
+    if (res && res.error) {
+      activeChatHistory.push({ role: 'model', parts: [{ text: `Fehler: ${res.error}` }] });
+    } else if (res && Array.isArray(res.history)) {
+      activeChatHistory = res.history;
+    } else if (res && res.text) {
+      activeChatHistory.push({ role: 'model', parts: [{ text: res.text }] });
+    }
+    renderZChatMessages();
+    renderSidebarChats();
+  } finally {
+    zChatBusy = false;
+    if ($('zChatSendBtn')) {
+      $('zChatSendBtn').disabled = false;
+      $('zChatSendBtn').textContent = 'Senden';
+    }
+  }
+}
+
+if ($('navNewChat')) {
+  $('navNewChat').onclick = () => {
+    show('chat');
+    resetZentraleChat();
+  };
+}
+if ($('zChatClearBtn')) {
+  $('zChatClearBtn').onclick = () => resetZentraleChat();
+}
+if ($('zChatForm')) {
+  $('zChatForm').onsubmit = (e) => {
+    e.preventDefault();
+    sendZentraleChat();
+  };
+}
+if ($('zChatInput')) {
+  $('zChatInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendZentraleChat();
+    }
+  });
+}
+document.querySelectorAll('[data-prompt]').forEach((b) => {
+  b.onclick = () => sendZentraleChat(b.dataset.prompt);
+});
+
 // ---------- Navigation ----------
 
 const CUSTOMIZE_PAGES = new Set(['discover', 'catalog', 'skills']);
@@ -180,7 +363,7 @@ const MORE_PAGES = new Set([
 ]);
 
 function show(page) {
-  const target = page || 'discover';
+  const target = page || 'chat';
   const isCustomize = CUSTOMIZE_PAGES.has(target);
   document.querySelectorAll('nav button[data-page]').forEach((b) => {
     if (b.id === 'navCustomize') b.classList.toggle('on', isCustomize);
@@ -206,6 +389,7 @@ function show(page) {
   if (target === 'chats') renderChats();
   if (target === 'secrets') renderSecrets();
   if (target === 'profile') loadProfile();
+  if (target === 'settings') loadSettingsPage();
   if (target === 'catalog' || target === 'discover') renderConnectors();
   if (target === 'skills' || target === 'discover') renderSkills();
   if (target === 'tasks') renderTasks();
@@ -226,7 +410,14 @@ if ($('moreToggle')) {
     $('moreToggle').setAttribute('aria-expanded', String(!open));
   };
 }
-if ($('logoHome')) $('logoHome').onclick = () => show('discover');
+if ($('logoHome')) $('logoHome').onclick = () => show('chat');
+if ($('topModelBadge')) $('topModelBadge').onclick = () => show('settings');
+if ($('toolsToRulesLink')) {
+  $('toolsToRulesLink').onclick = (e) => {
+    e.preventDefault();
+    show('rules');
+  };
+}
 if ($('navSearchBtn')) {
   $('navSearchBtn').onclick = () => {
     show('catalog');
@@ -254,7 +445,8 @@ document.addEventListener('change', async (e) => {
   const sel = e.target.closest('select[data-policy]');
   if (sel) {
     await z.setPolicy(sel.dataset.policy, sel.value);
-    load();
+    await load();
+    if (!$('rules').classList.contains('hidden')) renderQuickRules();
   }
 });
 
@@ -268,6 +460,16 @@ async function load(force) {
   $('auraDir').textContent = S.auraDir;
   $('agentOn').checked = S.agentEnabled;
   $('agentVersion').value = S.agentVersion;
+  const modelLabel = `${S.provider === 'ollama' ? 'Ollama' : 'Gemini'} · ${S.model || ''}`;
+  if ($('topModelBadge')) $('topModelBadge').textContent = modelLabel;
+  if ($('zChatModelInfo')) {
+    $('zChatModelInfo').textContent = `${modelLabel}${S.agentEnabled ? ` · Agent ${S.agentVersion}` : ' · Nur Chat'}`;
+  }
+  if ($('zChatGreetTitle')) {
+    $('zChatGreetTitle').textContent = S.profileName
+      ? `Hallo ${S.profileName}! Wie kann ich dir helfen?`
+      : 'Hallo! Wie kann ich dir heute helfen?';
+  }
   if ($('profileAvatarBtn')) {
     const initial = (S.profileName || 'Aura').trim().charAt(0).toUpperCase() || 'A';
     $('profileAvatarBtn').textContent = initial;
@@ -295,14 +497,14 @@ async function renderSidebarChats() {
       return;
     }
     box.innerHTML = list
-      .slice(0, 10)
+      .slice(0, 15)
       .map(
         (c) =>
-          `<button type="button" class="sidebar-chat-item" data-side-chat="${esc(c.id)}" title="${esc(c.title)}">${esc(c.title)}</button>`
+          `<button type="button" class="sidebar-chat-item${c.id === activeChatId && activeChatHistory.length ? ' on' : ''}" data-side-chat="${esc(c.id)}" title="${esc(c.title)}">${esc(c.title)}</button>`
       )
       .join('');
     box.querySelectorAll('[data-side-chat]').forEach((b) => {
-      b.onclick = () => show('chats');
+      b.onclick = () => openChatInZentrale(b.dataset.sideChat);
     });
   } catch {
     box.innerHTML = '';
@@ -339,7 +541,7 @@ function renderOverview() {
     ['instructions', stripComments(S.agentsMd).replace(/^#.*$/gm, '').trim() ? 'ja' : '–', 'eigene Anweisungen'],
     ['secrets', S.secretCount, 'gespeicherte Schlüssel'],
     ['profile', S.profileName ? esc(S.profileName) : '–', 'Profil'],
-    ['overview', S.provider === 'ollama' ? 'lokal' : 'Gemini', esc(S.model)]
+    ['settings', S.provider === 'ollama' ? 'lokal' : 'Gemini', esc(S.model)]
   ];
   $('tiles').innerHTML = tiles
     .map(([p, b, s]) => `<div class="tile" data-go="${p}"><b>${esc(b)}</b><span>${s}</span></div>`)
@@ -375,9 +577,24 @@ $('agentVersion').onchange = async () => {
   load();
 };
 
+const V2_EXTRA_TOOLS = [
+  ['launch_app / open_target', 'Programme, Ordner oder URLs gezielt starten', 'T1 (fragt bei Programmen)'],
+  ['list_windows / window_action', 'Offene Fenster auflisten, fokussieren oder schließen', 'T0 / T1'],
+  [
+    'list_dir / edit_file / move_path / trash',
+    'Gezielte Datei-Änderungen, Verschieben und Papierkorb',
+    'T0 / T2 (fragt)'
+  ],
+  ['media_status / media_control / volume', 'Musik/Medien abspielen, pausieren und Systemlautstärke regeln', 'T0 / T1'],
+  ['system_info / settings', 'Systemzustand lesen und Desktop-Einstellungen anpassen', 'T0 / T2'],
+  ['browser_* (Playwright)', 'Webseiten öffnen, lesen, klicken und Formulare ausfüllen', 'Lesen frei, Klicks fragen'],
+  ['schedule_task', 'Geplante Aufgaben und Cronjobs aus dem Chat heraus anlegen', 'T2 (fragt)'],
+  ['todo_write / ask_user', 'Aufgabenplan erstellen und gezielte Rückfragen stellen', 'T0 (immer aktiv)']
+];
+
 function renderTools() {
   const label = {
-    run_command: 'Befehl ausführen',
+    run_command: 'Terminal-Befehl ausführen (alle Shell-Befehle)',
     find_files: 'Dateien suchen',
     list_folder: 'Ordner anzeigen',
     read_file: 'Datei lesen',
@@ -395,9 +612,26 @@ function renderTools() {
     <div class="desc">${esc(t.description)}</div><div class="side">${policySelect(t.name, t.policy)}</div></div>`
     )
     .join('');
+  if ($('v2ToolList')) {
+    $('v2ToolList').innerHTML = V2_EXTRA_TOOLS.map(
+      ([name, desc, tier]) => `
+      <div class="item">
+        <div class="name">${esc(name)} <span class="badge">${esc(tier)}</span></div>
+        <div class="desc">${esc(desc)}</div>
+        <div class="side"><button type="button" class="small" data-go-rules="1">In Regeln anpassen</button></div>
+      </div>`
+    ).join('');
+    $('v2ToolList')
+      .querySelectorAll('[data-go-rules]')
+      .forEach((b) => {
+        b.onclick = () => show('rules');
+      });
+  }
 }
 
-// ---------- MCP-Server ----------
+// ---------- MCP-Server (Standardmäßig eingeklappt, per Klick aufklappbar) ----------
+
+const expandedServers = new Set();
 
 async function driftDialog(name) {
   const d = await z.driftInfo(name);
@@ -459,6 +693,7 @@ function renderServers() {
   }
   $('serverList').innerHTML = S.servers
     .map((s) => {
+      const isExpanded = expandedServers.has(s.name);
       const state = s.disabled
         ? '<span class="badge">aus</span>'
         : s.auth === 'oauth' && !s.signedIn
@@ -467,7 +702,7 @@ function renderServers() {
             ? '<span class="badge bad">Fehler</span>'
             : '<span class="badge ok">verbunden</span>';
       const tools =
-        s.disabled || !s.tools.length
+        s.disabled || !s.tools.length || !isExpanded
           ? ''
           : `<div class="tools">${s.tools
               .map(
@@ -476,18 +711,32 @@ function renderServers() {
       <div class="desc">${esc(t.description.replace(/^\[[^\]]*\]\s*/, ''))}</div>${policySelect(t.name, t.policy)}</div>`
               )
               .join('')}</div>`;
+      const expandBtn =
+        !s.disabled && s.tools.length
+          ? `<button type="button" class="tools-toggle" data-expand-server="${esc(s.name)}" aria-expanded="${isExpanded}">${s.tools.length} Werkzeuge ${isExpanded ? '▴' : '▾'}</button>`
+          : '';
       return `<div class="server">
       <div class="top"><label class="switch"><input type="checkbox" data-toggle="${esc(s.name)}"${s.disabled ? '' : ' checked'}><span></span></label>
-        <span class="title">${esc(s.name)}</span>${state}<span class="badge">${s.type === 'http' ? 'Remote' : 'lokal'}</span>
+        <span class="title" data-expand-server="${esc(s.name)}" title="Klicken zum Auf-/Zuklappen der Werkzeuge">${esc(s.name)}</span>${state}<span class="badge">${s.type === 'http' ? 'Remote' : 'lokal'}</span>
         ${s.auth === 'oauth' ? (s.signedIn ? '<span class="badge ok">angemeldet</span>' : '<span class="badge bad">Anmeldung nötig</span>') : ''}
         ${SANDBOX_BADGE[s.sandbox] || ''}
-        ${s.disabled ? '' : `<span class="badge">${s.tools.length} Werkzeuge</span>`}
+        ${expandBtn}
         <span class="grow"></span>${s.auth === 'oauth' ? (s.signedIn ? `<button type="button" class="small" data-signout="${esc(s.name)}">Abmelden</button>` : `<button type="button" class="small primary" data-signin="${esc(s.name)}">Anmelden</button>`) : ''}<button type="button" class="small" data-edit="${esc(s.name)}">Bearbeiten</button><button type="button" class="small danger" data-remove="${esc(s.name)}">Entfernen</button></div>
       <div class="cmd">${esc(s.command)}${s.env.length ? ' · Variablen: ' + esc(s.env.join(', ')) : ''}${s.secretRefs.length ? ' · Schlüssel: ' + esc(s.secretRefs.join(', ')) : ''}</div>
       ${s.plainSecrets.length ? `<div class="warnbox"><span>${esc(s.plainSecrets.join(', '))} steht im Klartext in mcp.json.</span><button type="button" class="small" data-protect="${esc(s.name)}">Verschlüsselt speichern</button></div>` : ''}
       ${s.error && !s.disabled ? `<div class="err">${esc(s.error)}${s.drift ? ` <button type="button" class="small primary" data-drift="${esc(s.name)}">Änderung prüfen</button>` : ''}</div>` : ''}${tools}</div>`;
     })
     .join('');
+  $('serverList')
+    .querySelectorAll('[data-expand-server]')
+    .forEach((el) => {
+      el.onclick = () => {
+        const name = el.dataset.expandServer;
+        if (expandedServers.has(name)) expandedServers.delete(name);
+        else expandedServers.add(name);
+        renderServers();
+      };
+    });
   $('serverList')
     .querySelectorAll('[data-drift]')
     .forEach((b) => {
@@ -679,7 +928,7 @@ async function serverDialog(name) {
 async function renderTasks() {
   const tasks = await z.tasks();
   if (!tasks.length) {
-    $('taskList').innerHTML = '<div class="empty">Noch keine geplanten Aufgaben.</div>';
+    $('taskList').innerHTML = '<div class="empty">Noch keine geplanten Aufgaben oder Cronjobs.</div>';
     return;
   }
   const when = (ms) => (ms ? new Date(ms).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' }) : '–');
@@ -688,10 +937,13 @@ async function renderTasks() {
       (t) => `<div class="server"><div class="top">
         <label class="switch"><input type="checkbox" data-task-toggle="${esc(t.id)}"${t.enabled ? ' checked' : ''}><span></span></label>
         <span class="title">${esc(t.title)}</span><span class="badge">${esc(t.when)}</span>
+        ${t.watch ? '<span class="badge">Prüfauftrag</span>' : ''}
         ${t.running ? '<span class="badge ok">läuft</span>' : ''}
         ${t.waiting ? '<span class="badge bad" title="Freigabe im Aura-Fenster (Wartet auf dich)">wartet auf dich</span>' : ''}
         ${t.lastStatus === 'error' ? '<span class="badge bad">Fehler</span>' : ''}
-        <span class="grow"></span>${t.running ? `<button type="button" class="small" data-task-stop="${esc(t.id)}">Stoppen</button>` : ''}<button type="button" class="small danger" data-task-remove="${esc(t.id)}">Löschen</button></div>
+        <span class="grow"></span>
+        ${t.running ? `<button type="button" class="small" data-task-stop="${esc(t.id)}">Stoppen</button>` : `<button type="button" class="small" data-task-run="${esc(t.id)}">Jetzt starten</button>`}
+        <button type="button" class="small danger" data-task-remove="${esc(t.id)}">Löschen</button></div>
         <div class="cmd">${esc(t.prompt)}</div>
         <div class="muted small" style="padding:0 18px 12px">Nächster Lauf: ${esc(when(t.nextRun))}${t.lastRun ? ` · Zuletzt: ${esc(when(t.lastRun))}` : ''}</div>
         ${t.lastText ? `<div class="desc" style="padding:0 18px 14px">${esc(t.lastText)}</div>` : ''}</div>`
@@ -702,6 +954,16 @@ async function renderTasks() {
     .forEach((c) => {
       c.onchange = async () => {
         await z.toggleTask(c.dataset.taskToggle, c.checked);
+        renderTasks();
+      };
+    });
+  $('taskList')
+    .querySelectorAll('[data-task-run]')
+    .forEach((b) => {
+      b.onclick = async () => {
+        b.disabled = true;
+        b.textContent = 'Startet …';
+        await z.runTask(b.dataset.taskRun);
         renderTasks();
       };
     });
@@ -722,6 +984,90 @@ async function renderTasks() {
         renderTasks();
       };
     });
+}
+
+if ($('addCronTask')) {
+  $('addCronTask').onclick = () => {
+    dialog(
+      'Aufgabe / Cronjob erstellen',
+      `<label>Titel</label>
+      <input type="text" id="tTitle" placeholder="z. B. Server-Status prüfen oder Wochenbericht" maxlength="100">
+      <label>Zeitplan-Art</label>
+      <div class="seg" id="tKind">
+        <button type="button" data-tk="daily" class="on">Täglich</button>
+        <button type="button" data-tk="interval">Intervall</button>
+        <button type="button" data-tk="cron">Cronjob (5 Felder)</button>
+        <button type="button" data-tk="once">Einmalig</button>
+      </div>
+      <div id="tBoxDaily">
+        <label>Uhrzeit (HH:MM)</label>
+        <input type="text" id="tDailyTime" value="08:00" maxlength="5">
+        <label class="check"><input type="checkbox" id="tDailyWeekdays"> Nur werktags (Mo–Fr)</label>
+      </div>
+      <div id="tBoxInterval" class="hidden">
+        <label>Alle wie viele Minuten? (5 bis 1440)</label>
+        <input type="number" id="tIntervalMin" value="60" min="5" max="1440">
+      </div>
+      <div id="tBoxCron" class="hidden">
+        <label>Cron-Ausdruck (Minute Stunde Tag Monat Wochentag)</label>
+        <input type="text" id="tCronExpr" value="0 8 * * 1-5" placeholder="z. B. */15 * * * * oder 0 9 * * 1" spellcheck="false">
+        <div class="hint">Beispiele: <code>0 8 * * 1-5</code> (Mo–Fr 08:00), <code>*/30 * * * *</code> (alle 30 Min.), <code>0 18 * * 5</code> (Freitag 18:00).</div>
+      </div>
+      <div id="tBoxOnce" class="hidden">
+        <label>Zeitpunkt</label>
+        <input type="datetime-local" id="tOnceAt">
+      </div>
+      <label>Auftrag an Aura (Prompt)</label>
+      <textarea id="tPrompt" rows="4" placeholder="Was soll Aura ausführen? (Alle aktivierten Werkzeuge, Skills und Connectors stehen bereit)"></textarea>
+      <label class="check"><input type="checkbox" id="tWatch"> Prüfauftrag: Nur benachrichtigen, wenn es wirklich Neuigkeiten gibt (sonst still)</label>`,
+      async () => {
+        const title = $('tTitle').value.trim();
+        const prompt = $('tPrompt').value.trim();
+        if (!prompt) return 'Bitte einen Auftrag (Prompt) eingeben.';
+        const kind = $('tKind').querySelector('.on').dataset.tk;
+        let trigger;
+        if (kind === 'daily') {
+          trigger = {
+            kind: 'daily',
+            time: $('tDailyTime').value.trim(),
+            ...($('tDailyWeekdays').checked ? { days: [1, 2, 3, 4, 5] } : {})
+          };
+        } else if (kind === 'interval') {
+          trigger = { kind: 'interval', minutes: Number($('tIntervalMin').value) || 60 };
+        } else if (kind === 'cron') {
+          trigger = { kind: 'cron', expr: $('tCronExpr').value.trim() };
+        } else {
+          const val = $('tOnceAt').value;
+          if (!val) return 'Bitte Datum und Uhrzeit wählen.';
+          trigger = { kind: 'once', at: new Date(val).toISOString() };
+        }
+        const r = await z.addTask({
+          title: title || prompt.slice(0, 60),
+          prompt,
+          trigger,
+          watch: $('tWatch').checked
+        });
+        if (r && r.error) return r.error;
+        renderTasks();
+        return null;
+      },
+      'Erstellen'
+    );
+    $('tKind')
+      .querySelectorAll('button')
+      .forEach((b) => {
+        b.onclick = () => {
+          $('tKind')
+            .querySelectorAll('button')
+            .forEach((x) => x.classList.toggle('on', x === b));
+          const k = b.dataset.tk;
+          $('tBoxDaily').classList.toggle('hidden', k !== 'daily');
+          $('tBoxInterval').classList.toggle('hidden', k !== 'interval');
+          $('tBoxCron').classList.toggle('hidden', k !== 'cron');
+          $('tBoxOnce').classList.toggle('hidden', k !== 'once');
+        };
+      });
+  };
 }
 
 // Daily briefing (AURA-123): a ready-made recurring task; it uses whatever is connected and allowed.
@@ -1027,11 +1373,15 @@ function connectDialog(id) {
   if (first) first.focus();
 }
 
-// From the connect card in the panel: open this page with the entry ready (catalog) or the search filled in.
+// From the corner panel or tray: open a specific page or hand over the active chat directly.
 window.api.onNavigate?.(async (nav) => {
   if (!S) await load();
-  show(nav.page || 'catalog');
-  if (!nav.connect) return;
+  if (nav && nav.chatId) {
+    await openChatInZentrale(nav.chatId);
+    return;
+  }
+  show((nav && nav.page) || 'chat');
+  if (!nav || !nav.connect) return;
   await renderConnectors();
   if (connectorEntries.some((c) => c.id === nav.connect)) connectDialog(nav.connect);
   else if (nav.query) {
@@ -1528,11 +1878,228 @@ async function renderAudit() {
       .join('')}</table>`;
 }
 
+function parsePolicyBlocks(text) {
+  const src = String(text || '');
+  const parts = src.split(/(?=\[\[rule\]\])/g);
+  const preamble = parts.length && !parts[0].trimStart().startsWith('[[rule]]') ? parts.shift() : '';
+  const blocks = parts.map((raw) => {
+    const kv = {};
+    for (const line of raw.split('\n')) {
+      const m = line.match(/^\s*([a-z_]+)\s*=\s*"([^"]*)"/);
+      if (m) kv[m[1]] = m[2];
+    }
+    return {
+      raw,
+      tool: kv.tool || '',
+      decision: kv.decision || 'ask',
+      commandPrefix: kv.command_prefix || '',
+      pathUnder: kv.path_under || '',
+      domain: kv.domain || '',
+      reason: kv.reason || ''
+    };
+  });
+  return { preamble, blocks };
+}
+
+function serializeRuleBlock(r) {
+  const lines = ['[[rule]]'];
+  if (r.tool) lines.push(`tool = ${JSON.stringify(String(r.tool))}`);
+  lines.push(`decision = ${JSON.stringify(String(r.decision || 'ask'))}`);
+  if (r.commandPrefix) lines.push(`command_prefix = ${JSON.stringify(String(r.commandPrefix))}`);
+  if (r.pathUnder) lines.push(`path_under = ${JSON.stringify(String(r.pathUnder))}`);
+  if (r.domain) lines.push(`domain = ${JSON.stringify(String(r.domain))}`);
+  if (r.reason) lines.push(`reason = ${JSON.stringify(String(r.reason))}`);
+  return lines.join('\n') + '\n';
+}
+
+function renderQuickRules() {
+  if (!$('rulesQuickList') || !S) return;
+  const builtins = S.builtins || [];
+  const getToolState = (name) => {
+    const t = builtins.find((b) => b.name === name);
+    if (!t) return 'default';
+    if (!t.enabled) return 'deny';
+    if (t.policy === 'allow') return 'allow';
+    if (t.policy === 'ask') return 'ask';
+    return 'default';
+  };
+  const items = [
+    {
+      name: 'run_command',
+      title: 'Terminal-Befehle ausführen (run_command)',
+      desc: 'Gilt für alle Shell-Programme (git, npm, ls, python …), sofern keine Feinregel greift.'
+    },
+    {
+      name: 'write_file',
+      title: 'Dateien schreiben & ändern (write_file)',
+      desc: 'Erstellen oder Überschreiben von Dateien auf deiner Festplatte.'
+    },
+    {
+      name: 'read_file',
+      title: 'Dateien & Ordner lesen (read_file)',
+      desc: 'Lesen von lokalen Textdateien und Projektordnern.'
+    },
+    {
+      name: 'fetch_url',
+      title: 'Webseiten & APIs abrufen (fetch_url)',
+      desc: 'Abrufen öffentlicher Webseiten und Dokumentationen.'
+    }
+  ];
+  $('rulesQuickList').innerHTML = items
+    .map((it) => {
+      const cur = getToolState(it.name);
+      return `<div class="item">
+        <div class="name">${esc(it.title)}</div>
+        <div class="desc">${esc(it.desc)}</div>
+        <div class="side">
+          <select class="policy-select" data-quick-rule="${esc(it.name)}">
+            <option value="default"${cur === 'default' ? ' selected' : ''}>Standard (Nachfragen wenn nötig)</option>
+            <option value="allow"${cur === 'allow' ? ' selected' : ''}>Immer erlauben (Nie fragen)</option>
+            <option value="ask"${cur === 'ask' ? ' selected' : ''}>Immer fragen</option>
+            <option value="deny"${cur === 'deny' ? ' selected' : ''}>Nie erlauben (Aus)</option>
+          </select>
+        </div>
+      </div>`;
+    })
+    .join('');
+
+  $('rulesQuickList')
+    .querySelectorAll('[data-quick-rule]')
+    .forEach((sel) => {
+      sel.onchange = async () => {
+        const name = sel.dataset.quickRule;
+        const v = sel.value;
+        if (v === 'deny') {
+          await z.toggleBuiltin(name, false);
+        } else {
+          await z.toggleBuiltin(name, true);
+          await z.setBuiltinPolicy(name, v === 'default' ? null : v);
+        }
+        await load(true);
+        renderQuickRules();
+      };
+    });
+}
+
+function renderVisualRules(policyText) {
+  if (!$('rulesVisualList')) return;
+  const { preamble, blocks } = parsePolicyBlocks(policyText);
+  if (!blocks.length) {
+    $('rulesVisualList').innerHTML =
+      '<div class="empty">Noch keine einzelnen Feinregeln in policy.toml definiert. Über „+ Feinregel hinzufügen“ kannst du z. B. bestimmte Terminal-Befehle wie <code>git status</code> immer erlauben.</div>';
+    return;
+  }
+  $('rulesVisualList').innerHTML = blocks
+    .map((b, idx) => {
+      const conds = [
+        b.tool ? `Werkzeug: <code>${esc(b.tool)}</code>` : 'Alle Werkzeuge',
+        b.commandPrefix ? `Befehl beginnt mit: <code>${esc(b.commandPrefix)}</code>` : '',
+        b.pathUnder ? `Ordner: <code>${esc(b.pathUnder)}</code>` : '',
+        b.domain ? `Domain: <code>${esc(b.domain)}</code>` : ''
+      ]
+        .filter(Boolean)
+        .join(' · ');
+      return `<div class="item">
+        <div class="name">${conds}</div>
+        <div class="desc">${b.reason ? esc(b.reason) : 'Benutzerdefinierte Regel in policy.toml'}</div>
+        <div class="side">
+          <select class="policy-select" data-vrule-dec="${idx}">
+            <option value="allow"${b.decision === 'allow' ? ' selected' : ''}>Immer erlauben (allow)</option>
+            <option value="ask"${b.decision === 'ask' ? ' selected' : ''}>Nachfragen (ask)</option>
+            <option value="deny"${b.decision === 'deny' ? ' selected' : ''}>Verbieten (deny)</option>
+          </select>
+          <button type="button" class="small danger" data-vrule-del="${idx}">Löschen</button>
+        </div>
+      </div>`;
+    })
+    .join('');
+
+  const saveUpdatedBlocks = async (newBlocks) => {
+    const newText = (preamble ? preamble.trimEnd() + '\n\n' : '') + newBlocks.map(serializeRuleBlock).join('\n');
+    $('rulesText').value = newText;
+    const res = await z.savePolicy(newText);
+    if ($('ruleStatus')) {
+      $('ruleStatus').textContent = res.ok
+        ? 'Gespeichert, gilt ab dem nächsten Auftrag'
+        : 'Nicht gespeichert: ' + res.problems.join('; ');
+      $('ruleStatus').className = res.ok ? 'muted small' : 'bad small';
+    }
+    renderVisualRules(newText);
+  };
+
+  $('rulesVisualList')
+    .querySelectorAll('[data-vrule-dec]')
+    .forEach((sel) => {
+      sel.onchange = () => {
+        const idx = Number(sel.dataset.vruleDec);
+        blocks[idx].decision = sel.value;
+        saveUpdatedBlocks(blocks);
+      };
+    });
+
+  $('rulesVisualList')
+    .querySelectorAll('[data-vrule-del]')
+    .forEach((btn) => {
+      btn.onclick = () => {
+        const idx = Number(btn.dataset.vruleDel);
+        blocks.splice(idx, 1);
+        saveUpdatedBlocks(blocks);
+      };
+    });
+}
+
+if ($('addRuleBtn')) {
+  $('addRuleBtn').onclick = () => {
+    dialog(
+      'Feinregel hinzufügen',
+      `<label>Werkzeug</label>
+      <select id="nrTool">
+        <option value="shell">Terminal-Befehl (shell / run_command)</option>
+        <option value="fs.write">Dateien schreiben (fs.write)</option>
+        <option value="fs.delete">Dateien löschen (fs.delete)</option>
+        <option value="http.get">Web-Abruf (http.get)</option>
+        <option value="">Alle Werkzeuge</option>
+      </select>
+      <label>Entscheidung</label>
+      <select id="nrDecision">
+        <option value="allow">Immer erlauben (Nie fragen)</option>
+        <option value="ask">Immer nachfragen (Standard)</option>
+        <option value="deny">Nie erlauben (Blockieren)</option>
+      </select>
+      <label>Befehl beginnt mit (optional, z. B. <code>git status</code> oder <code>npm test</code>)</label>
+      <input type="text" id="nrCmd" placeholder="z. B. git status" spellcheck="false">
+      <label>Nur in diesem Ordner (optional, z. B. <code>~/Projekte</code>)</label>
+      <input type="text" id="nrPath" placeholder="z. B. ~/workspace" spellcheck="false">
+      <label>Notiz / Grund (optional)</label>
+      <input type="text" id="nrReason" placeholder="z. B. Lese-Befehle im Git-Repo ohne Nachfrage">`,
+      async () => {
+        const rule = {
+          tool: $('nrTool').value.trim(),
+          decision: $('nrDecision').value,
+          commandPrefix: $('nrCmd').value.trim(),
+          pathUnder: $('nrPath').value.trim(),
+          reason: $('nrReason').value.trim()
+        };
+        const current = $('rulesText').value || '';
+        const nextText = (current.trimEnd() ? current.trimEnd() + '\n\n' : '') + serializeRuleBlock(rule);
+        const r = await z.savePolicy(nextText);
+        if (!r.ok) return 'Nicht gespeichert: ' + r.problems.join('; ');
+        $('rulesText').value = nextText;
+        renderVisualRules(nextText);
+        return null;
+      },
+      'Regel speichern'
+    );
+  };
+}
+
 async function loadRules() {
   const r = await z.policy();
   $('rulesFile').textContent = r.file;
   $('rulesText').value = r.text;
   $('ruleStatus').textContent = '';
+  renderQuickRules();
+  renderVisualRules(r.text);
 }
 $('saveRules').onclick = async () => {
   const r = await z.savePolicy($('rulesText').value);
@@ -1540,7 +2107,234 @@ $('saveRules').onclick = async () => {
     ? 'Gespeichert, gilt ab dem nächsten Auftrag'
     : 'Nicht gespeichert: ' + r.problems.join('; ');
   $('ruleStatus').className = r.ok ? 'muted small' : 'bad small';
+  if (r.ok) renderVisualRules($('rulesText').value);
 };
+
+// ---------- Einstellungen & Modelle (integriert in Aura Zentrale) ----------
+
+let currentSettingsData = null;
+const HOTKEY_MODIFIERS = new Set(['Control', 'Alt', 'Shift', 'Meta']);
+
+function eventToAccelerator(e) {
+  if (HOTKEY_MODIFIERS.has(e.key)) return null;
+  const parts = [];
+  if (e.ctrlKey || e.metaKey) parts.push('CommandOrControl');
+  if (e.altKey) parts.push('Alt');
+  if (e.shiftKey) parts.push('Shift');
+  if (parts.length === 0) return null;
+  const keyMap = {
+    ' ': 'Space',
+    ArrowUp: 'Up',
+    ArrowDown: 'Down',
+    ArrowLeft: 'Left',
+    ArrowRight: 'Right',
+    Escape: 'Escape',
+    Enter: 'Return',
+    Backspace: 'Backspace',
+    Delete: 'Delete',
+    Tab: 'Tab'
+  };
+  let key = keyMap[e.key];
+  if (!key) {
+    if (e.key.length === 1) key = e.key.toUpperCase();
+    else if (/^F\d{1,2}$/.test(e.key)) key = e.key;
+    else return null;
+  }
+  parts.push(key);
+  return parts.join('+');
+}
+
+function updateProviderVisibility(provider) {
+  if ($('cfgGeminiCard')) $('cfgGeminiCard').classList.toggle('hidden', provider === 'ollama');
+  if ($('cfgOllamaCard')) $('cfgOllamaCard').classList.toggle('hidden', provider !== 'ollama');
+}
+
+async function refreshOllamaInZentrale(preferredModel) {
+  if (!$('cfgOllamaHint')) return;
+  $('cfgOllamaHint').textContent = 'Prüfe Ollama …';
+  $('cfgOllamaHint').className = 'hint';
+  const st = await z.ollamaStatus($('cfgOllamaUrl').value);
+  const select = $('cfgOllamaModel');
+  select.innerHTML = '';
+  const current = preferredModel ?? (currentSettingsData && currentSettingsData.ollamaModel) ?? '';
+  if (!st || !st.running) {
+    const opt = document.createElement('option');
+    opt.value = current || 'gemma4:e4b';
+    opt.textContent = `${opt.value} (Ollama nicht erreichbar)`;
+    select.appendChild(opt);
+    $('cfgOllamaHint').textContent =
+      'Ollama läuft nicht oder ist unter dieser Adresse nicht erreichbar. Starte Ollama oder lade es unter ollama.com herunter.';
+    $('cfgOllamaHint').className = 'bad small';
+    return;
+  }
+  if (!st.models.length) {
+    const opt = document.createElement('option');
+    opt.value = current || 'gemma4:e4b';
+    opt.textContent = `${opt.value} (noch nicht geladen)`;
+    select.appendChild(opt);
+    $('cfgOllamaHint').textContent =
+      'Ollama läuft, aber es ist noch kein Modell geladen. Nutze unten „Laden“, um z. B. gemma4:e4b herunterzuladen.';
+    $('cfgOllamaHint').className = 'hint';
+    return;
+  }
+  for (const m of st.models) {
+    const opt = document.createElement('option');
+    opt.value = m;
+    opt.textContent = m;
+    select.appendChild(opt);
+  }
+  if (current && !st.models.includes(current)) {
+    const opt = document.createElement('option');
+    opt.value = current;
+    opt.textContent = `${current} (nicht installiert)`;
+    select.appendChild(opt);
+  }
+  select.value = current || st.models[0];
+  $('cfgOllamaHint').textContent = `Verbunden — ${st.models.length} Modell(e) verfügbar.`;
+  $('cfgOllamaHint').className = 'ok small';
+}
+
+async function loadSettingsPage() {
+  if (!$('cfgProvider')) return;
+  const s = await z.getSettings();
+  currentSettingsData = s;
+  $('cfgProvider').value = s.provider || 'gemini';
+  updateProviderVisibility($('cfgProvider').value);
+  $('cfgApiKey').value = '';
+  $('cfgApiKey').placeholder = s.apiKeyHint ? `Gespeichert (${s.apiKeyHint})` : 'AIza...';
+  $('cfgKeyHint').textContent = s.apiKeyFromEnv
+    ? 'Wird aktuell aus Umgebungsvariable GEMINI_API_KEY geladen.'
+    : s.hasApiKey
+      ? `Gespeicherter Schlüssel: ${s.apiKeyHint}`
+      : 'Noch kein API-Key hinterlegt.';
+  $('cfgKeyHint').className = 'hint';
+  $('cfgMonthlyBudget').value = s.monthlyBudget > 0 ? String(s.monthlyBudget) : '';
+  if (s.usage) {
+    const spent = s.usage.spentEur.toFixed(2).replace('.', ',');
+    const tok = Math.round(s.usage.inputTokens + s.usage.outputTokens).toLocaleString('de-DE');
+    $('cfgUsageInfo').textContent =
+      s.monthlyBudget > 0
+        ? `Diesen Monat (${s.usage.month}): ca. ${spent} € von ${s.monthlyBudget.toFixed(2).replace('.', ',')} € (${s.usage.calls} Anfragen, ${tok} Token)`
+        : `Diesen Monat (${s.usage.month}): ca. ${spent} € (${s.usage.calls} Anfragen, ${tok} Token)`;
+  }
+  $('cfgOllamaUrl').value = s.ollamaUrl || 'http://127.0.0.1:11434';
+  if ($('cfgProvider').value === 'ollama') {
+    refreshOllamaInZentrale(s.ollamaModel);
+  }
+  $('cfgWhisperModel').value = s.whisperModel || 'Xenova/whisper-small';
+  $('cfgLanguage').value = s.language || '';
+  if (s.hotkeys) {
+    $('cfgHkListen').value = s.hotkeys.listen || '';
+    $('cfgHkAsk').value = s.hotkeys.ask || '';
+    $('cfgHkRead').value = s.hotkeys.read || '';
+  }
+  if ($('cfgThemeSelect')) {
+    $('cfgThemeSelect').value = document.documentElement.getAttribute('data-theme') || 'dark';
+  }
+  $('cfgPanelCorner').value = s.panelCorner || 'bottom-right';
+  $('cfgGlowEnabled').checked = s.glowEnabled !== false;
+  $('cfgAutostart').checked = Boolean(s.autostart);
+}
+
+if ($('cfgProvider')) {
+  $('cfgProvider').onchange = () => {
+    const p = $('cfgProvider').value;
+    updateProviderVisibility(p);
+    if (p === 'ollama') refreshOllamaInZentrale();
+  };
+}
+
+if ($('cfgThemeSelect')) {
+  $('cfgThemeSelect').onchange = () => {
+    applyTheme($('cfgThemeSelect').value);
+  };
+}
+
+if ($('cfgTestKey')) {
+  $('cfgTestKey').onclick = async () => {
+    $('cfgTestKey').disabled = true;
+    $('cfgKeyHint').textContent = 'Prüfe API-Key …';
+    $('cfgKeyHint').className = 'hint';
+    const res = await z.testKey($('cfgApiKey').value.trim());
+    $('cfgTestKey').disabled = false;
+    $('cfgKeyHint').textContent = res.ok ? 'API-Key funktioniert!' : `Fehler: ${res.error}`;
+    $('cfgKeyHint').className = res.ok ? 'ok small' : 'bad small';
+  };
+}
+
+if ($('cfgOllamaCheck')) {
+  $('cfgOllamaCheck').onclick = () => refreshOllamaInZentrale($('cfgOllamaModel').value);
+}
+
+if ($('cfgOllamaPull')) {
+  $('cfgOllamaPull').onclick = async () => {
+    const name = $('cfgOllamaPullName').value.trim() || $('cfgOllamaModel').value.trim();
+    if (!name) return;
+    $('cfgOllamaPull').disabled = true;
+    $('cfgOllamaHint').textContent = `Lade „${name}“ herunter …`;
+    $('cfgOllamaHint').className = 'hint';
+    const res = await z.ollamaPull({ url: $('cfgOllamaUrl').value, model: name });
+    $('cfgOllamaPull').disabled = false;
+    if (res && res.ok) {
+      $('cfgOllamaPullName').value = '';
+      await refreshOllamaInZentrale(name);
+      $('cfgOllamaHint').textContent = `„${name}“ ist bereit.`;
+      $('cfgOllamaHint').className = 'ok small';
+    } else {
+      $('cfgOllamaHint').textContent = `Fehler: ${(res && res.error) || 'Unbekannt'}`;
+      $('cfgOllamaHint').className = 'bad small';
+    }
+  };
+}
+
+document.querySelectorAll('.cfg-hotkey').forEach((input) => {
+  input.addEventListener('keydown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const acc = eventToAccelerator(e);
+    if (acc) {
+      input.value = acc;
+      input.blur();
+    }
+  });
+});
+
+if ($('cfgSaveBtn')) {
+  $('cfgSaveBtn').onclick = async () => {
+    const patch = {
+      provider: $('cfgProvider').value,
+      ollamaUrl: $('cfgOllamaUrl').value.trim() || 'http://127.0.0.1:11434',
+      ollamaModel:
+        $('cfgOllamaModel').value || (currentSettingsData && currentSettingsData.ollamaModel) || 'gemma4:e4b',
+      monthlyBudget: Number($('cfgMonthlyBudget').value) || 0,
+      whisperModel: $('cfgWhisperModel').value,
+      language: $('cfgLanguage').value,
+      panelCorner: $('cfgPanelCorner').value,
+      glowEnabled: $('cfgGlowEnabled').checked,
+      autostart: $('cfgAutostart').checked,
+      hotkeys: {
+        listen: $('cfgHkListen').value,
+        ask: $('cfgHkAsk').value,
+        read: $('cfgHkRead').value
+      }
+    };
+    const typedKey = $('cfgApiKey').value.trim();
+    if (typedKey) patch.apiKey = typedKey;
+    const res = await z.saveSettings(patch);
+    if (res && res.ok) {
+      $('cfgSaveStatus').textContent = 'Einstellungen gespeichert!';
+      $('cfgSaveStatus').className = 'ok small';
+      await load(true);
+      await loadSettingsPage();
+      setTimeout(() => {
+        if ($('cfgSaveStatus')) $('cfgSaveStatus').textContent = '';
+      }, 2500);
+    } else {
+      $('cfgSaveStatus').textContent = (res && res.error) || 'Fehler beim Speichern';
+      $('cfgSaveStatus').className = 'bad small';
+    }
+  };
+}
 
 // Memory page (AURA-108): facts with provenance; edit, delete, pause.
 const MEM_SOURCE = { explicit: 'gesagt', learned: 'gelernt', imported: 'übernommen', edited: 'bearbeitet' };
@@ -1643,14 +2437,28 @@ async function renderChats() {
   $('chatList').innerHTML = list
     .map(
       (c) => `
-    <div class="item"><div class="name" style="font-family:inherit">${esc(c.title)}</div><div class="desc">${esc(fmtTime(c.updated))} · ${esc(c.preview)}</div>
-    <div class="side"><button type="button" class="small danger" data-cdel="${esc(c.id)}">Löschen</button></div></div>`
+    <div class="item" data-copen-row="${esc(c.id)}" style="cursor:pointer"><div class="name" style="font-family:inherit">${esc(c.title)}</div><div class="desc">${esc(fmtTime(c.updated))} · ${esc(c.preview)}</div>
+    <div class="side"><button type="button" class="small" data-copen="${esc(c.id)}">Im Chat öffnen</button><button type="button" class="small danger" data-cdel="${esc(c.id)}">Löschen</button></div></div>`
     )
     .join('');
   $('chatList')
+    .querySelectorAll('[data-copen]')
+    .forEach((b) => {
+      b.onclick = (e) => {
+        e.stopPropagation();
+        openChatInZentrale(b.dataset.copen);
+      };
+    });
+  $('chatList')
+    .querySelectorAll('[data-copen-row]')
+    .forEach((row) => {
+      row.onclick = () => openChatInZentrale(row.dataset.copenRow);
+    });
+  $('chatList')
     .querySelectorAll('[data-cdel]')
     .forEach((b) => {
-      b.onclick = async () => {
+      b.onclick = async (e) => {
+        e.stopPropagation();
         await z.deleteChat(b.dataset.cdel);
         renderChats();
       };

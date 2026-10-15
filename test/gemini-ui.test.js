@@ -44,19 +44,30 @@ test('Aura Zentrale implements minimalist dark Google Gemini layout for Connecto
   const zCss = read('renderer/zentrale.css');
   const zJs = read('renderer/zentrale.js');
 
-  assert.match(zHtml, /<meta name="color-scheme" content="dark">/);
+  assert.match(zHtml, /<meta name="color-scheme" content="dark light">/);
   assert.match(zHtml, /id="customizeTabs"/);
   assert.match(zHtml, /data-tab="discover"/);
   assert.match(zHtml, /data-tab="catalog"/);
   assert.match(zHtml, /data-tab="skills"/);
   assert.match(zHtml, /<search>/);
+  assert.match(zHtml, /id="themeToggle"/);
+  assert.match(zHtml, /id="chat"/);
+  assert.match(zHtml, /id="settings"/);
+  assert.match(zHtml, /id="addCronTask"/);
+  assert.match(zHtml, /id="rulesQuickList"/);
 
   assert.doesNotMatch(zCss, /prefers-color-scheme:\s*light/);
+  assert.match(zCss, /:root\[data-theme="light"\]/);
   assert.match(zCss, /\.gem-grid/);
   assert.match(zCss, /\.gem-item/);
+  assert.match(zCss, /\.nav-scroll/);
 
   assert.match(zJs, /STARTER_SKILLS/);
   assert.match(zJs, /schreibstil-anpassen/);
   assert.match(zJs, /renderConnectorGrid/);
   assert.match(zJs, /renderSkillGrid/);
+  assert.match(zJs, /expandedServers/);
+  assert.match(zJs, /openChatInZentrale/);
+  assert.match(zJs, /renderQuickRules/);
+  assert.match(zJs, /loadSettingsPage/);
 });
