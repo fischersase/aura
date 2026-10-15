@@ -13,6 +13,7 @@ const DEFAULTS = {
   hotkeyLive: 'Control+Alt+L',
   hotkeyStop: 'Control+Alt+Escape', // Notbremse, nur aktiv solange der Agent arbeitet
   agentEnabled: true, // Aura darf Werkzeuge nutzen (Befehle, Dateien, Programme öffnen)
+  autoApprove: false, // Autonom-Modus: T2-Aktionen (Installieren, Schreiben, Befehle) ohne Rückfrage ausführen (T3 bleibt gesperrt)
   agentVersion: 'v2', // 'v2' = Agent auf Google ADK (agent/), 'v1' = bisheriger Agent; Umgebungsvariable AURA_AGENT_VERSION gewinnt
   provider: 'gemini', // 'gemini' (API-Key) oder 'ollama' (lokal)
   ollamaUrl: 'http://127.0.0.1:11434',

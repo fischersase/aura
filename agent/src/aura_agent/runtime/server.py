@@ -164,7 +164,10 @@ def build_runner(
         session_service=SqliteSessionService(str(settings.data_dir / "sessions.db")),
         plugins=[
             GuardPlugin(
-                policy, Hooks(settings.aura_dir / "hooks.json"), GrantStore(settings.data_dir / "grants.json")
+                policy,
+                Hooks(settings.aura_dir / "hooks.json"),
+                GrantStore(settings.data_dir / "grants.json"),
+                auto_approve=settings.auto_approve,
             ),
             ContextManagerPlugin(settings.num_ctx),
         ],

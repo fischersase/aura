@@ -35,7 +35,7 @@ BLOCKED = "Diese Aktion ist gesperrt (Stufe T3: {reason}). Sie wurde NICHT ausge
 
 # Werkzeuge, deren Ergebnis fremde Inhalte enthält (mögliche Prompt-Injection).
 TAINT_TOOLS = {"read_file", "run_command", "ui_snapshot", "screenshot", "recall"}
-TAINT_PREFIXES = ("browser_", "mcp_")
+TAINT_PREFIXES = ("browser_", "mcp_", "web_")
 # Werkzeuge, die lokale (möglicherweise vertrauliche) Daten in den Kontext bringen.
 LOCAL_DATA_TOOLS = {
     "read_file",
@@ -47,6 +47,8 @@ LOCAL_DATA_TOOLS = {
     "list_dir",
     "location",  # where the user is (AURA-116)
     "system_info",
+    "network_status",
+    "clipboard",
     "list_windows",
     "media_status",
     "settings",
@@ -217,12 +219,18 @@ def _failed(result: Any) -> bool:
 
 class GuardPlugin(BasePlugin):
     def __init__(
-        self, policy: PolicyEngine | None = None, hooks: Hooks | None = None, grants: GrantStore | None = None
+        self,
+        policy: PolicyEngine | None = None,
+        hooks: Hooks | None = None,
+        grants: GrantStore | None = None,
+        *,
+        auto_approve: bool = False,
     ) -> None:
         super().__init__(name="aura_guard")
         self.policy = policy or PolicyEngine()
         self.hooks = hooks or Hooks(None)
         self.grants = grants or GrantStore()
+        self.auto_approve = auto_approve
         self._started: dict[str, float] = {}
         # Aufrufe, die die Hülle selbst beantwortet hat (abgelehnt, gesperrt, unbekannt).
         # ADK ruft danach trotzdem after_tool_callback auf; dort werden sie übersprungen.
@@ -336,6 +344,15 @@ class GuardPlugin(BasePlugin):
             reason = hook.reason
 
         decision = "auto" if not verdict.rule else f"auto ({verdict.rule.describe()})"
+        if (
+            must_ask
+            and self.auto_approve
+            and tier < Tier.T3
+            and verdict.rule is None
+            and hook.decision != "ask"
+        ):
+            must_ask = False
+            decision = "auto (Autonom-Modus)"
         # Scoped grants (AURA-119): bound to this tool and its website, connector tool or exact action.
         key = (tool.name, subject(tool.name, tool_args, label, task.origin))
         granted = key in task.grants or self.grants.allows(key)
