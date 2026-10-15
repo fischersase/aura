@@ -58,8 +58,11 @@ fi
 
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
-echo "Klone sauberen Stand von origin/main..."
-git clone --depth 1 --branch main "git@github.com:$REPO.git" "$tmp_dir"
+echo "Klone sauberen Stand..."
+git clone --branch main "$root" "$tmp_dir"
+git -C "$tmp_dir" remote set-url origin "git@github.com:$REPO.git"
+git -C "$tmp_dir" fetch origin main
+git -C "$tmp_dir" reset --hard origin/main
 
 branch="release-$target_version"
 git -C "$tmp_dir" checkout -b "$branch"
