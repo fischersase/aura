@@ -115,3 +115,29 @@ async def test_drifted_server_offers_no_tools(monkeypatch):
     assert await ok.get_tools() == []
     [(_, unchecked)] = mcp.build_toolsets([{"name": "b", "command": "srv"}])
     assert await unchecked.get_tools() == tools
+
+
+def test_tools_hash_with_real_sdk_tool_objects():
+    """Regression (2026-10-15): with real mcp.types.Tool objects (input_schema) the hash must match the app, too."""
+    import json
+    from pathlib import Path
+
+    from mcp.types import Tool
+
+    fixture = Path(__file__).parents[3] / "test" / "fixtures" / "drift-tools.json"
+    tools = [
+        Tool(
+            name=t["name"],
+            description=t.get("description"),
+            inputSchema=t.get("inputSchema") or {"type": "object"},
+        )
+        for t in json.loads(fixture.read_text(encoding="utf-8"))["tools"]
+    ]
+    expected = [
+        {**t, "inputSchema": t.get("inputSchema") or {"type": "object"}}
+        for t in json.loads(fixture.read_text(encoding="utf-8"))["tools"]
+    ]
+    assert mcp.tools_hash(tools) == mcp.tools_hash([SimpleNamespace(**t) for t in expected])
+    assert mcp.tools_hash(tools) != mcp.tools_hash(
+        [SimpleNamespace(name=t.name, description=t.description) for t in tools]
+    )

@@ -157,7 +157,8 @@ def tools_hash(tools: list[Any]) -> str:
             {
                 "name": str(getattr(t, "name", "")),
                 "description": str(getattr(t, "description", None) or ""),
-                "inputSchema": getattr(t, "inputSchema", None) or {},
+                # MCP SDK 2.x names it input_schema, 1.x inputSchema; a missing one would make every server look changed.
+                "inputSchema": getattr(t, "input_schema", None) or getattr(t, "inputSchema", None) or {},
             }
             for t in tools
         ),
