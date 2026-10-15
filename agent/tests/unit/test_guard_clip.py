@@ -53,3 +53,18 @@ def test_short_results_stay_untouched_and_non_json_is_none():
 def test_mcp_tool_errors_count_as_failed():
     assert _failed({"content": [{"type": "text", "text": "invalid cloudId"}], "isError": True})
     assert not _failed({"content": [], "isError": False})
+
+
+def test_mcp_errors_are_failed_with_their_text():
+    from aura_agent.harness.guard import _error_text
+
+    r = {
+        "content": [{"type": "text", "text": '{"error": "Anmeldung abgelehnt: App-Passwort prüfen"}'}],
+        "structuredContent": {"error": "Anmeldung abgelehnt: App-Passwort prüfen"},
+    }
+    assert _failed(r)
+    assert _error_text(r) == "Anmeldung abgelehnt: App-Passwort prüfen"
+    assert (
+        _error_text({"content": [{"type": "text", "text": "invalid cloudId"}], "isError": True})
+        == "invalid cloudId"
+    )

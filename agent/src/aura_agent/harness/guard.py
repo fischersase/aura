@@ -178,11 +178,33 @@ def _clip_result(result: Any) -> Any:
     return result
 
 
+def _error_text(d: dict[str, Any]) -> str:
+    """Error message of a tool result for the audit: "error", or the text of an MCP result (isError or a JSON payload
+    with "error" inside its content), so failures of connectors are visible (AURA-134)."""
+    if d.get("error"):
+        return str(d["error"])[:300]
+    content = d.get("content")
+    items: list[Any] = cast("list[Any]", content) if isinstance(content, list) else []
+    texts = [str(c.get("text", "")) for c in (_as_dict(i) for i in items) if c is not None]
+    for t in texts:
+        try:
+            inner = _as_dict(json.loads(t))
+        except ValueError:
+            continue
+        if inner is not None and inner.get("error"):
+            return str(inner["error"])[:300]
+    return " ".join(texts)[:300]
+
+
 def _failed(result: Any) -> bool:
     d = _as_dict(result)
     if d is None:
         return False
     if d.get("error") or d.get("isError") is True:  # isError: MCP tool error
+        return True
+    # MCP tools that report a failure as {"error": …} in their JSON content (e.g. Aura's mail connector).
+    structured = d.get("structuredContent")
+    if isinstance(structured, dict) and cast("dict[str, Any]", structured).get("error"):
         return True
     code = d.get("exit_code")
     return code not in (None, 0)
@@ -396,7 +418,7 @@ class GuardPlugin(BasePlugin):
             ok=not failed,
             ms=ms,
             verified=verified,
-            error=result_dict.get("error") if result_dict is not None else None,
+            error=_error_text(result_dict) if failed and result_dict is not None else None,
         )
         if self.hooks.after:
             await self.hooks.after_tool(
