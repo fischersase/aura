@@ -1,9 +1,9 @@
 """Everyday context: where the user is and what the weather does (AURA-116).
 
 Location sources, chosen by the user in the Zentrale (profile → Standort):
-  profile: the place the user typed into the profile (default; no network call for the location itself)
-  ip:      approximate, city level, from the IP address via ipapi.co (opt-in, sends the IP to that service)
-  device:  the OS location service (follow-up subtask; until then like "profile")
+  device:  automatic via the OS / device GPS location service with network/IP fallback (default)
+  ip:      approximate, city level, from the IP address via ipapi.co / ipwho.is
+  profile: only the place the user typed into the profile (no automatic location lookup)
 
 Weather comes from Open-Meteo (no key, open data): geocoding-api.open-meteo.com and api.open-meteo.com. Both are
 listed in docs/security/privacy.md. Results are cached for 15 minutes.
@@ -11,8 +11,14 @@ listed in docs/security/privacy.md. Results are cached for 15 minutes.
 
 from __future__ import annotations
 
+import asyncio
+import json
+import shutil
+import sys
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -20,10 +26,15 @@ import httpx
 from ..harness.tiers import Tier, aura_tool
 
 GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search"
+REVERSE_GEOCODE_URL = "https://nominatim.openstreetmap.org/reverse"
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 IP_URL = "https://ipapi.co/json/"
+IP_FALLBACK_URL = "https://ipwho.is/"
 CACHE_S = 15 * 60
 TIMEOUT_S = 10
+DEVICE_TIMEOUT_S = 2.5
+
+DeviceProvider = Callable[[], Awaitable[tuple[float, float, float | None] | None]]
 
 # WMO weather interpretation codes (Open-Meteo docs) → German.
 WEATHER_CODES = {
@@ -81,16 +92,120 @@ class Place:
     timezone: str = "auto"
 
 
+def _parse_etc_geolocation(path: Path = Path("/etc/geolocation")) -> tuple[float, float, float | None] | None:
+    """Reads static coordinates from /etc/geolocation (man 5 geoclue) if present."""
+    try:
+        if not path.is_file():
+            return None
+        lines = [
+            ln.strip()
+            for ln in path.read_text(encoding="utf-8").splitlines()
+            if ln.strip() and not ln.strip().startswith("#")
+        ]
+        if len(lines) < 2:
+            return None
+        lat = float(lines[0])
+        lon = float(lines[1])
+        acc = float(lines[3]) if len(lines) >= 4 else None
+        if -90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0:
+            return (lat, lon, acc)
+    except (OSError, ValueError):
+        return None
+    return None
+
+
+async def _run_json_probe(cmd: list[str], timeout: float = DEVICE_TIMEOUT_S) -> dict[str, Any] | None:
+    """Runs a quick OS location helper subprocess and parses a JSON line."""
+    proc: asyncio.subprocess.Process | None = None
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        if proc.returncode != 0 or not stdout:
+            return None
+        data = json.loads(stdout.decode("utf-8", errors="replace").strip().splitlines()[-1])
+        return data if isinstance(data, dict) else None
+    except (OSError, TimeoutError, ValueError):
+        if proc is not None and proc.returncode is None:
+            try:
+                proc.kill()
+                await proc.wait()
+            except OSError:
+                pass
+        return None
+
+
+async def _probe_os_gps() -> tuple[float, float, float | None] | None:
+    """Queries the native OS location / GPS service (Linux GeoClue2/GPSD, Windows Location API, macOS CoreLocation)."""
+    if sys.platform.startswith("linux"):
+        static = _parse_etc_geolocation()
+        if static is not None:
+            return static
+        # Query GeoClue2 via system python3 (which has PyGObject/gir1.2-geoclue-2.0 when installed).
+        sys_py = shutil.which("/usr/bin/python3") or sys.executable
+        script = (
+            "import json, gi; gi.require_version('Geoclue', '2.0'); "
+            "from gi.repository import Geoclue; "
+            "s = Geoclue.Simple.new_sync('firefox', Geoclue.AccuracyLevel.EXACT, None); "
+            "loc = s.get_location(); "
+            "print(json.dumps({'lat': loc.get_property('latitude'), "
+            "'lon': loc.get_property('longitude'), 'acc': loc.get_property('accuracy')}))"
+        )
+        data = await _run_json_probe([sys_py, "-c", script])
+    elif sys.platform == "win32":
+        ps = shutil.which("powershell.exe") or "powershell"
+        script = (
+            "Add-Type -AssemblyName System.Device; "
+            "$w = New-Object System.Device.Location.GeoCoordinateWatcher([System.Device.Location.GeoPositionAccuracy]::High); "
+            "$w.Start(); "
+            "$n = 0; while (($w.Status -ne 'Ready') -and ($n -lt 20)) { Start-Sleep -Milliseconds 100; $n++ }; "
+            "$c = $w.Position.Location; $w.Stop(); "
+            "if (-not $c.IsUnknown) { "
+            "@{lat=$c.Latitude; lon=$c.Longitude; acc=$c.HorizontalAccuracy} | ConvertTo-Json -Compress "
+            "}"
+        )
+        data = await _run_json_probe([ps, "-NoProfile", "-NonInteractive", "-Command", script], timeout=3.0)
+    elif sys.platform == "darwin":
+        cli = shutil.which("CoreLocationCLI")
+        if not cli:
+            return None
+        data = await _run_json_probe([cli, "-json", "-once"], timeout=3.0)
+    else:
+        return None
+
+    if not data:
+        return None
+    try:
+        lat = float(data["lat"] if "lat" in data else data["latitude"])
+        lon = float(data["lon"] if "lon" in data else data["longitude"])
+        acc_raw = data.get("acc", data.get("hAccuracy"))
+        acc = float(acc_raw) if acc_raw is not None else None
+        if -90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0:
+            return (lat, lon, acc)
+    except (KeyError, TypeError, ValueError):
+        return None
+    return None
+
+
 class ContextService:
     """Location and weather with a small cache. `client` is injectable for tests (httpx.MockTransport)."""
 
     def __init__(
-        self, mode: str = "profile", profile_place: str = "", client: httpx.AsyncClient | None = None
+        self,
+        mode: str = "device",
+        profile_place: str = "",
+        client: httpx.AsyncClient | None = None,
+        device_provider: DeviceProvider | None = None,
     ) -> None:
-        self.mode = mode if mode in ("profile", "ip", "device") else "profile"
+        self.mode = mode if mode in ("profile", "ip", "device") else "device"
         self.profile_place = profile_place.strip()
         self._client = client
+        self._device_provider = device_provider
         self._cache: dict[str, tuple[float, Any]] = {}
+        self._device_place_cache: tuple[float, Place] | None = None
 
     def _http(self) -> httpx.AsyncClient:
         if self._client is None:
@@ -134,22 +249,90 @@ class ContextService:
             r.get("timezone") or "auto",
         )
 
+    async def _reverse_geocode(self, latitude: float, longitude: float) -> str:
+        """Resolves GPS coordinates to a German place label via OpenStreetMap Nominatim."""
+        try:
+            data = await self._get(
+                REVERSE_GEOCODE_URL,
+                {
+                    "format": "jsonv2",
+                    "lat": round(latitude, 4),
+                    "lon": round(longitude, 4),
+                    "accept-language": "de",
+                },
+            )
+            addr = data.get("address") if isinstance(data, dict) else None
+            if isinstance(addr, dict):
+                city = (
+                    addr.get("city")
+                    or addr.get("town")
+                    or addr.get("village")
+                    or addr.get("municipality")
+                    or addr.get("county")
+                )
+                parts = [str(x) for x in (city, addr.get("state"), addr.get("country")) if x]
+                if parts:
+                    return ", ".join(parts)
+            if isinstance(data, dict) and data.get("display_name"):
+                return str(data["display_name"])
+        except httpx.HTTPError:
+            pass
+        return f"{latitude:.4f}, {longitude:.4f}"
+
+    async def _ip_location(self, source: str = "ip") -> Place | None:
+        """Resolves approximate city-level coordinates from IP address (ipapi.co with ipwho.is fallback)."""
+        for url in (IP_URL, IP_FALLBACK_URL):
+            try:
+                data = await self._get(url)
+            except httpx.HTTPError:
+                continue
+            if not isinstance(data, dict) or data.get("latitude") is None or data.get("longitude") is None:
+                continue
+            country = data.get("country_name") or data.get("country")
+            label = ", ".join(str(x) for x in (data.get("city"), data.get("region"), country) if x)
+            tz_raw = data.get("timezone")
+            tz = str(tz_raw.get("id") or "auto") if isinstance(tz_raw, dict) else str(tz_raw or "auto")
+            return Place(
+                label or "unbekannt",
+                float(data["latitude"]),
+                float(data["longitude"]),
+                source,
+                "ungefähr (Stadt)",
+                tz,
+            )
+        return None
+
+    async def _device_location(self) -> Place | None:
+        """Reads hardware/OS GPS coordinates and reverse-geocodes them, with 15-minute caching."""
+        if self._device_place_cache and time.monotonic() - self._device_place_cache[0] < CACHE_S:
+            return self._device_place_cache[1]
+        provider = self._device_provider or _probe_os_gps
+        coords = await provider()
+        if coords is None:
+            return None
+        lat, lon, acc = coords
+        label = await self._reverse_geocode(lat, lon)
+        acc_label = f"genau (GPS ±{round(acc)} m)" if acc and acc > 0 else "genau (GPS / Gerät)"
+        place = Place(label, lat, lon, "device", acc_label, "auto")
+        self._device_place_cache = (time.monotonic(), place)
+        return place
+
     async def current(self) -> Place | None:
         """The user's location from the chosen source, or None."""
+        if self.mode == "device":
+            device_place = await self._device_location()
+            if device_place is not None:
+                return device_place
+            if self.profile_place:
+                place = await self.geocode(self.profile_place)
+                if place:
+                    place.source = "profile"
+                    return place
+            return await self._ip_location(source="device")
         if self.mode == "ip":
-            data = await self._get(IP_URL)
-            if data.get("latitude") is not None:
-                label = ", ".join(
-                    str(x) for x in (data.get("city"), data.get("region"), data.get("country_name")) if x
-                )
-                return Place(
-                    label or "unbekannt",
-                    float(data["latitude"]),
-                    float(data["longitude"]),
-                    "ip",
-                    "ungefähr (Stadt)",
-                    data.get("timezone") or "auto",
-                )
+            ip_place = await self._ip_location(source="ip")
+            if ip_place is not None:
+                return ip_place
         if self.profile_place:
             place = await self.geocode(self.profile_place)
             if place:

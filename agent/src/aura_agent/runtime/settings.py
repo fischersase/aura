@@ -49,8 +49,8 @@ class AgentSettings:
     # Memory paused in the Zentrale (AURA-108): nothing is read from or written to memory.
     memory_paused: bool = False
     # Curated connector catalog from the app (src/catalog/connectors.json) and IDs the user never wants suggested (AURA-96).
-    # Location (AURA-116): source chosen by the user ("profile" | "ip" | "device") and the place from the profile.
-    location_mode: str = "profile"
+    # Location (AURA-116): source chosen by the user ("device" | "ip" | "profile") and the place from the profile.
+    location_mode: str = "device"
     # Websites with a login in Aura's vault (AURA-124): origins only, so tasks on them go to the browser specialist.
     login_origins: list[str] = field(default_factory=list)
     profile_place: str = ""

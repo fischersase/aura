@@ -1818,7 +1818,7 @@ async function loadProfile() {
   for (const [id, key] of Object.entries(PROFILE_FIELDS)) $(id).value = p[key] || '';
   $('pShare').checked = !!p.share;
   for (const r of document.querySelectorAll('input[name=locMode]'))
-    r.checked = r.value === (p.locationMode || 'profile');
+    r.checked = r.value === (p.locationMode || 'device');
   $('pStatus').textContent = '';
 }
 for (const r of document.querySelectorAll('input[name=locMode]'))
@@ -1831,7 +1831,7 @@ for (const id of [...Object.keys(PROFILE_FIELDS), 'pShare'])
   });
 $('saveProfile').onclick = async () => {
   const mode = document.querySelector('input[name=locMode]:checked');
-  const p = { share: $('pShare').checked, locationMode: mode ? mode.value : 'profile' };
+  const p = { share: $('pShare').checked, locationMode: mode ? mode.value : 'device' };
   for (const [id, key] of Object.entries(PROFILE_FIELDS)) p[key] = $(id).value.trim();
   await z.saveProfile(p);
   $('pStatus').textContent = 'Gespeichert';

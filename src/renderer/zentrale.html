@@ -458,9 +458,9 @@
       <label for="pLocation">Ort und Zeitzone</label><input type="text" id="pLocation" maxlength="200" placeholder="z. B. Hamburg, MEZ" autocomplete="off">
       <label>Standort für Wetter und Fragen in der Nähe</label>
       <div class="radio-list" id="pLocationMode">
-        <label><input type="radio" name="locMode" value="profile"> Nur der Ort oben (Standard; nichts wird ermittelt)</label>
+        <label><input type="radio" name="locMode" value="device"> Automatisch über das Gerät (GPS / Standortdienst des Systems, sonst ungefähre IP-Ortung)</label>
         <label><input type="radio" name="locMode" value="ip"> Ungefähr über meine IP-Adresse (Stadt). Dafür fragt Aura bei ipapi.co nach; der Dienst sieht deine IP-Adresse.</label>
-        <label><input type="radio" name="locMode" value="device" disabled> Genau über den Standortdienst des Systems (kommt bald)</label>
+        <label><input type="radio" name="locMode" value="profile"> Nur der Ort oben (nichts wird automatisch ermittelt)</label>
       </div>
       <label for="pOccupation">Beruf oder Rolle</label><input type="text" id="pOccupation" maxlength="200" placeholder="z. B. Produktmanager, Student, Entwickler" autocomplete="off">
       <label for="pAbout">Über dich</label><textarea id="pAbout" rows="4" maxlength="2000" placeholder="Woran du arbeitest, Interessen, Geräte, Projekte …"></textarea>
