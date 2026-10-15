@@ -26,9 +26,16 @@ MIN_WEB_ELEMENTS = 15
 _last: dict[int, dict[str, Any]] = {}  # Index → Element aus dem letzten ui_snapshot
 
 
+def _elements() -> dict[int, dict[str, Any]]:
+    task = current()
+    if task is not None and task.ui_elements:
+        return task.ui_elements
+    return _last
+
+
 def _consequential(a: dict[str, Any]) -> tuple[Tier, str]:
     index = str(a.get("index", ""))
-    known = _last.get(int(index)) if index.lstrip("-").isdigit() else None
+    known = _elements().get(int(index)) if index.lstrip("-").isdigit() else None
     text = f"{a.get('element', '')} {(known or {}).get('name', '')}"
     if CONSEQUENTIAL.search(text):
         return Tier.T2, "kann etwas löschen, senden, kaufen oder bestätigen"
@@ -56,11 +63,15 @@ async def ui_snapshot(app: str = "", window: str = "") -> dict[str, Any]:
     if not app:
         return await a11y.CLIENT.call("apps")
     r = await a11y.CLIENT.call("snapshot", app=app, window=window, max=250)
+    task = current()
     _last.clear()
+    if task is not None:
+        task.ui_elements.clear()
     for e in r.get("elements") or []:
         _last[e["index"]] = e
+        if task is not None:
+            task.ui_elements[e["index"]] = e
     if web_content_unavailable(r):
-        task = current()
         if task is not None:
             task.web_content_unavailable = True
         return {**r, "web_content_unavailable": True, "error": WEB_APP_NOTE}
@@ -94,7 +105,7 @@ async def ui_act(index: int, element: str, action: str = "click") -> dict[str, A
     """
     if err := _not_available():
         return err
-    known = _last.get(int(index))
+    known = _elements().get(int(index))
     if not known:
         return {"error": f"Index {index} ist nicht aus dem letzten ui_snapshot. Rufe ui_snapshot erneut auf."}
     # Die Einstufung beruht auf der Beschreibung; heißt das echte Element nach etwas Folgenreichem,
@@ -110,7 +121,9 @@ async def ui_act(index: int, element: str, action: str = "click") -> dict[str, A
 
 
 def _text_tier(a: dict[str, Any]) -> tuple[Tier, str]:
-    known = _last.get(int(a.get("index", -1))) if str(a.get("index", "")).lstrip("-").isdigit() else None
+    known = (
+        _elements().get(int(a.get("index", -1))) if str(a.get("index", "")).lstrip("-").isdigit() else None
+    )
     if known and known.get("role") == "password text":
         return Tier.T3, "Passwortfelder füllt Aura nicht aus"
     return Tier.T1, ""
@@ -131,7 +144,7 @@ async def ui_set_text(index: int, element: str, text: str) -> dict[str, Any]:
     """
     if err := _not_available():
         return err
-    if int(index) not in _last:
+    if int(index) not in _elements():
         return {"error": f"Index {index} ist nicht aus dem letzten ui_snapshot. Rufe ui_snapshot erneut auf."}
     r = await a11y.CLIENT.call("set_text", index=int(index), text=text)
     if r.get("error"):

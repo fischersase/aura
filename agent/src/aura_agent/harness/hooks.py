@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from ..platform.base import IS_WINDOWS
-from ..platform.proc import spawn_kwargs
+from ..platform.proc import child_env, kill_tree, spawn_kwargs
 
 log = logging.getLogger(__name__)
 TIMEOUT_S = 10.0
@@ -37,21 +37,24 @@ TIMEOUT_S = 10.0
 def hook_argv(command: str) -> list[str]:
     """Befehl eines Hooks zerlegen. Windows: Pfade mit \\ bleiben erhalten, .ps1 läuft über PowerShell."""
     if not IS_WINDOWS:
-        return shlex.split(command)
-    parts = [
-        p[1:-1] if len(p) >= 2 and p[0] == p[-1] == '"' else p for p in shlex.split(command, posix=False)
-    ]
-    if parts and parts[0].lower().endswith(".ps1"):
-        return [
-            "powershell.exe",
-            "-NoLogo",
-            "-NoProfile",
-            "-NonInteractive",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            *parts,
+        parts = shlex.split(command)
+    else:
+        parts = [
+            p[1:-1] if len(p) >= 2 and p[0] == p[-1] == '"' else p for p in shlex.split(command, posix=False)
         ]
+        if parts and parts[0].lower().endswith(".ps1"):
+            return [
+                "powershell.exe",
+                "-NoLogo",
+                "-NoProfile",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                *parts,
+            ]
+    if not parts:
+        raise ValueError("leerer Hook-Befehl")
     return parts
 
 
@@ -84,7 +87,7 @@ class Hooks:
                     for h in data.get("after_tool", [])
                     if h.get("command")
                 ]
-            except (OSError, json.JSONDecodeError, KeyError, TypeError) as e:
+            except (OSError, json.JSONDecodeError, KeyError, TypeError, AttributeError) as e:
                 log.warning("hooks.json unlesbar, Hooks ignoriert: %s", e)
 
     @staticmethod
@@ -94,16 +97,23 @@ class Hooks:
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            **spawn_kwargs(new_group=False),
+            env=child_env(),
+            **spawn_kwargs(new_group=True),
         )
         try:
             out, err = await asyncio.wait_for(
                 proc.communicate(json.dumps(payload, ensure_ascii=False, default=str).encode()), TIMEOUT_S
             )
         except TimeoutError:
-            with contextlib.suppress(ProcessLookupError):
-                proc.kill()
+            kill_tree(proc.pid)
+            with contextlib.suppress(Exception):
+                await asyncio.wait_for(proc.wait(), 2.0)
             return 124, "", f"Hook {hook.command} nach {TIMEOUT_S:.0f} s abgebrochen"
+        except asyncio.CancelledError:
+            kill_tree(proc.pid)
+            with contextlib.suppress(Exception):
+                await asyncio.wait_for(proc.wait(), 2.0)
+            raise
         return (
             proc.returncode or 0,
             out.decode(errors="replace").strip(),
@@ -117,7 +127,7 @@ class Hooks:
                 continue
             try:
                 code, out, err = await self._run(hook, {"event": "before_tool", **payload})
-            except OSError as e:
+            except (OSError, ValueError) as e:
                 return HookVerdict("deny", f"Hook {hook.command} ließ sich nicht starten: {e}")
             if code == 2:
                 return HookVerdict("deny", err or f"Hook {hook.command} hat die Aktion gesperrt")
@@ -141,5 +151,5 @@ class Hooks:
             if fnmatch.fnmatchcase(payload["tool"], hook.tool):
                 try:
                     await self._run(hook, {"event": "after_tool", **payload})
-                except OSError as e:
+                except (OSError, ValueError) as e:
                     log.warning("after-Hook %s: %s", hook.command, e)

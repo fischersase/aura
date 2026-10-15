@@ -69,6 +69,8 @@ class Client:
 
 
 async def test_forget_deletes_session_and_episodes_of_one_chat(tmp_path):
+    from aura_agent.memory.store import FactStore
+
     c = Client(tmp_path)
     await c.call(
         "initialize",
@@ -76,6 +78,9 @@ async def test_forget_deletes_session_and_episodes_of_one_chat(tmp_path):
     )
     await c.run("t1", "chat-a", "Mein Drucker heißt Kranich")
     await c.run("t2", "chat-b", "Hallo")
+    store = FactStore(tmp_path)
+    store.remember("Drucker heißt Kranich", "Geräte", chat_id="chat-a", source="learned")
+    store.remember("Lieblingsfarbe Grün", "Allgemein", chat_id="chat-b", source="learned")
     assert rows(c.data / "memory.db", "chat-a") > 0
     assert sessions(c.data / "sessions.db", "chat-a") == 1
 
@@ -85,6 +90,7 @@ async def test_forget_deletes_session_and_episodes_of_one_chat(tmp_path):
     assert r["result"]["episodes"] > 0
     assert rows(c.data / "memory.db", "chat-a") == 0
     assert sessions(c.data / "sessions.db", "chat-a") == 0
+    assert [f["text"] for f in store.list()] == ["Lieblingsfarbe Grün"]
     # The other chat is untouched.
     assert rows(c.data / "memory.db", "chat-b") > 0
     assert sessions(c.data / "sessions.db", "chat-b") == 1

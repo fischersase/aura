@@ -13,6 +13,7 @@ const DEFAULTS = {
   hotkeyLive: 'Control+Alt+L',
   hotkeyStop: 'Control+Alt+Escape', // Notbremse, nur aktiv solange der Agent arbeitet
   agentEnabled: true, // Aura darf Werkzeuge nutzen (Befehle, Dateien, Programme öffnen)
+  autoApprove: false, // Autonom-Modus: T2-Aktionen (Installieren, Schreiben, Befehle) ohne Rückfrage ausführen (T3 bleibt gesperrt)
   agentVersion: 'v2', // 'v2' = Agent auf Google ADK (agent/), 'v1' = bisheriger Agent; Umgebungsvariable AURA_AGENT_VERSION gewinnt
   provider: 'gemini', // 'gemini' (API-Key) oder 'ollama' (lokal)
   ollamaUrl: 'http://127.0.0.1:11434',
@@ -70,8 +71,11 @@ function load() {
 /** @param {Record<string, any>} patch */
 function save(patch) {
   const next = { ...load(), ...patch };
-  fs.mkdirSync(path.dirname(file()), { recursive: true });
-  fs.writeFileSync(file(), JSON.stringify(next, null, 2));
+  const target = file();
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  const tmp = `${target}.tmp.${process.pid}`;
+  fs.writeFileSync(tmp, JSON.stringify(next, null, 2), { mode: 0o600 });
+  fs.renameSync(tmp, target);
   cache = next;
   return next;
 }

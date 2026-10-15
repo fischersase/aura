@@ -29,7 +29,8 @@ class AgentSettings:
     session_type: str = field(default_factory=lambda: os.environ.get("XDG_SESSION_TYPE", ""))
     data_dir: Path = field(default_factory=_default_data_dir)
     aura_dir: Path = field(default_factory=lambda: Path.home() / ".aura")
-    max_llm_calls: int = 60
+    max_llm_calls: int = 120
+    auto_approve: bool = False
     tool_policy: dict[str, str] = field(default_factory=dict)
     browser: bool = True  # Browser-Spezialist (Playwright-MCP)
     # Start des Playwright-MCP im Paket: [Electron, …/cli.js] mit ELECTRON_RUN_AS_NODE=1; leer = npx (Entwicklung)
@@ -89,6 +90,7 @@ class AgentSettings:
         if p.get("geminiApiKey"):
             s.gemini_api_key = str(p["geminiApiKey"])
         s.memory_paused = bool(p.get("memoryPaused", False))
+        s.auto_approve = bool(p.get("autoApprove", False) or os.environ.get("AURA_AUTO_APPROVE") == "1")
         if p.get("locationMode") in ("profile", "ip", "device"):
             s.location_mode = p["locationMode"]
         s.profile_place = str(p.get("profilePlace") or "")[:200]

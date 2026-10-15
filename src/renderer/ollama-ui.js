@@ -53,12 +53,20 @@ function OllamaPanel(root, settings) {
     const opts = [];
     for (const m of installed) {
       const r = recommended.find((x) => x.name === m.name);
-      opts.push(`<option value="${m.name}">${m.name} · installiert${r && !r.vision ? ' · nur Text' : ''}</option>`);
+      const opt = document.createElement('option');
+      opt.value = m.name;
+      opt.textContent = `${m.name} · installiert${r && !r.vision ? ' · nur Text' : ''}`;
+      opts.push(opt);
     }
     for (const r of recommended) {
-      if (!names.has(r.name)) opts.push(`<option value="${r.name}">${r.label} · laden (${r.ram})</option>`);
+      if (!names.has(r.name)) {
+        const opt = document.createElement('option');
+        opt.value = r.name;
+        opt.textContent = `${r.label} · laden (${r.ram})`;
+        opts.push(opt);
+      }
     }
-    sel.innerHTML = opts.join('');
+    sel.replaceChildren(...opts);
     sel.value =
       selected && [...sel.options].some((o) => o.value === selected)
         ? selected

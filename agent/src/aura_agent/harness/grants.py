@@ -23,7 +23,7 @@ from urllib.parse import urlsplit
 Key = tuple[str, str]
 
 MAX_HOURS = 24
-PAGE_URL = re.compile(r"Page URL:\s*(\S+)")
+PAGE_URL = re.compile(r"(?:^|[\"'\\n]|\r?\n)### Page\s*(?:\r?\n|\\n)-\s*Page URL:\s*([^\s\"'\\]+)")
 
 
 def origin_of(url: str) -> str:
@@ -45,8 +45,10 @@ def subject(tool: str, args: dict[str, Any], label: str, current_origin: str) ->
 
 
 def page_origin(result: Any) -> str:
-    """Origin of the page a Playwright MCP result reports ("Page URL: …"), or ""."""
-    m = PAGE_URL.search(json.dumps(result, ensure_ascii=False) if not isinstance(result, str) else result)
+    """Origin of the page a Playwright MCP result reports ("### Page\\n- Page URL: …"), or ""."""
+    raw = json.dumps(result, ensure_ascii=False) if not isinstance(result, str) else result
+    header = raw.split("### Snapshot", 1)[0]
+    m = PAGE_URL.search(header)
     return origin_of(m.group(1)) if m else ""
 
 

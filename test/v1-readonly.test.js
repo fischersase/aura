@@ -16,7 +16,10 @@ test('v1: Starter, Systemumstellungen und Umgebungsvariablen sind nicht lesend',
     'nvidia-smi -pl 100',
     'Get-ChildItem env:',
     'echo $env:GITHUB_TOKEN',
-    'ps auxe'
+    'ps auxe',
+    'rg --pre=sh pattern',
+    'rg --pre sh pattern',
+    '(ls)'
   ]) {
     assert.strictEqual(isReadOnly(c), false, c);
   }

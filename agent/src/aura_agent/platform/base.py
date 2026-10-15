@@ -1,4 +1,4 @@
-"""Gemeinsame Datentypen der Plattform-Schicht (Linux X11, GNOME Wayland, Windows)."""
+"""Gemeinsame Datentypen der Plattform-Schicht (Linux X11, GNOME Wayland, Windows, macOS)."""
 
 from __future__ import annotations
 
@@ -7,6 +7,8 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 IS_WINDOWS = sys.platform == "win32"
+IS_MACOS = sys.platform == "darwin"
+IS_LINUX = not IS_WINDOWS and not IS_MACOS
 
 
 @dataclass

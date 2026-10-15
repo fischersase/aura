@@ -19,7 +19,11 @@ from typing import Any, cast
 
 GENESIS = "0" * 64
 MAX_VALUE = 500
-_SECRET_KEY = re.compile(r"pass(word)?|secret|token|api[_-]?key|credential|cookie", re.IGNORECASE)
+_SECRET_KEY = re.compile(
+    r"pass(word|wd|phrase)?|secret|token|api[_-]?key|private[_-]?key|session[_-]?key|credential|cookie|auth[_-]?header",
+    re.IGNORECASE,
+)
+_RESERVED_KEYS = frozenset({"ts", "kind", "prev", "hash"})
 
 
 # (Muster, Ersetzung) für Zugangsdaten innerhalb von Texten
@@ -107,13 +111,14 @@ class AuditLog:
 
     def write(self, kind: str, **fields: Any) -> dict[str, Any]:
         now = datetime.now(UTC)
+        safe_fields = {k: v for k, v in fields.items() if k not in _RESERVED_KEYS}
         with self._lock:
             path = self._file(now)
             prev = self._last_hash(path)
             entry = {
                 "ts": now.isoformat(timespec="milliseconds"),
                 "kind": kind,
-                **redact(fields),
+                **redact(safe_fields),
                 "prev": prev,
             }
             body = json.dumps(entry, ensure_ascii=False, sort_keys=True, default=str)

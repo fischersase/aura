@@ -308,6 +308,7 @@ def main() -> None:
     for line in sys.stdin:
         if not line.strip():
             continue
+        msg = None
         try:
             msg = json.loads(line)
             result = METHODS[msg["method"]](msg.get("params") or {})

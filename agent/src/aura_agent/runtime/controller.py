@@ -67,9 +67,11 @@ class TaskController:
         max_llm_calls: int = 60,
         on_finished: Callable[[str], None] | None = None,
         episodes_db: Path | None = None,
+        aura_dir: Path | None = None,
     ) -> None:
         self.runner = runner
         self.episodes_db = episodes_db  # memory.db of the runner's memory service (for forget_chat)
+        self.aura_dir = aura_dir  # for deleting learned facts of a forgotten chat (FR-MEM-008)
         self.memory_paused = False  # set by the server from the settings (AURA-108)
         self.host = host
         self.audit = audit
@@ -142,8 +144,21 @@ class TaskController:
         await asyncio.gather(*(self.cancel(t) for t in ids))
         return len(ids)
 
+    async def close(self) -> None:
+        """Closes all toolsets (including specialist AgentTool toolsets) and the ADK Runner."""
+        from google.adk.tools.base_toolset import BaseToolset
+
+        for tool in getattr(self.runner.agent, "tools", ()):
+            sub_agent = getattr(tool, "agent", None)
+            for sub_tool in getattr(sub_agent, "tools", ()):
+                if isinstance(sub_tool, BaseToolset):
+                    with contextlib.suppress(Exception):
+                        await sub_tool.close()
+        with contextlib.suppress(Exception):
+            await self.runner.close()
+
     async def forget_chat(self, chat_id: str) -> dict[str, int]:
-        """Deletes everything the agent stored about a chat: its session and its episodes (NFR-PRIV-007, AURA-106).
+        """Deletes everything the agent stored about a chat: its session, episodes, and learned facts (NFR-PRIV-007, FR-MEM-008, AURA-106).
 
         Running tasks of the chat are cancelled first, so they cannot write the session again.
         """
@@ -155,6 +170,10 @@ class TaskController:
             await service.delete_session(app_name=APP_NAME, user_id=USER_ID, session_id=chat_id)
             sessions = 1
         episodes = await asyncio.to_thread(self._delete_episodes, chat_id)
+        if self.aura_dir is not None:
+            from ..memory.store import FactStore
+
+            await asyncio.to_thread(FactStore(self.aura_dir).delete_where, chat_id, "learned")
         self.audit.write("chat_forgotten", chat=chat_id, sessions=sessions, episodes=episodes)
         return {"sessions": sessions, "episodes": episodes}
 

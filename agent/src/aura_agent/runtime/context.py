@@ -107,6 +107,8 @@ class TaskContext:
     web_content_unavailable: bool = False
     # Incognito chat (AURA-108): memory is neither read nor written, and the conversation is not kept for recall.
     incognito: bool = False
+    # Elements from the last ui_snapshot within this task.
+    ui_elements: dict[int, dict[str, Any]] = field(default_factory=dict)
 
     @property
     def tainted(self) -> bool:

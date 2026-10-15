@@ -145,3 +145,16 @@ def test_autostart_and_instructions_always_ask_even_when_new(fake_home, path):
 
 def test_ordinary_new_file_still_runs_without_asking(fake_home):
     assert _tier(files.write_file, path="~/Dokumente/neu.txt", content="x") == Tier.T1
+
+
+def test_parent_directory_containing_secrets_or_enforcement_is_t3(fake_home):
+    (fake_home / "ordner").mkdir()
+    (fake_home / ".ssh").mkdir(exist_ok=True)
+    (fake_home / ".ssh/id_rsa").write_text("KEY")
+    (fake_home / "ordner/link").symlink_to(fake_home / ".ssh/id_rsa")
+    assert _tier(files.move_path, source="~/ordner", destination="~/kopie", copy=True) == Tier.T3
+    assert _tier(files.trash, path="~/ordner") == Tier.T3
+    # Moving a file named policy.toml into ~/.aura directory is also T3
+    (fake_home / ".aura").mkdir(exist_ok=True)
+    (fake_home / "policy.toml").write_text("x")
+    assert _tier(files.move_path, source="~/policy.toml", destination="~/.aura") == Tier.T3

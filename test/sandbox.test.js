@@ -51,6 +51,32 @@ test('programs in ~/.local/bin do not expose ~/.local', () => {
   assert.deepStrictEqual(sandbox.programDirs('/usr/bin/npx', home), []);
 });
 
+test('roPaths never bind sensitive home subdirectories (.ssh, .gnupg, .aura, .local, .aws)', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aura-sbx-ro-'));
+  const safeExtra = path.join(home, 'workspace', 'project');
+  const r = sandbox.wrap(
+    'srv',
+    {
+      command: '/usr/bin/node',
+      sandbox: true,
+      roPaths: [
+        home,
+        path.join(home, '.ssh'),
+        path.join(home, '.gnupg', 'private-keys-v1.d'),
+        path.join(home, '.aura', 'secrets.json'),
+        path.join(home, '.local', 'share', 'keyrings'),
+        path.join(home, '.aws'),
+        safeExtra
+      ]
+    },
+    { platform: 'linux', home, bwrap: () => '/usr/bin/bwrap', which: () => '/usr/bin/node' }
+  );
+  const binds = [];
+  for (let i = 0; i < r.args.length; i++) if (r.args[i] === '--ro-bind') binds.push(r.args[i + 1]);
+  assert.deepStrictEqual(binds, ['/usr', safeExtra]);
+  fs.rmSync(home, { recursive: true, force: true });
+});
+
 // Real sandbox (Linux with a working bwrap): the server cannot read the user's files, but its own directory.
 test(
   'a sandboxed program cannot read home files but can write its own directory',
