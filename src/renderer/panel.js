@@ -216,7 +216,14 @@ $('minCloseBtn').onclick = (e) => {
 };
 $('closeBtn').onclick = () => window.api.hidePanel();
 $('openSettings').onclick = () => window.api.openSettings();
-$('openZentrale').onclick = () => window.api.openZentrale();
+$('openZentrale').onclick = async () => {
+  if (!incognito && chatHistory.length) {
+    try {
+      await window.api.saveChat({ id: chatId, history: chatHistory });
+    } catch {}
+  }
+  window.api.openZentrale({ page: 'chat', chatId: chatHistory.length ? chatId : null });
+};
 $('newChat').onclick = () => {
   sessionRestoredOnce = true;
   resetChat();

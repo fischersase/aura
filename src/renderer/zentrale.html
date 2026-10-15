@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta name="color-scheme" content="dark">
+<meta name="color-scheme" content="dark light">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:">
 <meta name="referrer" content="no-referrer">
 <title>Aura Zentrale</title>
@@ -20,83 +20,88 @@
     </button>
   </div>
 
-  <div class="nav-group">
-    <button type="button" data-page="overview">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
-      <span>Übersicht</span>
-    </button>
-    <button type="button" data-page="tasks">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-      <span>Geplant</span>
-    </button>
-    <button type="button" data-page="discover" id="navCustomize" class="on">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
-      <span>Anpassen</span>
-    </button>
-  </div>
+  <button type="button" id="navNewChat" class="new-chat-btn">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+    <span>Neuer Chat</span>
+  </button>
 
-  <div class="nav-more-wrap">
-    <button type="button" id="moreToggle" class="nav-more-btn" aria-expanded="false">
-      <span>Mehr</span>
-      <svg viewBox="0 0 24 24" class="chev" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-    </button>
-    <div id="moreMenu" class="nav-sub hidden">
-      <button type="button" data-page="catalog">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-        <span>Connectors</span>
+  <div class="nav-scroll">
+    <div class="nav-group">
+      <button type="button" data-page="chat" class="on">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span>Chat</span>
       </button>
-      <button type="button" data-page="skills">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z"/></svg>
-        <span>Skills</span>
+      <button type="button" data-page="overview">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        <span>Übersicht</span>
       </button>
-      <button type="button" data-page="servers">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/><circle cx="7" cy="7" r="1"/><circle cx="7" cy="17" r="1"/></svg>
-        <span>MCP-Server</span>
+      <button type="button" data-page="tasks">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        <span>Geplant</span>
       </button>
-      <button type="button" data-page="tools">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4l-6 6a2 2 0 0 0 2.8 2.8l6-6a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.8-2.8 2.6-2.6z"/></svg>
-        <span>Werkzeuge</span>
+      <button type="button" data-page="discover" id="navCustomize">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+        <span>Anpassen</span>
       </button>
-      <button type="button" data-page="instructions">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>
-        <span>Anweisungen</span>
-      </button>
-      <button type="button" data-page="memory">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a7 7 0 0 0-7 7c0 2.5 1.3 4.7 3.3 6v3a2 2 0 0 0 2 2h3.4a2 2 0 0 0 2-2v-3c2-1.3 3.3-3.5 3.3-6a7 7 0 0 0-7-7z"/></svg>
-        <span>Gedächtnis</span>
-      </button>
-      <button type="button" data-page="rules">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-        <span>Regeln</span>
-      </button>
-      <button type="button" data-page="secrets">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="m10.85 12.15 8.15-8.15M16 7l3 3M19 4l2 2"/></svg>
-        <span>Schlüssel &amp; Konten</span>
-      </button>
-      <button type="button" data-page="log">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>
-        <span>Aktionsprotokoll</span>
-      </button>
-      <button type="button" data-page="doctor">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>
-        <span>Systemprüfung</span>
-      </button>
-      <button type="button" data-page="profile">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.8-3.8 5-6 8-6s6.2 2.2 8 6"/></svg>
-        <span>Profil</span>
+      <button type="button" data-page="settings">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.77 1.05 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>Einstellungen &amp; Modelle</span>
       </button>
     </div>
-  </div>
 
-  <div class="nav-chats-section">
-    <div class="nav-section-head">
-      <span>Alle</span>
-      <button type="button" data-page="chats" class="nav-section-link" title="Alle gespeicherten Chats verwalten">Verwalten</button>
+    <div class="nav-more-wrap">
+      <button type="button" id="moreToggle" class="nav-more-btn" aria-expanded="false">
+        <span>Mehr</span>
+        <svg viewBox="0 0 24 24" class="chev" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <div id="moreMenu" class="nav-sub hidden">
+        <button type="button" data-page="servers">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/><circle cx="7" cy="7" r="1"/><circle cx="7" cy="17" r="1"/></svg>
+          <span>MCP-Server</span>
+        </button>
+        <button type="button" data-page="tools">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4l-6 6a2 2 0 0 0 2.8 2.8l6-6a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.8-2.8 2.6-2.6z"/></svg>
+          <span>Werkzeuge</span>
+        </button>
+        <button type="button" data-page="rules">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <span>Regeln</span>
+        </button>
+        <button type="button" data-page="instructions">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>
+          <span>Anweisungen</span>
+        </button>
+        <button type="button" data-page="memory">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a7 7 0 0 0-7 7c0 2.5 1.3 4.7 3.3 6v3a2 2 0 0 0 2 2h3.4a2 2 0 0 0 2-2v-3c2-1.3 3.3-3.5 3.3-6a7 7 0 0 0-7-7z"/></svg>
+          <span>Gedächtnis</span>
+        </button>
+        <button type="button" data-page="secrets">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="m10.85 12.15 8.15-8.15M16 7l3 3M19 4l2 2"/></svg>
+          <span>Schlüssel &amp; Konten</span>
+        </button>
+        <button type="button" data-page="log">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>
+          <span>Aktionsprotokoll</span>
+        </button>
+        <button type="button" data-page="doctor">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>
+          <span>Systemprüfung</span>
+        </button>
+        <button type="button" data-page="profile">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.8-3.8 5-6 8-6s6.2 2.2 8 6"/></svg>
+          <span>Profil</span>
+        </button>
+      </div>
     </div>
-    <div id="sidebarChats" class="sidebar-chats"></div>
-  </div>
 
-  <div class="grow"></div>
+    <div class="nav-chats-section">
+      <div class="nav-section-head">
+        <span>Alle</span>
+        <button type="button" data-page="chats" class="nav-section-link" title="Alle gespeicherten Chats verwalten">Verwalten</button>
+      </div>
+      <div id="sidebarChats" class="sidebar-chats"></div>
+    </div>
+  </div>
 
   <div class="nav-footer">
     <button type="button" class="nav-loc" id="navProfileLoc" title="Profil &amp; Standort bearbeiten">
@@ -116,8 +121,11 @@
 <main>
   <!-- Top Bar im Google-Gemini-Stil -->
   <header class="topbar">
-    <div class="topbar-brand">Aura</div>
-    <div id="customizeTabs" class="gem-tabs" role="tablist" aria-label="Aura anpassen">
+    <div class="topbar-left">
+      <span class="topbar-brand">Aura</span>
+      <button type="button" id="topModelBadge" class="model-pill" title="KI-Modell &amp; Einstellungen wechseln">Gemini</button>
+    </div>
+    <div id="customizeTabs" class="gem-tabs" role="tablist" aria-label="Aura anpassen" style="visibility:hidden">
       <button type="button" role="tab" data-tab="discover" class="gem-tab on">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polygon points="10,10 16,8 14,14 8,16"/></svg>
         <span>Entdecken</span>
@@ -131,11 +139,45 @@
         <span>Skills</span>
       </button>
     </div>
-    <button type="button" id="profileAvatarBtn" class="avatar-btn" title="Profil">A</button>
+    <div class="topbar-right">
+      <button type="button" id="themeToggle" class="icon-btn" title="Darstellung: Hell / Dunkel umschalten" aria-label="Darstellung umschalten">
+        <svg id="themeIconSun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+      </button>
+      <button type="button" id="profileAvatarBtn" class="avatar-btn" title="Profil">A</button>
+    </div>
   </header>
 
+  <!-- Gemini Chat (Standard-Einstiegsansicht in der Zentrale) -->
+  <section id="chat" class="page zchat-page">
+    <div id="zChatEmpty" class="zchat-empty">
+      <div class="zchat-greet-icon">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="m12 2 2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4L12 2z"/></svg>
+      </div>
+      <h1 id="zChatGreetTitle">Hallo! Wie kann ich dir heute helfen?</h1>
+      <p class="lead">Schreibe direkt hier in der Zentrale oder wechsle jederzeit aus dem kleinen Eck-Fenster hierher.</p>
+      <div class="zchat-chips">
+        <button type="button" class="pill-btn" data-prompt="Erstelle mir ein kurzes Tagesbriefing mit Wetter und anstehenden Aufgaben.">Tagesbriefing</button>
+        <button type="button" class="pill-btn" data-prompt="Welche Connectors und Skills sind aktuell in Aura eingerichtet?">Aktive Connectors &amp; Skills</button>
+        <button type="button" class="pill-btn" data-prompt="Fasse die wichtigsten Dateien in meinem Downloads-Ordner zusammen.">Downloads prüfen</button>
+        <button type="button" class="pill-btn" data-prompt="Hilf mir, eine wiederkehrende Aufgabe (Cronjob) für jeden Werktag um 8:30 Uhr anzulegen.">Cronjob planen</button>
+      </div>
+    </div>
+
+    <div id="zChatMessages" class="zchat-messages hidden"></div>
+
+    <form id="zChatForm" class="zchat-composer">
+      <textarea id="zChatInput" rows="1" placeholder="Frag Aura oder gib einen Auftrag …" spellcheck="true"></textarea>
+      <div class="zchat-composer-bar">
+        <span id="zChatModelInfo" class="muted small"></span>
+        <span class="grow"></span>
+        <button type="button" id="zChatClearBtn" class="pill-btn small hidden">Neuer Chat</button>
+        <button type="submit" id="zChatSendBtn" class="primary small">Senden</button>
+      </div>
+    </form>
+  </section>
+
   <!-- Entdecken (Unified Customize Landing Page wie in Google Gemini) -->
-  <section id="discover" class="page">
+  <section id="discover" class="page hidden">
     <div class="gem-hero">
       <h1>Aura anpassen</h1>
       <p class="lead">Verbinde deine bevorzugten Apps und passe an, wie Aura Aufgaben erledigt.</p>
@@ -224,6 +266,160 @@
     <div id="skillList" class="gem-grid"></div>
   </section>
 
+  <!-- Einstellungen & Modelle (Vollständig in die Zentrale integriert) -->
+  <section id="settings" class="page hidden">
+    <div class="head">
+      <h1>Einstellungen &amp; Modelle</h1>
+      <span class="grow"></span>
+      <span id="cfgSaveStatus" class="muted small"></span>
+      <button type="button" id="cfgSaveBtn" class="primary">Speichern</button>
+    </div>
+    <p class="lead">KI-Modell (Gemini oder lokal über Ollama), API-Key, Kostenbudget, Tastenkürzel und Darstellung.</p>
+
+    <div class="card form">
+      <h3>KI-Modell &amp; Anbieter</h3>
+      <label for="cfgProvider">Womit soll Aura arbeiten?</label>
+      <select id="cfgProvider" style="width:100%">
+        <option value="gemini">Gemini (Google API, per API-Key)</option>
+        <option value="ollama">Lokal über Ollama (Gemma, Qwen, DeepSeek … auf deinem PC)</option>
+      </select>
+    </div>
+
+    <div id="cfgGeminiBlock" class="card form">
+      <h3>Gemini API &amp; Modelle</h3>
+      <label for="cfgApiKey">Gemini API-Key</label>
+      <div class="row" style="margin-bottom:6px">
+        <input id="cfgApiKey" type="password" placeholder="AIza…" spellcheck="false">
+        <button type="button" id="cfgTestKey">Testen</button>
+      </div>
+      <div id="cfgKeyStatus" class="small muted"></div>
+      <p class="small muted">Key anlegen in <a href="#" data-url="https://aistudio.google.com/apikey">Google AI Studio</a>. Der Schlüssel wird verschlüsselt im System-Schlüsselbund gespeichert.</p>
+
+      <div class="settings-grid">
+        <div>
+          <label for="cfgChatModel">Chat- &amp; Agent-Modell</label>
+          <input id="cfgChatModel" type="text" spellcheck="false" placeholder="gemini-2.5-flash">
+        </div>
+        <div>
+          <label for="cfgLiveModel">Live-Modell</label>
+          <input id="cfgLiveModel" type="text" spellcheck="false">
+        </div>
+        <div>
+          <label for="cfgRamblerModel">Rambler-Modell</label>
+          <input id="cfgRamblerModel" type="text" spellcheck="false">
+        </div>
+        <div>
+          <label for="cfgDictationModel">Spracheingabe-Modell</label>
+          <input id="cfgDictationModel" type="text" spellcheck="false" placeholder="gemini-3.5-flash-lite">
+        </div>
+        <div>
+          <label for="cfgLiveVoice">Live-Stimme (z. B. Kore, Puck, Aoede)</label>
+          <input id="cfgLiveVoice" type="text" spellcheck="false">
+        </div>
+        <div>
+          <label for="cfgLiveFps">Bildschirmbilder pro Sekunde (Live)</label>
+          <select id="cfgLiveFps" style="width:100%">
+            <option value="0.5">0,5 (sparsam)</option>
+            <option value="1">1 (Standard)</option>
+            <option value="2">2</option>
+          </select>
+        </div>
+      </div>
+
+      <label for="cfgMonthlyBudget">Monatsbudget in USD (0 = kein Limit)</label>
+      <div class="row" style="margin-bottom:4px;align-items:center">
+        <input id="cfgMonthlyBudget" type="text" inputmode="decimal" style="max-width:180px">
+        <span id="cfgUsageText" class="small muted"></span>
+      </div>
+    </div>
+
+    <div id="cfgOllamaBlock" class="card form hidden">
+      <h3>Lokale Modelle (Ollama &amp; Whisper)</h3>
+      <div id="cfgOllamaStatus" class="small muted" style="margin-bottom:8px"></div>
+      <label for="cfgOllamaUrl">Ollama-Adresse</label>
+      <div class="row" style="margin-bottom:8px">
+        <input id="cfgOllamaUrl" type="text" spellcheck="false" placeholder="http://127.0.0.1:11434">
+        <button type="button" id="cfgOllamaCheck">Erneut prüfen</button>
+      </div>
+      <label for="cfgOllamaModel">Modell für Chat, Agent, Rambler und Live</label>
+      <div class="row" style="margin-bottom:8px">
+        <select id="cfgOllamaModel" style="flex:1"></select>
+        <button type="button" id="cfgOllamaPull">Herunterladen</button>
+      </div>
+      <div class="settings-grid">
+        <div>
+          <label for="cfgOllamaCtx">Kontextlänge (Gedächtnis pro Auftrag)</label>
+          <select id="cfgOllamaCtx" style="width:100%">
+            <option value="8192">8.192 Tokens (wenig Speicher)</option>
+            <option value="16384">16.384 Tokens (Standard)</option>
+            <option value="32768">32.768 Tokens (großer Grafikspeicher)</option>
+          </select>
+        </div>
+        <div>
+          <label for="cfgWhisperModel">Lokale Spracherkennung (Whisper)</label>
+          <select id="cfgWhisperModel" style="width:100%">
+            <option value="onnx-community/whisper-base">Whisper Base (klein &amp; schnell)</option>
+            <option value="onnx-community/whisper-small">Whisper Small (empfohlen)</option>
+            <option value="onnx-community/whisper-large-v3-turbo">Whisper Large v3 Turbo (am genauesten)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="card form">
+      <h3>Tastenkürzel</h3>
+      <p class="small muted" style="margin-top:0">Feld anklicken und gewünschte Tastenkombination drücken (z. B. <code>Control+Space</code>). Rücktaste löscht das Kürzel.</p>
+      <div class="settings-grid">
+        <div>
+          <label for="cfgHotkeyGemini">Aura-Eckfenster öffnen / minimieren</label>
+          <input id="cfgHotkeyGemini" class="cfg-hotkey" type="text" readonly>
+        </div>
+        <div>
+          <label for="cfgHotkeyRambler">Rambler (Diktieren &amp; Text umschreiben)</label>
+          <input id="cfgHotkeyRambler" class="cfg-hotkey" type="text" readonly>
+        </div>
+        <div>
+          <label for="cfgHotkeyLive">Live mit Bildschirm</label>
+          <input id="cfgHotkeyLive" class="cfg-hotkey" type="text" readonly>
+        </div>
+        <div>
+          <label for="cfgHotkeyStop">Notbremse (Agent sofort stoppen)</label>
+          <input id="cfgHotkeyStop" class="cfg-hotkey" type="text" readonly>
+        </div>
+      </div>
+      <div id="cfgHotkeyStatus" class="small bad" style="margin-top:6px"></div>
+    </div>
+
+    <div class="card form">
+      <h3>Darstellung, Sprache &amp; Systemstart</h3>
+      <div class="settings-grid">
+        <div>
+          <label for="cfgThemeSelect">Farbschema der Zentrale</label>
+          <select id="cfgThemeSelect" style="width:100%">
+            <option value="dark">Dunkel (Gemini Dark)</option>
+            <option value="light">Hell (Gemini Brightmode)</option>
+          </select>
+        </div>
+        <div>
+          <label for="cfgPanelCorner">Position des kleinen Eck-Fensters</label>
+          <select id="cfgPanelCorner" style="width:100%">
+            <option value="bottom-right">Unten rechts</option>
+            <option value="bottom-left">Unten links</option>
+            <option value="top-right">Oben rechts</option>
+            <option value="top-left">Oben links</option>
+          </select>
+        </div>
+        <div>
+          <label for="cfgLanguage">Bevorzugte Sprache</label>
+          <input id="cfgLanguage" type="text" placeholder="Deutsch">
+        </div>
+      </div>
+      <label class="switch" style="margin-top:14px"><input type="checkbox" id="cfgGlowStay"><span></span> Bildschirmrand leuchtet, solange das Eck-Fenster offen ist</label>
+      <br>
+      <label class="switch" style="margin-top:10px"><input type="checkbox" id="cfgAutostart"><span></span> Aura beim Anmelden automatisch im Hintergrund starten</label>
+    </div>
+  </section>
+
   <!-- Übersicht -->
   <section id="overview" class="page hidden">
     <div class="head"><h1>Übersicht</h1><span id="verBadge" class="badge" title="Installierte Version"></span></div>
@@ -248,7 +444,7 @@
     </div>
     <div class="card">
       <h3>So funktioniert die Freigabe</h3>
-      <p class="small">Jedes Werkzeug hat eine Regel: <b>Standard</b> (ändernde Aktionen fragen, lesende laufen sofort), <b>Immer fragen</b>, <b>Nie fragen</b> oder <b>Aus</b> (das Modell sieht das Werkzeug gar nicht). Die Regeln stellst du unter „Werkzeuge“ und bei jedem MCP-Server ein.</p>
+      <p class="small">Jedes Werkzeug hat eine Regel: <b>Standard</b> (ändernde Aktionen fragen, lesende laufen sofort), <b>Immer fragen</b>, <b>Nie fragen</b> oder <b>Aus</b> (das Modell sieht das Werkzeug gar nicht). Die Regeln stellst du unter „Regeln“, „Werkzeuge“ und bei jedem MCP-Server ein.</p>
       <p class="small muted">Dateien liegen in <code id="auraDir"></code>. <a href="#" data-open="aura">Ordner öffnen</a></p>
     </div>
   </section>
@@ -285,8 +481,11 @@
   <!-- Eingebaute Werkzeuge -->
   <section id="tools" class="page hidden">
     <h1>Eingebaute Werkzeuge</h1>
-    <p class="lead">Diese Werkzeuge bringt Aura mit. Lege pro Werkzeug fest, ob Aura fragen soll.</p>
+    <p class="lead">Diese Werkzeuge bringt Aura von Haus aus mit. Genau wie in Antigravity sind Terminal-Befehle nicht einzeln als tausende Werkzeuge aufgelistet, sondern im Werkzeug <code>run_command</code> gebündelt – gesteuert über deine Freigabe-Richtlinie und die Feinregeln unter <a href="#" id="toolsToRulesLink">Regeln</a>.</p>
     <div id="toolList" class="list"></div>
+    <h2 style="margin-top:28px">Erweiterte Agent-v2-Werkzeuge (System, Browser &amp; Zeitplan)</h2>
+    <p class="muted small" style="margin:0 0 12px">Diese spezialisierten Werkzeuge stehen Agent v2 zusätzlich zur Verfügung. Ihre Sicherheitsstufen (T0 = frei lesend, T1/T2 = fragt bei Änderungen) steuerst du bequem im Menü „Regeln“.</p>
+    <div id="v2ToolList" class="list"></div>
   </section>
 
   <!-- MCP-Server -->
@@ -294,19 +493,20 @@
     <div class="head"><h1>MCP-Server</h1><span class="grow"></span>
       <button type="button" id="reloadServers">Neu verbinden</button>
       <button type="button" id="addServer" class="primary">Server hinzufügen</button></div>
-    <p class="lead">MCP-Server geben Aura zusätzliche Werkzeuge, z. B. Browser-Steuerung, Kalender oder eigene Skripte. Gespeichert in <code>~/.aura/mcp.json</code> (<a href="#" data-open="mcp">im Ordner zeigen</a>).</p>
+    <p class="lead">MCP-Server geben Aura zusätzliche Werkzeuge, z. B. Browser-Steuerung, Kalender oder eigene Skripte. Klicke auf einen Server, um seine einzelnen Werkzeuge aufzuklappen. Gespeichert in <code>~/.aura/mcp.json</code> (<a href="#" data-open="mcp">im Ordner zeigen</a>).</p>
     <div id="serverList"></div>
   </section>
 
-  <!-- Geplante Aufgaben (AURA-121) -->
+  <!-- Geplante Aufgaben & Cronjobs (AURA-121) -->
   <section id="tasks" class="page hidden">
     <div class="gem-hero-row">
       <div>
-        <h1>Geplant</h1>
-        <p class="lead">Was Aura später oder regelmäßig für dich erledigt. Neue Aufgaben legst du im Chat an, z. B. „Erinnere mich morgen um 9 an den Zahnarzt“ oder „Fass mir werktags um 8 meine Termine zusammen“.</p>
+        <h1>Geplant &amp; Cronjobs</h1>
+        <p class="lead">Aufgaben, die Aura einmalig, täglich, im Intervall oder per klassischem 5-Felder-Cronjob (z. B. <code>0 8 * * 1-5</code>) automatisch im Hintergrund ausführt.</p>
       </div>
       <div class="gem-block-actions">
-        <button type="button" id="addBriefing" class="pill-btn primary-tonal">+ Tagesbriefing einrichten</button>
+        <button type="button" id="addBriefing" class="pill-btn">+ Tagesbriefing</button>
+        <button type="button" id="addCronTask" class="pill-btn primary-tonal">+ Aufgabe / Cronjob erstellen</button>
       </div>
     </div>
     <div id="taskList" class="list"></div>
@@ -319,13 +519,41 @@
     <textarea id="agentsMd" class="editor" spellcheck="false"></textarea>
   </section>
 
-  <!-- Regeln (Agent v2) -->
+  <!-- Regeln (Antigravity-Stil: Dropdowns + Feinregeln + TOML-Editor) -->
   <section id="rules" class="page hidden">
-    <div class="head"><h1>Regeln (Agent v2)</h1><span class="grow"></span><span id="ruleStatus" class="muted small"></span><button type="button" id="saveRules" class="primary">Speichern</button></div>
-    <p class="lead">Was Aura ohne Rückfrage darf (<code>allow</code>), wo es immer fragen soll (<code>ask</code>) und was nie (<code>deny</code>).
-      „Immer erlauben“ auf einer Freigabekarte legt hier eine Regel an. Zugangsdaten und Systemzerstörung bleiben immer gesperrt.</p>
-    <p class="muted small" id="rulesFile"></p>
-    <textarea id="rulesText" class="editor" spellcheck="false"></textarea>
+    <div class="head">
+      <h1>Regeln &amp; Ausführ-Richtlinien</h1>
+      <span class="grow"></span>
+      <span id="ruleStatus" class="muted small"></span>
+      <button type="button" id="addRuleBtn" class="pill-btn primary-tonal">+ Feinregel hinzufügen</button>
+    </div>
+    <p class="lead">Lege wie in Antigravity per Auswahlfeld fest, wann Aura ohne Rückfrage handeln darf (<b>Immer erlauben</b>), wann es <b>Standard (Nachfragen wenn nötig)</b> nutzt und was <b>Nie</b> ausgeführt werden darf.</p>
+
+    <div class="card">
+      <h3>Standard-Richtlinien nach Bereich</h3>
+      <p class="muted small" style="margin-top:0">Steuert das Grundverhalten der eingebauten Werkzeuge.</p>
+      <div id="rulesQuickList" class="list"></div>
+    </div>
+
+    <div class="card">
+      <div class="head" style="margin-bottom:8px">
+        <h3 style="margin:0">Feinregeln für Befehle, Webseiten &amp; MCP-Werkzeuge (<code>policy.toml</code>)</h3>
+        <span class="grow"></span>
+        <span class="muted small" id="rulesFile"></span>
+      </div>
+      <p class="muted small" style="margin-top:0">„Immer erlauben“ auf einer Freigabekarte im Chat legt hier automatisch eine Regel an. Du kannst einzelne Befehle (z. B. <code>git status*</code>) oder Webseiten gezielt erlauben, auf Nachfrage setzen oder blockieren.</p>
+      <div id="rulesVisualList" class="list"></div>
+    </div>
+
+    <details class="card rules-raw-details">
+      <summary>Erweitert: <code>policy.toml</code> direkt als Text bearbeiten</summary>
+      <div style="margin-top:12px">
+        <textarea id="rulesText" class="editor" spellcheck="false" style="min-height:220px"></textarea>
+        <div class="row" style="margin:10px 0 0;justify-content:flex-end">
+          <button type="button" id="saveRules" class="primary">TOML speichern</button>
+        </div>
+      </div>
+    </details>
   </section>
 
   <!-- Gedächtnis (Agent v2) -->
@@ -358,8 +586,8 @@
 
   <!-- Chats -->
   <section id="chats" class="page hidden">
-    <h1>Chats</h1>
-    <p class="lead">Gespeicherte Chats. Öffnen und weiterschreiben kannst du sie im Aura-Fenster über das Uhr-Symbol.</p>
+    <h1>Gespeicherte Chats</h1>
+    <p class="lead">Klicke auf einen Chat, um ihn direkt hier in der Zentrale zu öffnen und weiterzuschreiben.</p>
     <div id="chatList" class="list"></div>
   </section>
 </main>

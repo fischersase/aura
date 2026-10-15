@@ -50,7 +50,7 @@ contextBridge.exposeInMainWorld('api', {
   onChatError: on('chat:error'),
   onChatScreen: on('chat:screen'),
 
-  openZentrale: () => ipcRenderer.send('zentrale:open'),
+  openZentrale: (nav) => ipcRenderer.send('zentrale:open', nav),
 
   // Agent
   onAgentStep: on('agent:step'),

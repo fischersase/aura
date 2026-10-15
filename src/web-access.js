@@ -8,6 +8,8 @@ const ALLOW = new Set([
   'state',
   'log',
   'chats',
+  'getChat',
+  'saveChat',
   'deleteChat',
   'policy',
   'memory',
@@ -23,6 +25,9 @@ const ALLOW = new Set([
   'setSecretNote',
   'profile',
   'saveProfile',
+  'getSettings',
+  'testKey',
+  'ollamaStatus',
   'setAgent',
   'openUrl',
   'webInfo',
@@ -36,6 +41,7 @@ const CONFIRM = {
   installRegistry: (a) =>
     `MCP-Server „${a.name || (a.server && a.server.name) || '?'}“ aus dem Verzeichnis installieren`,
   addTask: (a) => `Geplante Aufgabe „${a && a.title}“ anlegen`,
+  runTask: (a) => `Geplante Aufgabe „${a}“ jetzt starten`,
   stopTask: (a) => `Laufende Aufgabe „${a}“ stoppen`,
   removeTask: (a) => `Geplante Aufgabe „${a}“ löschen`,
   toggleTask: (a) => `Geplante Aufgabe „${a.id}“ ${a.enabled ? 'einschalten' : 'pausieren'}`,
@@ -63,6 +69,9 @@ const CONFIRM = {
   memoryDeleteAll: () => 'Das gesamte Gedächtnis löschen',
   memoryPause: (a) => (a ? 'Gedächtnis pausieren' : 'Gedächtnis wieder einschalten'),
   setAgentVersion: (a) => `Agent-Version auf „${a}“ umstellen`,
+  saveSettings: () => 'Einstellungen und Modellauswahl speichern',
+  ollamaPull: (a) => `Lokales Modell „${a && a.name}“ über Ollama herunterladen`,
+  askChat: () => 'Nachricht im Chat senden',
   installExtension: () => 'GNOME-Erweiterung installieren'
 };
 
