@@ -45,13 +45,15 @@ function normalizeEmail(raw, label) {
   const domain = EMAIL_DOMAIN_TYPOS[domainClean] || domainClean;
   const normalized = `${local.trim()}@${domain}`;
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
-    throw new Error(`Bitte eine gültige E-Mail-Adresse für „${label}“ eintragen (Punkt in der Domain fehlt, z. B. name@gmail.com).`);
+    throw new Error(
+      `Bitte eine gültige E-Mail-Adresse für „${label}“ eintragen (Punkt in der Domain fehlt, z. B. name@gmail.com).`
+    );
   }
   return normalized;
 }
 
 /** @type {Connector[]} */
-const CATALOG = /** @type {Connector[]} */ (require('./catalog/connectors.json').connectors);
+const CATALOG = /** @type {Connector[]} */ (/** @type {unknown} */ (require('./catalog/connectors.json').connectors));
 
 const list = () => CATALOG;
 

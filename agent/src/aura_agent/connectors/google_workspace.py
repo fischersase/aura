@@ -260,7 +260,9 @@ class WorkspaceAccount:
                     tok = json.loads(resp.read().decode("utf-8"))
             except urllib.error.HTTPError as exc:
                 detail = exc.read().decode("utf-8", errors="replace")[:200]
-                raise RuntimeError(f"Google OAuth-Token-Erneuerung abgelehnt ({exc.code}: {detail}).") from exc
+                raise RuntimeError(
+                    f"Google OAuth-Token-Erneuerung abgelehnt ({exc.code}: {detail})."
+                ) from exc
             access = str(tok.get("access_token") or "").strip()
             if not access:
                 raise RuntimeError("Google hat kein access_token zurückgegeben.")
@@ -478,7 +480,11 @@ class GoogleWorkspaceClient:
 
         if re.fullmatch(r"\d{4}-\d{2}-\d{2}", clean_start):
             start_date = date.fromisoformat(clean_start)
-            end_date = date.fromisoformat(end.strip()) if re.fullmatch(r"\d{4}-\d{2}-\d{2}", end.strip()) else (start_date + timedelta(days=1))
+            end_date = (
+                date.fromisoformat(end.strip())
+                if re.fullmatch(r"\d{4}-\d{2}-\d{2}", end.strip())
+                else (start_date + timedelta(days=1))
+            )
             body: dict[str, Any] = {
                 "summary": clean_title,
                 "start": {"date": start_date.isoformat()},
@@ -518,7 +524,11 @@ class GoogleWorkspaceClient:
             "angelegt": True,
             "id": str(created.get("id") or ""),
             "titel": str(created.get("summary") or clean_title),
-            "start": str((created.get("start") or {}).get("dateTime") or (created.get("start") or {}).get("date") or clean_start),
+            "start": str(
+                (created.get("start") or {}).get("dateTime")
+                or (created.get("start") or {}).get("date")
+                or clean_start
+            ),
             "link": str(created.get("htmlLink") or ""),
         }
 
@@ -738,7 +748,11 @@ def build_server(client: GoogleWorkspaceClient | None = None) -> Any:
         except Exception as exc:  # noqa: BLE001
             return {"error": f"Google Drive nicht erreichbar ({exc})."}
         if not files:
-            return {"dateien": [], "anzahl": 0, "hinweis": "Keine passenden Dateien in Google Drive gefunden."}
+            return {
+                "dateien": [],
+                "anzahl": 0,
+                "hinweis": "Keine passenden Dateien in Google Drive gefunden.",
+            }
         return {"dateien": files, "anzahl": len(files)}
 
     @server.tool(annotations=ToolAnnotations(read_only_hint=True))

@@ -158,7 +158,9 @@ async def test_empty_search_says_so():
 def test_email_domain_typo_normalization():
     addr = mail.normalize_email_address("fischer.sase@gmailcom")
     assert addr == "fischer.sase@gmail.com"
-    acc = mail.Account.from_env({"MAIL_ADDRESS": "fischer.sase@gmailcom", "MAIL_PASSWORD": "abcd efgh ijkl mnop"})
+    acc = mail.Account.from_env(
+        {"MAIL_ADDRESS": "fischer.sase@gmailcom", "MAIL_PASSWORD": "abcd efgh ijkl mnop"}
+    )
     assert acc.address == "fischer.sase@gmail.com"
     assert acc.imap_host == "imap.gmail.com"
 
@@ -242,4 +244,3 @@ async def test_google_workspace_connector_tools_and_ical():
     assert "NVIDIA Technical Interview" in str(res_cal)
     res_drive = await ws_server.call_tool("workspace_drive_read", {"file_id": "doc-1"})
     assert "Quartalszahlen" in str(res_drive)
-
