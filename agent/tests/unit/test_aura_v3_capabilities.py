@@ -181,12 +181,22 @@ async def test_packages_and_network_status_verification(monkeypatch: pytest.Monk
     async def fake_exec(cmd: list[str], timeout: float = 20.0) -> tuple[int, str, str]:
         if cmd[0] == "flatpak" and cmd[1] == "search":
             return 0, "Proton VPN\tcom.protonvpn.www\t4.2.0\tFree VPN app", ""
+        if cmd[0] == "winget" and cmd[1] == "search":
+            return (
+                0,
+                "Name        Id                 Version\n--------------------------------------\nProton VPN  Proton.ProtonVPN   3.3.0",
+                "",
+            )
+        if cmd[0] == "powershell.exe":
+            return 0, "Ethernet\nProtonVPN TUN\n", ""
         if cmd[0] == "ip":
             return 0, "lo UNKNOWN 127.0.0.1/8\nwg-spain0 UNKNOWN 10.2.0.2/32\n", ""
         if cmd[0] == "nmcli":
             return 0, "Spain-VPN:wireguard:wg-spain0\n", ""
         return 0, "installed", ""
 
+    monkeypatch.setattr("aura_agent.tools.packages.IS_WINDOWS", False)
+    monkeypatch.setattr("aura_agent.tools.packages.IS_MACOS", False)
     monkeypatch.setattr("aura_agent.tools.packages._exec", fake_exec)
     monkeypatch.setattr("aura_agent.tools.packages._available_managers", lambda: ["flatpak"])
     found = await search_software("protonvpn")
@@ -230,6 +240,16 @@ async def test_packages_and_network_status_verification(monkeypatch: pytest.Monk
     assert net["country"] == "Spain"
     assert net["country_code"] == "ES"
     assert net["city"] == "Madrid"
+
+    # Also verify Windows branch (winget + Get-NetAdapter)
+    monkeypatch.setattr("aura_agent.tools.packages.IS_WINDOWS", True)
+    monkeypatch.setattr("aura_agent.tools.packages._available_managers", lambda: ["winget"])
+    win_found = await search_software("protonvpn")
+    assert win_found["count"] == 1
+    assert win_found["packages"][0]["id"] == "Proton.ProtonVPN"
+    win_net = await network_status()
+    assert win_net["vpn_active"] is True
+    assert "ProtonVPN TUN" in win_net["vpn_interfaces"]
 
 
 async def test_background_process_lifecycle(tmp_path: Path) -> None:
