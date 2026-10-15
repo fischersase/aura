@@ -1903,12 +1903,12 @@ function parsePolicyBlocks(text) {
 
 function serializeRuleBlock(r) {
   const lines = ['[[rule]]'];
-  if (r.tool) lines.push(`tool = "${r.tool.replace(/"/g, '\\"')}"`);
-  lines.push(`decision = "${r.decision || 'ask'}"`);
-  if (r.commandPrefix) lines.push(`command_prefix = "${r.commandPrefix.replace(/"/g, '\\"')}"`);
-  if (r.pathUnder) lines.push(`path_under = "${r.pathUnder.replace(/"/g, '\\"')}"`);
-  if (r.domain) lines.push(`domain = "${r.domain.replace(/"/g, '\\"')}"`);
-  if (r.reason) lines.push(`reason = "${r.reason.replace(/"/g, '\\"')}"`);
+  if (r.tool) lines.push(`tool = ${JSON.stringify(String(r.tool))}`);
+  lines.push(`decision = ${JSON.stringify(String(r.decision || 'ask'))}`);
+  if (r.commandPrefix) lines.push(`command_prefix = ${JSON.stringify(String(r.commandPrefix))}`);
+  if (r.pathUnder) lines.push(`path_under = ${JSON.stringify(String(r.pathUnder))}`);
+  if (r.domain) lines.push(`domain = ${JSON.stringify(String(r.domain))}`);
+  if (r.reason) lines.push(`reason = ${JSON.stringify(String(r.reason))}`);
   return lines.join('\n') + '\n';
 }
 
