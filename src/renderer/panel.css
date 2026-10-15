@@ -1,16 +1,16 @@
 :root {
   color-scheme: dark;
   --bg: rgba(19, 19, 20, 0.96);
-  --min-bg: rgba(24, 25, 27, 0.96);
+  --min-bg: rgba(26, 28, 32, 0.98);
   --composer-bg: #1e1f20;
   --user-bubble: #282a2c;
   --bg-2: rgba(255, 255, 255, 0.06);
   --bg-3: rgba(255, 255, 255, 0.11);
   --card-border: rgba(255, 255, 255, 0.08);
-  --min-border: rgba(255, 255, 255, 0.11);
+  --min-border: rgba(168, 199, 250, 0.28);
   --composer-border: rgba(255, 255, 255, 0.07);
   --card-shadow: 0 14px 44px rgba(0, 0, 0, 0.55);
-  --min-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
+  --min-shadow: 0 10px 32px rgba(0, 0, 0, 0.68), 0 0 20px rgba(66, 133, 244, 0.16);
   --text: #e3e3e3;
   --muted: #8e918f;
   --blue: #4285F4;
@@ -33,10 +33,10 @@
   --bg-2: rgba(0, 0, 0, 0.05);
   --bg-3: rgba(0, 0, 0, 0.10);
   --card-border: rgba(0, 0, 0, 0.10);
-  --min-border: rgba(0, 0, 0, 0.12);
+  --min-border: rgba(11, 87, 208, 0.24);
   --composer-border: rgba(0, 0, 0, 0.08);
   --card-shadow: 0 14px 44px rgba(0, 0, 0, 0.18);
-  --min-shadow: 0 8px 28px rgba(0, 0, 0, 0.16);
+  --min-shadow: 0 10px 32px rgba(0, 0, 0, 0.20), 0 0 18px rgba(11, 87, 208, 0.10);
   --text: #1f1f1f;
   --muted: #444746;
   --blue: #0b57d0;
@@ -71,10 +71,10 @@ body.corner-top .card { bottom: auto; top: 12px; }
 .min-bar { display: none; }
 .card.minimized {
   border-radius: 999px;
-  height: 46px;
-  max-height: 46px;
+  height: 60px;
+  max-height: 60px;
   background: var(--min-bg);
-  box-shadow: var(--min-shadow), 0 0 0 1px var(--min-border) inset;
+  box-shadow: var(--min-shadow), 0 0 0 1.5px var(--min-border) inset;
 }
 .card.minimized #chatView,
 .card.minimized #historyView,
@@ -83,9 +83,9 @@ body.corner-top .card { bottom: auto; top: 12px; }
 .card.minimized .min-bar {
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding: 0 6px 0 4px;
-  height: 46px;
+  gap: 4px;
+  padding: 0 10px 0 8px;
+  height: 60px;
   width: 100%;
 }
 .min-main {
@@ -93,25 +93,25 @@ body.corner-top .card { bottom: auto; top: 12px; }
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 6px 10px;
+  gap: 12px;
+  padding: 8px 14px;
   border-radius: 999px;
   text-align: left;
   color: var(--text);
 }
 .min-main:hover { background: var(--bg-2); }
-.min-main .spark { width: 18px; height: 18px; flex: 0 0 18px; }
+.min-main .spark { width: 24px; height: 24px; flex: 0 0 24px; }
 .min-title {
   flex: 1;
   min-width: 0;
-  font-size: 13.5px;
+  font-size: 15px;
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.min-expand { width: 16px; height: 16px; color: var(--muted); flex: 0 0 16px; }
-.min-close { width: 32px; height: 32px; flex: 0 0 32px; }
+.min-expand { width: 18px; height: 18px; color: var(--muted); flex: 0 0 18px; }
+.min-close { width: 36px; height: 36px; flex: 0 0 36px; }
 
 /* zarter Farbschimmer am Kartenrand, wie beim Gemini-Overlay */
 .sheen {

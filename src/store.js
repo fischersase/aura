@@ -41,7 +41,7 @@ const DEFAULTS = {
 };
 
 // Nutzerprofil: was Aura über dich wissen darf (fließt in die Systemanweisung ein, wenn share an ist).
-// locationMode (AURA-116): 'profile' (only the place above), 'ip' (approximate, opt-in), 'device' (OS, opt-in).
+// locationMode (AURA-116): 'device' (OS GPS + network fallback, default), 'ip' (approximate), 'profile' (only the place above).
 const DEFAULT_PROFILE = {
   name: '',
   location: '',
@@ -49,7 +49,7 @@ const DEFAULT_PROFILE = {
   about: '',
   preferences: '',
   share: true,
-  locationMode: 'profile'
+  locationMode: 'device'
 };
 
 /** @type {Record<string, any> | null} */

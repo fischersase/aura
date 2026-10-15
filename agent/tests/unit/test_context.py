@@ -1,9 +1,17 @@
 """Location and weather (tools/context.py, AURA-116). No network: httpx.MockTransport."""
 
+from pathlib import Path
+
 import httpx
 import pytest
 
-from aura_agent.tools.context import NO_PLACE, ContextService, describe, make_context_tools
+from aura_agent.tools.context import (
+    NO_PLACE,
+    ContextService,
+    _parse_etc_geolocation,
+    describe,
+    make_context_tools,
+)
 
 GEO = {
     "results": [
@@ -16,6 +24,13 @@ GEO = {
             "timezone": "Europe/Berlin",
         }
     ]
+}
+REVERSE_GEO = {
+    "address": {
+        "town": "Traunstein",
+        "state": "Bayern",
+        "country": "Deutschland",
+    }
 }
 FORECAST = {
     "current": {
@@ -53,20 +68,27 @@ IP = {
 }
 
 
-def service(mode="profile", place="Berlin, MEZ"):
+def service(mode="profile", place="Berlin, MEZ", device_provider=None):
     calls: list[str] = []
 
     def handler(req: httpx.Request) -> httpx.Response:
         calls.append(req.url.host)
         if req.url.host == "geocoding-api.open-meteo.com":
             return httpx.Response(200, json=GEO if req.url.params["name"] == "Berlin" else {})
+        if req.url.host == "nominatim.openstreetmap.org":
+            return httpx.Response(200, json=REVERSE_GEO)
         if req.url.host == "api.open-meteo.com":
             return httpx.Response(200, json=FORECAST)
         if req.url.host == "ipapi.co":
             return httpx.Response(200, json=IP)
         return httpx.Response(404)
 
-    svc = ContextService(mode, place, httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    svc = ContextService(
+        mode,
+        place,
+        httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+        device_provider=device_provider,
+    )
     location, weather = make_context_tools(svc)
     return svc, location, weather, calls
 
@@ -103,6 +125,42 @@ async def test_ip_location_only_with_opt_in():
     assert r["ort"] == "Hamburg, Hamburg, Germany"
     assert r["quelle"] == "ip"
     assert calls == ["ipapi.co"]
+
+
+async def test_device_gps_location_and_weather():
+    async def fake_gps():
+        return (47.8682, 12.6433, 15.0)
+
+    _, location, weather, calls = service(mode="device", place="", device_provider=fake_gps)
+    loc = await location()
+    assert loc["ort"] == "Traunstein, Bayern, Deutschland"
+    assert loc["quelle"] == "device"
+    assert loc["genauigkeit"] == "genau (GPS ±15 m)"
+    assert loc["breite"] == 47.87
+    assert loc["laenge"] == 12.64
+    w = await weather()
+    assert w["ort"] == "Traunstein, Bayern, Deutschland"
+    assert w["quelle_ort"] == "device"
+    assert "ipapi.co" not in calls
+
+
+async def test_device_mode_falls_back_to_ip_when_no_gps_sensor():
+    async def no_gps():
+        return None
+
+    _, location, weather, calls = service(mode="device", place="", device_provider=no_gps)
+    loc = await location()
+    assert loc["ort"] == "Hamburg, Hamburg, Germany"
+    assert loc["quelle"] == "device"
+    w = await weather()
+    assert w["ort"] == "Hamburg, Hamburg, Germany"
+    assert "ipapi.co" in calls
+
+
+def test_parse_etc_geolocation(tmp_path: Path):
+    geo_file = tmp_path / "geolocation"
+    geo_file.write_text("# Static geolocation\n48.1372\n11.5755\n520\n25\n", encoding="utf-8")
+    assert _parse_etc_geolocation(geo_file) == (48.1372, 11.5755, 25.0)
 
 
 async def test_unknown_place_and_unreachable_service():

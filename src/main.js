@@ -54,8 +54,8 @@ const R = (f) => path.join(__dirname, 'renderer', f);
 const ICON = path.join(__dirname, '..', 'assets', 'icon.png');
 const PANEL_W = 440;
 const PANEL_H = 620;
-const PANEL_MIN_W = 304;
-const PANEL_MIN_H = 68;
+const PANEL_MIN_W = 384;
+const PANEL_MIN_H = 84;
 const MARGIN = 4; // + 12 px Schattenrand im Panel-Fenster = 16 px Abstand
 const RAMBLER_W = 420;
 const RAMBLER_H = 92;
@@ -848,8 +848,13 @@ const agentV2 = new AgentBridge({
       declinedConnectors: s.declinedConnectors || [],
       disabledSkills: s.disabledSkills || [],
       memoryPaused: !!s.memoryPaused,
-      // Location (AURA-116): only what the user allowed in the profile.
-      locationMode: (s.profile && s.profile.locationMode) || 'profile',
+      // Location (AURA-116): defaults to automatic device GPS + network fallback unless restricted.
+      locationMode:
+        s.profile &&
+        s.profile.locationMode &&
+        (s.profile.locationMode !== 'profile' || (s.profile.location || '').trim())
+          ? s.profile.locationMode
+          : 'device',
       // Websites with a stored login (origins only, AURA-124).
       loginOrigins: [
         ...new Set(
