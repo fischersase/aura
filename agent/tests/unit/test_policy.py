@@ -50,8 +50,10 @@ def test_allow_always_persists_exact_action(tmp_path):
     f = tmp_path / "policy.toml"
     p = PolicyEngine(f)
     p.allow_always("run_command", "pkill -f 'chrome --type=renderer'")
+    p.allow_always("write_file", "line1\r\nline2\t'''end'")
     again = PolicyEngine(f)
     assert again.evaluate("run_command", "pkill -f 'chrome --type=renderer'", Tier.T2).decision == "auto"
+    assert again.evaluate("write_file", "line1\r\nline2\t'''end'", Tier.T2).decision == "auto"
     assert again.evaluate("run_command", "pkill -f chrome", Tier.T2).decision == "ask"
 
 

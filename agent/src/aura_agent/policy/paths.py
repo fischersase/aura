@@ -36,7 +36,7 @@ _FORBIDDEN_PATTERNS = [
     (re.compile(r"/Aura/agent/(audit|sessions\.db)"), "Protokoll und Gedächtnis von Aura"),
     (re.compile(r"^/etc/(shadow|gshadow|sudoers)"), "Systempasswörter"),
     (
-        re.compile(r"/\.(netrc|pgpass|git-credentials|docker/config\.json|kube/config)$|/\.aws/credentials$"),
+        re.compile(r"/\.(netrc|pgpass|git-credentials|docker/config\.json)$|/\.kube(/|$)|/\.aws(/|$)"),
         "Zugangsdaten",
     ),
     # AURA-16: Cloud-CLIs, Paket- und Entwicklerwerkzeuge, .env-Dateien
@@ -46,7 +46,7 @@ _FORBIDDEN_PATTERNS = [
         ),
         "Cloud-Zugangsdaten",
     ),
-    (re.compile(r"/(\.config/gh|AppData/Roaming/GitHub CLI)/hosts\.yml$"), "GitHub-Zugangsdaten"),
+    (re.compile(r"/(\.config/gh|AppData/Roaming/GitHub CLI)(/|$)"), "GitHub-Zugangsdaten"),
     (
         re.compile(
             r"/\.(npmrc|pypirc|vault-token)$|/AppData/Roaming/npm/etc/npmrc$|/\.cargo/credentials(\.toml)?$|"
@@ -101,11 +101,41 @@ def forbidden(path: str | Path) -> str | None:
     return None
 
 
-def path_tier(*paths: str | Path) -> tuple[Tier, str] | None:
+def _iter_subtree(root: Path, max_entries: int = 500) -> list[Path]:
+    """Bounded breadth-first traversal of an existing directory (including symlinks) for mutation checks."""
+    out: list[Path] = []
+    try:
+        if not root.is_dir() or root.is_symlink() or len(root.parts) <= 2:
+            return out
+    except OSError:
+        return out
+    queue = [root]
+    while queue and len(out) < max_entries:
+        cur = queue.pop(0)
+        try:
+            entries = list(cur.iterdir())
+        except OSError:
+            continue
+        for entry in entries:
+            out.append(entry)
+            if len(out) >= max_entries:
+                break
+            with contextlib.suppress(OSError):
+                if entry.is_dir() and not entry.is_symlink() and not entry.is_junction():
+                    queue.append(entry)
+    return out
+
+
+def path_tier(*paths: str | Path, check_tree: bool = False) -> tuple[Tier, str] | None:
     for p in paths:
         reason = forbidden(p)
         if reason:
             return Tier.T3, reason
+        if check_tree:
+            for child in _iter_subtree(Path(p)):
+                child_reason = forbidden(child)
+                if child_reason:
+                    return Tier.T3, child_reason
     return None
 
 
@@ -137,10 +167,14 @@ _PERSISTENCE = [
 ENFORCEMENT_IN_COMMAND = re.compile(r"\.aura[\\/](hooks\.json|policy\.toml|mcp\.json)", re.IGNORECASE)
 
 
-def control_tier(*paths: str | Path) -> tuple[Tier, str] | None:
+def control_tier(*paths: str | Path, check_tree: bool = False) -> tuple[Tier, str] | None:
     """Stufe für das *Verändern* dieser Pfade (Schreiben, Verschieben, Löschen), falls strenger als üblich."""
     worst: tuple[Tier, str] | None = None
-    for p in paths:
+    all_paths: list[str | Path] = list(paths)
+    if check_tree:
+        for p in paths:
+            all_paths.extend(_iter_subtree(Path(p)))
+    for p in all_paths:
         candidates = {str(p)}
         with contextlib.suppress(OSError):
             candidates.add(os.path.realpath(p))

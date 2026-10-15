@@ -159,8 +159,8 @@ class PolicyEngine:
 
 
 def _toml_str(s: str) -> str:
-    return (
-        "'''" + s + "'''"
-        if "'''" not in s and "\n" not in s
-        else '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
-    )
+    if "'''" not in s and not s.endswith("'") and all(c >= " " and c != "\x7f" for c in s):
+        return "'''" + s + "'''"
+    import json
+
+    return json.dumps(s, ensure_ascii=False)

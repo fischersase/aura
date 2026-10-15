@@ -272,10 +272,27 @@ def test_shell_may_read_enforcement_files():
         "cat ~/.config/gcloud/credentials.db",
         "cat ~/.config/gh/hosts.yml",
         "cat ~/.npmrc",
+        "cat ~/.ss?/id_rsa",
+        "cat /etc/shad*",
+        "cat ~/.config/Aura/agent/sessions.db",
     ],
 )
 def test_shell_cannot_read_cloud_and_tool_credentials(cmd):
     assert classify(cmd)[0] == Tier.T3, classify(cmd)
+
+
+@pytest.mark.parametrize(
+    "cmd",
+    [
+        "./ls",
+        "/opt/evil/cat /etc/hosts",
+        "~/Downloads/whoami",
+        "git branch -Df main",
+        "git tag -df v1",
+    ],
+)
+def test_path_prefixed_binaries_and_clustered_git_flags_ask(cmd):
+    assert classify(cmd)[0] == Tier.T2, classify(cmd)
 
 
 @pytest.mark.parametrize("cmd", ["cat environment.yml", "ls -la ~/projekt", "cat ~/notes/env.txt"])

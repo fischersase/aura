@@ -179,9 +179,16 @@ PS_BYPASSES = [
     "py -0 -c 1",
     "pwsh -v -Command x",
     "git branch -D main",
+    "git branch -Df main",
+    'git branch --list "main" "-D"',
     "git log --output=x",
+    'git diff "--output=C:\\evil.bat"',
+    'git diff "--ext-diff"',
     "git remote add x https://e.example",
     "arp -a -d 10.0.0.1",
+    'arp -a "-d" "10.0.0.1"',
+    'Get-Service "-ComputerName" "server1"',
+    'nvidia-smi "-pl" "100"',
 ]
 
 PS_STILL_READ_ONLY = [
@@ -233,6 +240,7 @@ def test_powershell_may_read_enforcement_files():
         "Get-Content $env:APPDATA\\gcloud\\credentials.db",
         "Get-Content $env:APPDATA\\'GitHub CLI'\\hosts.yml",
         "Get-Content ~\\.npmrc",
+        "Get-Content $env:APPDATA\\Aura\\agent\\sessions.db",
     ],
 )
 def test_powershell_cannot_read_cloud_and_tool_credentials(cmd):

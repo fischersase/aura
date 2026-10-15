@@ -10,6 +10,7 @@ Umgebungsvariablen können Schlüssel enthalten; sie auszugeben fragt ebenfalls.
 
 from __future__ import annotations
 
+import fnmatch
 import re
 import shlex
 
@@ -329,16 +330,25 @@ GIT_LIST_FLAGS = {"-l", "--list", "--contains", "--no-contains", "--merged", "--
 GIT_REMOTE_READ = {"", "-v", "--verbose", "show", "get-url"}
 
 
+def _has_git_flag(arg: str, flags: set[str]) -> bool:
+    head = arg.split("=")[0]
+    if head in flags:
+        return True
+    if head.startswith("-") and not head.startswith("--") and len(head) > 2:
+        return any(f"-{ch}" in flags for ch in head[1:])
+    return False
+
+
 def git_reason(words: list[str]) -> str:
     """Grund, warum ein git-Aufruf nicht nur liest, sonst ""."""
     args = words[1:]
     sub = next((w for w in args if not w.startswith("-")), "")
     rest = args[args.index(sub) + 1 :] if sub else []
     if sub in GIT_WRITE_FLAGS:
-        if any(w.split("=")[0] in GIT_WRITE_FLAGS[sub] for w in rest):
+        if any(_has_git_flag(w, GIT_WRITE_FLAGS[sub]) for w in rest):
             return f"„git {sub}“ mit verändernden Schaltern"
         if any(not w.startswith("-") for w in rest) and not any(
-            w.split("=")[0] in GIT_LIST_FLAGS for w in rest
+            _has_git_flag(w, GIT_LIST_FLAGS) for w in rest
         ):
             return f"„git {sub} <Name>“ legt etwas an"
     if sub == "remote":
@@ -396,13 +406,14 @@ FORBIDDEN = [
         "Browser-Passwörter oder Cookies",
     ),
     (re.compile(r"(^|\s)secret-tool(\s|$)"), "Schlüsselbund"),
-    (re.compile(r"\.aura/secrets|Aura/secrets\.json"), "Aura-Schlüssel"),
-    (re.compile(r"/etc/shadow|/etc/sudoers"), "Systempasswörter"),
+    (re.compile(r"\.aura/secrets|Aura/(secrets\.json|Local State)"), "Aura-Schlüssel"),
+    (re.compile(r"Aura/agent/(audit|sessions\.db)"), "Protokoll und Gedächtnis von Aura"),
+    (re.compile(r"/etc/(shadow|gshadow|sudoers)"), "Systempasswörter"),
     # AURA-16: wie policy/paths.py, auch für die Shell (cat, grep … sind sonst „nur lesend“)
     (
         re.compile(
-            r"\.(netrc|pgpass|git-credentials|npmrc|pypirc|vault-token)\b|\.aws/(credentials|config|sso)|\.docker/config\.json|"
-            r"\.kube/config|\.config/gcloud|(^|[\s/~])\.azure(/|\s|$)|\.config/gh/hosts\.yml|\.cargo/credentials|"
+            r"\.(netrc|pgpass|git-credentials|npmrc|pypirc|vault-token)\b|\.aws(/|\s|$)|\.docker/config\.json|"
+            r"\.kube(/|\s|$)|\.config/gcloud|(^|[\s/~])\.azure(/|\s|$)|\.config/gh(/|\s|$)|\.cargo/credentials|"
             r"\.gem/credentials|\.composer/auth\.json|\.terraform\.d/credentials|\.config/rclone/rclone\.conf|"
             r"\.config/(op|Bitwarden CLI)/"
         ),
@@ -429,10 +440,47 @@ FORBIDDEN = [
     ),
 ]
 
+_SECRET_SEGMENTS = (
+    ".ssh",
+    ".gnupg",
+    ".password-store",
+    ".aws",
+    ".azure",
+    ".kube",
+    ".docker",
+    ".env",
+    ".envrc",
+    ".netrc",
+    ".pgpass",
+    ".git-credentials",
+    ".npmrc",
+    ".pypirc",
+    ".vault-token",
+    "shadow",
+    "gshadow",
+    "sudoers",
+    "secrets.json",
+)
+
+
+def _glob_hits_secret(words: list[str]) -> str:
+    """Prüft, ob ein Glob-Muster (z. B. ~/.ss?/id_rsa oder /etc/shad*) auf gesperrte Pfade passt."""
+    for w in words[1:]:
+        if not any(ch in w for ch in "*?["):
+            continue
+        for seg in w.split("/"):
+            if seg in ("", "*", "**") or not any(ch in seg for ch in "*?["):
+                continue
+            if any(fnmatch.fnmatchcase(s, seg) for s in _SECRET_SEGMENTS):
+                return "Zugangsdaten über Suchmuster"
+    return ""
+
+
 # Lokal und umkehrbar: läuft ohne Rückfrage (T1).
 T1_COMMANDS = {"mkdir", "notify-send"}
 
 _CONTROL = re.compile(r"[;&`\n\r]|\$\(|\$\{|>|<\(")
+_SYSTEM_BIN = re.compile(r"^/(?:usr/)?bin/[A-Za-z0-9._+-]+$")
 
 
 def classify(command: str) -> tuple[Tier, str]:
@@ -490,6 +538,10 @@ def _classify_bash(command: str) -> tuple[Tier, str]:
             return Tier.T2, "nicht eindeutig zerlegbar"
         if not words:
             return Tier.T2, "leeres Segment"
+        if secret_glob := _glob_hits_secret(words):
+            return Tier.T3, secret_glob
+        if "/" in words[0] and not _SYSTEM_BIN.match(words[0]):
+            return Tier.T2, "startet ein Programm über einen Pfad"
         name = words[0].rsplit("/", 1)[-1].lower()
         if name not in READONLY:
             return Tier.T2, f"„{name}“ kann etwas verändern"
