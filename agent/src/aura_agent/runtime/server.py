@@ -16,8 +16,8 @@ from google.adk.runners import Runner
 from google.adk.sessions.sqlite_session_service import SqliteSessionService
 
 from .. import __version__
-from ..agents.root import build_root, tool_catalog
-from ..extensions.mcp import build_toolsets, integrations_agent
+from ..agents.root import ROOT_TOOL_NAMES, build_root, tool_catalog
+from ..extensions.mcp import build_toolsets, connector_agents
 from ..harness.audit import AuditLog
 from ..harness.context_manager import ContextManagerPlugin
 from ..harness.grants import GrantStore, parse_hours
@@ -152,7 +152,12 @@ def build_runner(
             llm,
             settings,
             toolset,
-            integrations_agent(llm, build_toolsets(settings.mcp_servers, settings.connectors)),
+            connector_agents(
+                llm,
+                build_toolsets(settings.mcp_servers, settings.connectors),
+                settings.connectors,
+                reserved=ROOT_TOOL_NAMES,
+            ),
             episodes,
         ),
         memory_service=episodes,

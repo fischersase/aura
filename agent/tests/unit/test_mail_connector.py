@@ -98,3 +98,58 @@ async def test_mcp_tools_read_only_hints_and_results():
     res = await server.call_tool("mail_search", {"sender": "nvidia"})
     assert "Neuer Treiber" in str(res)
     assert "991234" not in str(await server.call_tool("mail_read", {"id": "42"}))
+
+
+class FakeImap:
+    """Gmail-like IMAP: INBOX has nothing from NVIDIA, the archived NVIDIA mail is only in All Mail."""
+
+    capabilities = ("IMAP4REV1", "X-GM-EXT-1")
+
+    def __init__(self):
+        self.selected = None
+        self.searched = []
+
+    def list(self):
+        return "OK", [
+            b'(\\HasNoChildren) "/" "INBOX"',
+            b'(\\All \\HasNoChildren) "/" "[Gmail]/Alle Nachrichten"',
+        ]
+
+    def select(self, mailbox, readonly=False):
+        self.selected = mailbox
+        return "OK", [b"1"]
+
+    def uid(self, cmd, *args):
+        if cmd == "SEARCH":
+            self.searched.append((self.selected, args))
+            found = self.selected == '"[Gmail]/Alle Nachrichten"' and "nvidia" in " ".join(args).lower()
+            return "OK", [b"7 42" if found else b""]
+        if cmd == "FETCH":
+            assert self.selected == '"[Gmail]/Alle Nachrichten"', "read must use the folder of the search"
+            return "OK", [(b"42 (BODY[] {1}", _raw())]
+        raise AssertionError(cmd)
+
+    def logout(self):
+        return "BYE", []
+
+
+def test_gmail_search_and_read_use_all_mail_including_archived(monkeypatch):
+    fake = FakeImap()
+    box = mail.Mailbox(mail.Account("a@gmail.com", "x", "imap.gmail.com", 993, "smtp.gmail.com", 465, True))
+    monkeypatch.setattr(box, "_imap", lambda: fake)
+    hits = box.search("", "nvidia", "", False, 0, 10, "")
+    assert [h["id"] for h in hits] == ["42", "7"], "newest first"
+    assert hits[0]["ordner"] == "[Gmail]/Alle Nachrichten"
+    assert "SINCE" not in fake.searched[0][1], "no time limit by default"
+    assert box.read("42", "")["betreff"] == "Neuer Treiber verfügbar"
+
+
+async def test_empty_search_says_so():
+    class Empty(FakeBox):
+        def search(self, *a):
+            return []
+
+    server = mail.build_server(Empty())
+    assert "Keine Mails gefunden für nvidia" in str(
+        await server.call_tool("mail_search", {"sender": "nvidia"})
+    )

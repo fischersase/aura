@@ -196,8 +196,10 @@ class Mailbox:
     ) -> list[dict[str, Any]]:
         conn = self._imap()
         try:
+            gmail = "X-GM-EXT-1" in (conn.capabilities or ())
+            folder = _folder(conn, folder)
             conn.select(_mailbox(folder), readonly=True)
-            if query and "X-GM-EXT-1" in (conn.capabilities or ()):
+            if query and gmail:
                 # Gmail's own search syntax (from:, subject:, newer_than: …) when the user gave a free query.
                 typ, data = conn.uid("SEARCH", "X-GM-RAW", '"' + query.replace('"', "")[:300] + '"')
             else:
@@ -210,7 +212,7 @@ class Mailbox:
                 typ, msg = conn.uid("FETCH", uid, "(BODY.PEEK[])")
                 raw = _raw(msg)
                 if typ == "OK" and raw:
-                    out.append(message_summary(uid, raw))
+                    out.append({**message_summary(uid, raw), "ordner": folder})
             return out
         finally:
             _logout(conn)
@@ -220,7 +222,7 @@ class Mailbox:
             raise RuntimeError("Ungültige id (aus mail_search).")
         conn = self._imap()
         try:
-            conn.select(_mailbox(folder), readonly=True)
+            conn.select(_mailbox(_folder(conn, folder)), readonly=True)
             typ, msg = conn.uid("FETCH", uid, "(BODY.PEEK[])")
             raw = _raw(msg)
             if typ != "OK" or not raw:
@@ -253,6 +255,30 @@ class Mailbox:
                 s.login(self.account.address, self.account.password)
                 s.send_message(msg)
         return {"gesendet": True, "an": recipients, "betreff": subject}
+
+
+def _folder(conn: imaplib.IMAP4, folder: str) -> str:
+    """The folder to use: the given one, else Gmail's All Mail (archived mail too), else INBOX. Search and read must
+    use the same folder: IMAP ids (UIDs) are only valid within their folder."""
+    if folder.strip():
+        return folder.strip()
+    if "X-GM-EXT-1" in (conn.capabilities or ()):
+        return _all_mail(conn) or "INBOX"
+    return "INBOX"
+
+
+def _all_mail(conn: imaplib.IMAP4) -> str:
+    """Gmail's "All Mail" folder (localised, e.g. "[Gmail]/Alle Nachrichten"), found by its \\All attribute."""
+    typ, data = conn.list()
+    if typ != "OK":
+        return ""
+    for line in data or []:
+        text = line.decode(errors="replace") if isinstance(line, bytes) else str(line)
+        if "\\All" in text:
+            m = re.search(r'"([^"]+)"\s*$', text) or re.search(r"(\S+)\s*$", text)
+            if m:
+                return m.group(1)
+    return ""
 
 
 def _mailbox(folder: str) -> str:
@@ -300,9 +326,9 @@ def build_server(mailbox: Mailbox | None = None) -> Any:
         sender: str = "",
         subject: str = "",
         unread_only: bool = False,
-        days: int = 30,
+        days: int = 0,
         limit: int = 10,
-        folder: str = "INBOX",
+        folder: str = "",
     ) -> dict[str, Any]:
         """Sucht Mails im Postfach, neueste zuerst (Absender, Betreff, Datum, kurzer Auszug).
 
@@ -311,9 +337,9 @@ def build_server(mailbox: Mailbox | None = None) -> Any:
           sender: Absender (Name oder Adresse), z. B. "nvidia".
           subject: Wörter im Betreff.
           unread_only: Nur ungelesene.
-          days: Nur die letzten N Tage (0 = alle).
+          days: Nur die letzten N Tage (0 = alle, Standard).
           limit: Höchstens so viele Treffer (max. 50).
-          folder: Ordner, Standard INBOX.
+          folder: Ordner. Leer = bei Gmail alle Mails (auch archivierte), sonst der Posteingang.
         """
         try:
             found = await asyncio.to_thread(
@@ -321,15 +347,22 @@ def build_server(mailbox: Mailbox | None = None) -> Any:
             )
         except Exception as e:  # noqa: BLE001 - report to the model instead of crashing the server
             return _error(e)
+        if not found:
+            what = " ".join(x for x in (query, sender, subject) if x) or "die Suche"
+            return {
+                "treffer": [],
+                "anzahl": 0,
+                "hinweis": f"Keine Mails gefunden für {what}. Sag das dem Nutzer so.",
+            }
         return {"treffer": found, "anzahl": len(found)}
 
     @server.tool(annotations=ToolAnnotations(read_only_hint=True))
-    async def mail_read(id: str, folder: str = "INBOX") -> dict[str, Any]:
+    async def mail_read(id: str, folder: str = "") -> dict[str, Any]:
         """Liest eine Mail (id aus mail_search). Markiert sie nicht als gelesen.
 
         Args:
           id: Die id aus mail_search.
-          folder: Ordner der Mail, Standard INBOX.
+          folder: Ordner aus dem Suchtreffer („ordner“); leer = derselbe Standard wie bei mail_search.
         """
         try:
             return await asyncio.to_thread(get_box().read, id, folder)

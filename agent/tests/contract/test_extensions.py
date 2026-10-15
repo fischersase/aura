@@ -38,7 +38,7 @@ async def test_user_mcp_server_tiers_and_results(tmp_path):
     )
     llm = ScriptedLlm(
         [
-            [Call("integrations", {"request": "Notizen pflegen"})],
+            [Call("notes", {"request": "Notizen pflegen"})],
             [Call("mcp_notes_read_notes", {})],
             [Call("mcp_notes_ping", {})],
             [Call("mcp_notes_add_note", {"text": "Brot kaufen"})],
