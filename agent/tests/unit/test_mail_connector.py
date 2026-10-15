@@ -153,3 +153,94 @@ async def test_empty_search_says_so():
     assert "Keine Mails gefunden für nvidia" in str(
         await server.call_tool("mail_search", {"sender": "nvidia"})
     )
+
+
+def test_email_domain_typo_normalization():
+    addr = mail.normalize_email_address("fischer.sase@gmailcom")
+    assert addr == "fischer.sase@gmail.com"
+    acc = mail.Account.from_env(
+        {"MAIL_ADDRESS": "fischer.sase@gmailcom", "MAIL_PASSWORD": "abcd efgh ijkl mnop"}
+    )
+    assert acc.address == "fischer.sase@gmail.com"
+    assert acc.imap_host == "imap.gmail.com"
+
+
+async def test_google_workspace_connector_tools_and_ical():
+    from datetime import UTC, datetime, timedelta
+
+    from aura_agent.connectors import google_workspace as gw
+
+    sample_ics = (
+        "BEGIN:VCALENDAR\r\n"
+        "BEGIN:VEVENT\r\n"
+        "UID:evt-1\r\n"
+        "DTSTART:20261020T090000Z\r\n"
+        "DTEND:20261020T100000Z\r\n"
+        "SUMMARY:NVIDIA Technical Interview\r\n"
+        "LOCATION:Microsoft Teams\r\n"
+        "DESCRIPTION:Interview mit dem Team\r\n"
+        "END:VEVENT\r\n"
+        "END:VCALENDAR\r\n"
+    )
+    now = datetime(2026, 10, 15, tzinfo=UTC)
+    events = gw.parse_ics_events(
+        sample_ics,
+        start_from=now - timedelta(days=1),
+        end_until=now + timedelta(days=30),
+        query="nvidia",
+    )
+    assert len(events) == 1
+    assert events[0]["titel"] == "NVIDIA Technical Interview"
+    assert events[0]["ort"] == "Microsoft Teams"
+
+    class FakeWorkspace(gw.GoogleWorkspaceClient):
+        def __init__(self):
+            super().__init__(gw.WorkspaceAccount(address="anna@gmail.com", app_password="secret"))
+            self._box = FakeBox()
+
+        def gmail_search(
+            self, query="", sender="", subject="", unread_only=False, days=0, limit=10, folder=""
+        ):
+            return self._box.search(query, sender, subject, unread_only, days, limit, folder)
+
+        def gmail_read(self, msg_id, folder=""):
+            return self._box.read(msg_id, folder)
+
+        def gmail_send(self, to, subject, body, cc=""):
+            return self._box.send(to, subject, body, cc)
+
+        def calendar_events(self, days=14, query="", include_past_days=0, limit=20):
+            return events
+
+        def calendar_create(self, title, start, end="", description="", location=""):
+            return {"angelegt": True, "titel": title, "start": start, "ende": end}
+
+        def drive_search(self, query="", file_type="", limit=15):
+            return [{"id": "doc-1", "name": f"Report {query}", "typ": "application/vnd.google-apps.document"}]
+
+        def drive_read(self, file_id):
+            return {"id": file_id, "name": "Report", "text": "Quartalszahlen."}
+
+    ws_server = gw.build_server(FakeWorkspace())
+    ws_tools = {t.name: t for t in await ws_server.list_tools()}
+    assert set(ws_tools) == {
+        "workspace_gmail_search",
+        "workspace_gmail_read",
+        "workspace_gmail_send",
+        "workspace_calendar_events",
+        "workspace_calendar_create",
+        "workspace_drive_search",
+        "workspace_drive_read",
+    }
+    assert ws_tools["workspace_gmail_search"].annotations.read_only_hint is True
+    assert ws_tools["workspace_calendar_events"].annotations.read_only_hint is True
+    assert ws_tools["workspace_drive_read"].annotations.read_only_hint is True
+    assert ws_tools["workspace_gmail_send"].annotations.read_only_hint is False
+    assert ws_tools["workspace_calendar_create"].annotations.read_only_hint is False
+
+    res_mail = await ws_server.call_tool("workspace_gmail_search", {"sender": "nvidia"})
+    assert "Neuer Treiber" in str(res_mail)
+    res_cal = await ws_server.call_tool("workspace_calendar_events", {"query": "nvidia"})
+    assert "NVIDIA Technical Interview" in str(res_cal)
+    res_drive = await ws_server.call_tool("workspace_drive_read", {"file_id": "doc-1"})
+    assert "Quartalszahlen" in str(res_drive)

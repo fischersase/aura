@@ -73,3 +73,26 @@ test(
     assert.strictEqual(st.tools, 3);
   }
 );
+
+test(
+  'the builtin google_workspace server lists its 7 Gmail, Calendar, and Drive tools',
+  { skip: !fs.existsSync(PY) },
+  async () => {
+    const st = await listTools({
+      builtin: 'google_workspace',
+      catalogId: 'google-workspace',
+      env: { GOOGLE_EMAIL: 'a@gmail.com', GOOGLE_APP_PASSWORD: 'x' },
+      sandbox: false
+    });
+    assert.strictEqual(st.error, null, st.error);
+    assert.deepStrictEqual(st.toolNames.sort(), [
+      'workspace_calendar_create',
+      'workspace_calendar_events',
+      'workspace_drive_read',
+      'workspace_drive_search',
+      'workspace_gmail_read',
+      'workspace_gmail_search',
+      'workspace_gmail_send'
+    ]);
+  }
+);

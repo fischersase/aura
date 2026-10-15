@@ -1270,7 +1270,7 @@ function connectorManageDialog(entry, serverName) {
         : ''
     }
     <div class="row" style="margin-top:16px;flex-wrap:wrap">
-      ${entry && entry.status === 'ready' ? `<button type="button" id="mConnReconf" class="small">Zugangsdaten ändern</button>` : ''}
+      ${entry && (entry.status === 'available' || entry.status === 'ready') && entry.credentials && entry.credentials.length ? `<button type="button" id="mConnReconf" class="small">Zugangsdaten ändern</button>` : ''}
       ${s.auth === 'oauth' ? `<button type="button" id="mConnOauth" class="small">${s.signedIn ? 'Abmelden' : 'Im Browser anmelden'}</button>` : ''}
       <button type="button" id="mConnEdit" class="small">Technisch bearbeiten</button>
       <button type="button" id="mConnServers" class="small">Werkzeug-Regeln</button>
@@ -1329,7 +1329,7 @@ function connectDialog(id) {
     <fieldset class="cred"><legend>${esc(k.label)}</legend>
       ${k.tokenUrl ? `<p><a href="#" data-url="${esc(k.tokenUrl)}" class="button-link">${k.kind === 'api-token' ? 'Token erstellen' : 'Öffnen'} ↗</a></p>` : ''}
       ${steps(k.help)}
-      <input type="${k.secret ? 'password' : k.kind === 'email' ? 'email' : 'text'}" data-cred="${esc(k.name)}" placeholder="${esc(k.label)} hier einfügen" spellcheck="false" autocomplete="off">
+      <input type="${k.secret ? 'password' : k.kind === 'email' ? 'email' : 'text'}" data-cred="${esc(k.name)}" placeholder="${esc(k.label)}${k.required === false ? ' (optional)' : ' hier einfügen'}" spellcheck="false" autocomplete="off">
     </fieldset>`
     )
     .join('');

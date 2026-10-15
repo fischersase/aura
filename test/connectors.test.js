@@ -31,6 +31,32 @@ test('missing credentials and unavailable entries are refused', () => {
   const noop = () => {};
   assert.throws(() => c.configFor(c.byId('github'), {}, (k) => k, noop), /Persönlicher Zugriffstoken/);
   assert.throws(() => c.configFor(c.byId('mail'), { MAIL_ADDRESS: 'a@gmail.com' }, (k) => k, noop), /App-Passwort/);
+  assert.throws(
+    () => c.configFor(c.byId('mail'), { MAIL_ADDRESS: 'ungueltig-ohne-at', MAIL_PASSWORD: 'x' }, (k) => k, noop),
+    /gültige E-Mail-Adresse/
+  );
+  // Common domain typo (@gmailcom) is automatically healed to @gmail.com:
+  const healed = c.configFor(
+    c.byId('mail'),
+    { MAIL_ADDRESS: 'fischer.sase@gmailcom', MAIL_PASSWORD: 'abcd efgh ijkl mnop' },
+    (k) => k,
+    noop
+  );
+  assert.strictEqual(healed.env.MAIL_ADDRESS, 'fischer.sase@gmail.com');
+  // Google Workspace supports required email/app-password and optional iCal/OAuth credentials:
+  const storedWs = [];
+  const wsCfg = c.configFor(
+    c.byId('google-workspace'),
+    { GOOGLE_EMAIL: 'anna@gmailcom', GOOGLE_APP_PASSWORD: 'abcd efgh ijkl mnop' },
+    (k) => `GW_${k}`,
+    (name) => storedWs.push(name)
+  );
+  assert.strictEqual(wsCfg.builtin, 'google_workspace');
+  assert.strictEqual(wsCfg.env.GOOGLE_EMAIL, 'anna@gmail.com');
+  assert.strictEqual(wsCfg.env.GOOGLE_APP_PASSWORD, '${secret:GW_GOOGLE_APP_PASSWORD}');
+  assert.strictEqual(wsCfg.env.GOOGLE_CALENDAR_ICAL_URL, '');
+  assert.strictEqual(wsCfg.env.GOOGLE_OAUTH_TOKEN, '');
+  assert.deepStrictEqual(storedWs, ['GW_GOOGLE_APP_PASSWORD']);
   const soon = { id: 'soon', title: 'Bald', status: 'coming', credentials: [] };
   assert.throws(() => c.configFor(soon, {}, (k) => k, noop), /noch nicht verfügbar/);
   const oauth = c.configFor(c.byId('atlassian'), {}, (k) => k, noop);

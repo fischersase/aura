@@ -47,7 +47,11 @@ def _score(entry: dict[str, Any], words: list[str]) -> int:
 
 
 def _needs(entry: dict[str, Any]) -> list[str]:
-    creds = [str(c.get("label") or c.get("name")) for c in entry.get("credentials") or []]
+    creds = [
+        str(c.get("label") or c.get("name"))
+        for c in (entry.get("credentials") or [])
+        if c.get("required", True) is not False
+    ]
     if (entry.get("config") or {}).get("auth") == "oauth":
         creds.insert(0, f"Anmeldung bei {entry.get('publisher', 'dem Anbieter')} im Browser")
     return creds
@@ -55,15 +59,21 @@ def _needs(entry: dict[str, Any]) -> list[str]:
 
 def _summary(entry: dict[str, Any], connected: set[str]) -> dict[str, Any]:
     status = entry.get("status", "available")
+    is_connected = entry["id"] in connected
     out: dict[str, Any] = {
         "id": entry["id"],
         "title": entry["title"],
         "publisher": entry.get("publisher", ""),
         "verified": "aura",
-        "needs": _needs(entry),
-        "connected": entry["id"] in connected,
+        "needs": [] if is_connected else _needs(entry),
+        "connected": is_connected,
     }
-    if status == "coming":
+    if is_connected:
+        out["note"] = (
+            "Bereits verbunden! Nutze direkt den Spezialisten dieser Verbindung. "
+            "Falls dort ein Anmelde- oder Konfigurationsfehler auftrat, teile die genaue Fehlermeldung dem Nutzer mit."
+        )
+    elif status == "coming":
         out["note"] = "Kommt bald; noch nicht verfügbar."
     elif status == "advanced":
         out["note"] = "Für Fortgeschrittene (eigenes Cloud-Projekt nötig)."

@@ -258,9 +258,11 @@ def instruction(
             )
         if connections:
             parts.append(
-                "## Verbundene Dienste\nFür diese Dienste hat der Nutzer eine Verbindung eingerichtet. Nutze für einen "
-                "Dienst genau seinen Spezialisten (nie einen anderen) und kein find_connector:\n"
-                + connections
+                "## Verbundene Dienste\nFür diese Dienste hat der Nutzer bereits eine aktive Verbindung eingerichtet. "
+                "Nutze für einen Dienst genau seinen Spezialisten (nie einen anderen) und rufe dafür niemals "
+                "find_connector oder propose_connector auf. Meldet der Spezialist einen Konfigurations- oder "
+                "Anmeldefehler, nenne dem Nutzer den genauen Grund aus der Fehlermeldung, statt zu behaupten, "
+                "du hättest keinen Zugriff:\n" + connections
             )
         if connectors:
             parts.append(
