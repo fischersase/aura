@@ -10,11 +10,20 @@ print()-Ausgaben von Bibliotheken landen so im Log statt im Protokoll.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import os
 import sys
 import threading
 import warnings
+
+if sys.platform == "win32":
+    with contextlib.suppress(Exception):
+        import msvcrt
+
+        msvcrt.setmode(sys.stdin.fileno(), os.O_BINARY)
+        msvcrt.setmode(sys.stdout.fileno(), os.O_BINARY)
+        msvcrt.setmode(sys.stderr.fileno(), os.O_BINARY)
 
 
 def _pump_stdin(loop: asyncio.AbstractEventLoop, reader: asyncio.StreamReader) -> None:
@@ -31,6 +40,11 @@ def _pump_stdin(loop: asyncio.AbstractEventLoop, reader: asyncio.StreamReader) -
 
 def _protocol_stdout():
     fd = os.dup(1)
+    if sys.platform == "win32":
+        with contextlib.suppress(Exception):
+            import msvcrt
+
+            msvcrt.setmode(fd, os.O_BINARY)
     os.dup2(2, 1)
     sys.stdout = sys.stderr
     return os.fdopen(fd, "wb", buffering=0)
@@ -46,6 +60,8 @@ async def serve() -> None:
     def write(data: bytes) -> None:
         with lock:
             out.write(data)
+            with contextlib.suppress(Exception):
+                out.flush()
 
     loop = asyncio.get_running_loop()
     reader = asyncio.StreamReader(limit=64 * 1024 * 1024)

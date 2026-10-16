@@ -90,13 +90,14 @@ class AgentBridge {
   ensure() {
     const init = this.settings();
     const key = JSON.stringify(init);
-    if (this.ready && key !== this.initKey && this.tasks.size === 0) this.stop();
+    if (this.ready && key !== this.initKey && this.tasks.size === 0) this.kill('Einstellungen geändert');
     if (this.ready) return this.ready;
     const python = this.pythonPath();
     if (!python) return Promise.reject(new Error('Agent v2 ist nicht installiert (kein Python für agent/ gefunden).'));
     this.initKey = key;
     // -I: isoliert, ignoriert PYTHONPATH und Nutzer-site-packages (kein fremder Code im Agenten).
-    const proc = spawn(python, ['-I', '-m', 'aura_agent'], {
+    // -u: ungepuffertes Binär-I/O, -X utf8: erzwungenes UTF-8 für Pipes (besonders unter Windows).
+    const proc = spawn(python, ['-I', '-u', '-X', 'utf8', '-m', 'aura_agent'], {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...process.env, PYTHONUNBUFFERED: '1', PYTHONNOUSERSITE: '1', PYTHONUTF8: '1' },
       windowsHide: true,
@@ -352,7 +353,11 @@ class AgentBridge {
     } catch {}
     const timer = setTimeout(() => {
       if (proc.exitCode === null) {
-        if (process.platform !== 'win32' && proc.pid) {
+        if (process.platform === 'win32') {
+          try {
+            execFile('taskkill', ['/F', '/T', '/PID', String(proc.pid)], { windowsHide: true }, () => {});
+          } catch {}
+        } else if (proc.pid) {
           try {
             process.kill(-proc.pid, 'SIGKILL');
           } catch {}
