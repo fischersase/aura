@@ -2,7 +2,7 @@
 // Electron-Härtung (AURA-14, AURA-18): welche Fenster Mikrofon und Bildschirm nutzen und welche IPC-Kanäle sie aufrufen
 // dürfen, und keine Navigation weg von den eigenen Seiten. Die Entscheidungen sind reine Funktionen (test/security.test.js); install() hängt sie in Electron ein.
 const path = require('path');
-const { pathToFileURL } = require('url');
+const { fileURLToPath } = require('url');
 
 const RENDERER_DIR = path.join(__dirname, 'renderer');
 
@@ -14,24 +14,35 @@ const PERMISSIONS = {
 };
 
 // Name der eigenen Renderer-Seite (z. B. "panel.html") oder null, wenn die URL nicht zu Aura gehört.
+// Windows: file:///C:/Users/…/panel.html muss über fileURLToPath zu C:\Users\…\panel.html werden. Früher wurde
+// decodeURIComponent(pathname) genommen; das ergab "/C:/Users/…", passte nie zum Renderer-Ordner und lehnte unter
+// Windows jeden IPC-Aufruf ab (Eck-Chat ließ sich nicht bedienen, API-Key weder testen noch speichern).
 /**
  * @param {unknown} url
  * @param {string} [rendererDir]
+ * @param {NodeJS.Platform} [platform] for tests; defaults to the running platform
  * @returns {string | null}
  */
-function rendererPage(url, rendererDir = RENDERER_DIR) {
+function rendererPage(url, rendererDir = RENDERER_DIR, platform = process.platform) {
   let u;
   try {
     u = new URL(String(url || ''));
   } catch {
     return null;
   }
-  if (u.protocol !== 'file:') return null;
-  const base = pathToFileURL(rendererDir + path.sep).href;
-  const target = pathToFileURL(decodeURIComponent(u.pathname)).href;
-  if (!target.toLowerCase().startsWith(base.toLowerCase())) return null;
-  const rest = target.slice(base.length);
-  return rest.includes('/') ? null : rest;
+  if (u.protocol !== 'file:' || (u.host && u.host !== 'localhost')) return null;
+  const windows = platform === 'win32';
+  const p = windows ? path.win32 : path.posix;
+  let file;
+  try {
+    file = fileURLToPath(u, { windows });
+  } catch {
+    return null;
+  }
+  // path.win32.relative compares case-insensitively, like the Windows file system.
+  const rel = p.relative(p.resolve(rendererDir), p.resolve(file));
+  if (!rel || rel.startsWith('..') || p.isAbsolute(rel) || /[\\/]/.test(rel)) return null;
+  return rel;
 }
 
 /**

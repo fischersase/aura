@@ -106,3 +106,27 @@ test('install hängt Handler ein: neue Fenster abgelehnt, fremde Navigation verh
   assert.strictEqual(granted, false);
   assert.strictEqual(handlers.check(null, 'media'), false);
 });
+
+// Windows (regression, v0.18): Electron reports file:///C:/Users/<name with spaces>/…/panel.html. Every IPC call from the
+// corner chat and the Zentrale was rejected because the URL was not converted to a Windows path.
+test('Windows: own pages are recognised (drive letter, spaces, other case); foreign paths are not', () => {
+  const winDir =
+    'C:\\Users\\Sebastian Fischer\\AppData\\Local\\Programs\\aura-desktop\\resources\\app.asar\\src\\renderer';
+  const base =
+    'file:///C:/Users/Sebastian%20Fischer/AppData/Local/Programs/aura-desktop/resources/app.asar/src/renderer/';
+  const win = (url) => sec.rendererPage(url, winDir, 'win32');
+  assert.strictEqual(win(base + 'panel.html'), 'panel.html');
+  assert.strictEqual(win(base + 'zentrale.html?x=1#y'), 'zentrale.html');
+  assert.strictEqual(win(base.replace('file:///C:', 'file:///c:').toLowerCase() + 'panel.html'), 'panel.html');
+  for (const bad of [
+    base + 'sub/panel.html',
+    base + '../panel.html',
+    base + '..%5Cpanel.html',
+    'file:///C:/Users/Other/panel.html',
+    'file:///D:/Users/Sebastian%20Fischer/AppData/Local/Programs/aura-desktop/resources/app.asar/src/renderer/panel.html',
+    'file://evil-host/share/panel.html',
+    'https://example.com/panel.html'
+  ]) {
+    assert.strictEqual(win(bad), null, bad);
+  }
+});
