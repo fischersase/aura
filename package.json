@@ -1,7 +1,7 @@
 {
   "name": "aura-desktop",
   "productName": "Aura",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "description": "Aura: desktop assistant for Windows and Linux with chat, voice, screen help and a careful agent; runs with Gemini or local models via Ollama",
   "main": "src/main.js",
   "author": {
