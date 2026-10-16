@@ -130,12 +130,13 @@ section { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 header { display: flex; align-items: center; gap: 3px; padding: 12px 12px 4px 18px; }
 .brand { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 500; }
 .brand .ver { font-size: 11.5px; font-weight: 400; opacity: .55; margin-left: -2px; }
-.spark { width: 18px; height: 18px; }
+.spark { width: 18px; height: 18px; stroke: none; }
 .spacer { flex: 1; }
 .card.compact header { display: none; }
 
 button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
 button svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+button svg.spark { stroke: none; }
 .icon { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); }
 .icon:hover { background: var(--bg-2); color: var(--text); }
 

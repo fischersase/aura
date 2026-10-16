@@ -2161,8 +2161,8 @@ function eventToAccelerator(e) {
   };
   let key = keyMap[e.key];
   if (!key) {
-    if (e.key.length === 1) key = e.key.toUpperCase();
-    else if (/^F\d{1,2}$/.test(e.key)) key = e.key;
+    if (e.key && e.key.length === 1) key = e.key.toUpperCase();
+    else if (/^F\d{1,2}$/.test(e.key || '')) key = e.key;
     else return null;
   }
   parts.push(key);
@@ -2170,53 +2170,72 @@ function eventToAccelerator(e) {
 }
 
 function updateProviderVisibility(provider) {
-  if ($('cfgGeminiCard')) $('cfgGeminiCard').classList.toggle('hidden', provider === 'ollama');
-  if ($('cfgOllamaCard')) $('cfgOllamaCard').classList.toggle('hidden', provider !== 'ollama');
+  if ($('cfgGeminiBlock')) $('cfgGeminiBlock').classList.toggle('hidden', provider === 'ollama');
+  if ($('cfgOllamaBlock')) $('cfgOllamaBlock').classList.toggle('hidden', provider !== 'ollama');
 }
 
 async function refreshOllamaInZentrale(preferredModel) {
-  if (!$('cfgOllamaHint')) return;
-  $('cfgOllamaHint').textContent = 'Prüfe Ollama …';
-  $('cfgOllamaHint').className = 'hint';
-  const st = await z.ollamaStatus($('cfgOllamaUrl').value);
+  const statusEl = $('cfgOllamaStatus');
+  if (!statusEl) return;
+  statusEl.textContent = 'Prüfe Ollama …';
+  statusEl.className = 'small muted';
+  const st = await z.ollamaStatus($('cfgOllamaUrl') ? $('cfgOllamaUrl').value : '');
   const select = $('cfgOllamaModel');
+  if (!select) return;
   select.innerHTML = '';
-  const current = preferredModel ?? (currentSettingsData && currentSettingsData.ollamaModel) ?? '';
-  if (!st || !st.running) {
-    const opt = document.createElement('option');
-    opt.value = current || 'gemma4:e4b';
-    opt.textContent = `${opt.value} (Ollama nicht erreichbar)`;
-    select.appendChild(opt);
-    $('cfgOllamaHint').textContent =
+  const current = preferredModel ?? (currentSettingsData && currentSettingsData.ollamaModel) ?? 'gemma4:e4b';
+  const installed = Array.isArray(st && st.models)
+    ? st.models.map((m) => (typeof m === 'string' ? m : m.name)).filter(Boolean)
+    : [];
+  const recommended = Array.isArray(st && st.recommended)
+    ? st.recommended.map((r) => (typeof r === 'string' ? r : r.name)).filter(Boolean)
+    : ['gemma4:e4b', 'gemma4:e2b'];
+
+  if (!st || !st.ok) {
+    for (const name of [...new Set([current, ...recommended].filter(Boolean))]) {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = `${name} (Ollama nicht erreichbar)`;
+      select.appendChild(opt);
+    }
+    select.value = current;
+    statusEl.textContent =
       'Ollama läuft nicht oder ist unter dieser Adresse nicht erreichbar. Starte Ollama oder lade es unter ollama.com herunter.';
-    $('cfgOllamaHint').className = 'bad small';
+    statusEl.className = 'bad small';
     return;
   }
-  if (!st.models.length) {
+
+  const seen = new Set();
+  for (const name of installed) {
+    seen.add(name);
     const opt = document.createElement('option');
-    opt.value = current || 'gemma4:e4b';
-    opt.textContent = `${opt.value} (noch nicht geladen)`;
-    select.appendChild(opt);
-    $('cfgOllamaHint').textContent =
-      'Ollama läuft, aber es ist noch kein Modell geladen. Nutze unten „Laden“, um z. B. gemma4:e4b herunterzuladen.';
-    $('cfgOllamaHint').className = 'hint';
-    return;
-  }
-  for (const m of st.models) {
-    const opt = document.createElement('option');
-    opt.value = m;
-    opt.textContent = m;
+    opt.value = name;
+    opt.textContent = `${name} (installiert)`;
     select.appendChild(opt);
   }
-  if (current && !st.models.includes(current)) {
+  for (const name of recommended) {
+    if (seen.has(name)) continue;
+    seen.add(name);
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = `${name} (herunterladen mit „Herunterladen“)`;
+    select.appendChild(opt);
+  }
+  if (current && !seen.has(current)) {
     const opt = document.createElement('option');
     opt.value = current;
     opt.textContent = `${current} (nicht installiert)`;
     select.appendChild(opt);
   }
-  select.value = current || st.models[0];
-  $('cfgOllamaHint').textContent = `Verbunden — ${st.models.length} Modell(e) verfügbar.`;
-  $('cfgOllamaHint').className = 'ok small';
+  select.value = current || installed[0] || recommended[0] || 'gemma4:e4b';
+  if (!installed.length) {
+    statusEl.textContent =
+      'Ollama läuft, aber es ist noch kein Modell geladen. Wähle ein Modell und klicke auf „Herunterladen“.';
+    statusEl.className = 'small muted';
+  } else {
+    statusEl.textContent = `Verbunden (Ollama ${st.version || ''}) — ${installed.length} Modell(e) installiert.`;
+    statusEl.className = 'ok small';
+  }
 }
 
 async function loadSettingsPage() {
@@ -2225,40 +2244,52 @@ async function loadSettingsPage() {
   currentSettingsData = s;
   $('cfgProvider').value = s.provider || 'gemini';
   updateProviderVisibility($('cfgProvider').value);
-  $('cfgApiKey').value = '';
-  $('cfgApiKey').placeholder = s.apiKeyHint ? `Gespeichert (${s.apiKeyHint})` : 'AIza...';
-  $('cfgKeyHint').textContent = s.apiKeyFromEnv
-    ? 'Wird aktuell aus Umgebungsvariable GEMINI_API_KEY geladen.'
-    : s.hasApiKey
-      ? `Gespeicherter Schlüssel: ${s.apiKeyHint}`
-      : 'Noch kein API-Key hinterlegt.';
-  $('cfgKeyHint').className = 'hint';
-  $('cfgMonthlyBudget').value = s.monthlyBudget > 0 ? String(s.monthlyBudget) : '';
-  if (s.usage) {
-    const spent = s.usage.spentEur.toFixed(2).replace('.', ',');
-    const tok = Math.round(s.usage.inputTokens + s.usage.outputTokens).toLocaleString('de-DE');
-    $('cfgUsageInfo').textContent =
-      s.monthlyBudget > 0
-        ? `Diesen Monat (${s.usage.month}): ca. ${spent} € von ${s.monthlyBudget.toFixed(2).replace('.', ',')} € (${s.usage.calls} Anfragen, ${tok} Token)`
-        : `Diesen Monat (${s.usage.month}): ca. ${spent} € (${s.usage.calls} Anfragen, ${tok} Token)`;
+  if ($('cfgApiKey')) {
+    $('cfgApiKey').value = '';
+    $('cfgApiKey').placeholder = s.apiKeyHint
+      ? `Gespeichert (${s.apiKeyHint}) – zum Ändern neu eingeben`
+      : s.hasApiKey
+        ? 'Gespeichert – zum Ändern neu eingeben'
+        : 'AIza…';
   }
-  $('cfgOllamaUrl').value = s.ollamaUrl || 'http://127.0.0.1:11434';
+  if ($('cfgKeyStatus')) {
+    $('cfgKeyStatus').textContent = s.apiKeyFromEnv
+      ? 'Wird aktuell aus Umgebungsvariable GEMINI_API_KEY geladen.'
+      : s.hasApiKey
+        ? `Gespeicherter Schlüssel aktiv${s.apiKeyHint ? ` (${s.apiKeyHint})` : ''}.`
+        : 'Noch kein Gemini-API-Key hinterlegt.';
+    $('cfgKeyStatus').className = s.hasApiKey ? 'ok small' : 'small muted';
+  }
+  if ($('cfgChatModel')) $('cfgChatModel').value = s.chatModel || '';
+  if ($('cfgLiveModel')) $('cfgLiveModel').value = s.liveModel || '';
+  if ($('cfgRamblerModel')) $('cfgRamblerModel').value = s.ramblerModel || '';
+  if ($('cfgDictationModel')) $('cfgDictationModel').value = s.dictationModel || '';
+  if ($('cfgLiveVoice')) $('cfgLiveVoice').value = s.liveVoice || '';
+  if ($('cfgLiveFps')) $('cfgLiveFps').value = String(s.liveFps || 1);
+  const budgetVal = s.monthlyBudgetUsd !== undefined ? s.monthlyBudgetUsd : s.monthlyBudget;
+  if ($('cfgMonthlyBudget')) $('cfgMonthlyBudget').value = budgetVal !== undefined ? String(budgetVal) : '10';
+  if ($('cfgUsageText') && s.usage) {
+    const cost = Number(s.usage.costUsd ?? s.usage.spentEur ?? 0).toFixed(2);
+    const budget = Number(s.usage.budgetUsd ?? budgetVal ?? 0).toFixed(2);
+    $('cfgUsageText').textContent = `Diesen Monat (${s.usage.month || ''}): ≈ ${cost} $ von ${budget} $`;
+  }
+  if ($('cfgOllamaUrl')) $('cfgOllamaUrl').value = s.ollamaUrl || 'http://127.0.0.1:11434';
+  if ($('cfgOllamaCtx')) $('cfgOllamaCtx').value = String(s.ollamaContext || 16384);
+  if ($('cfgWhisperModel')) $('cfgWhisperModel').value = s.whisperModel || 'onnx-community/whisper-small';
   if ($('cfgProvider').value === 'ollama') {
     refreshOllamaInZentrale(s.ollamaModel);
   }
-  $('cfgWhisperModel').value = s.whisperModel || 'Xenova/whisper-small';
-  $('cfgLanguage').value = s.language || '';
-  if (s.hotkeys) {
-    $('cfgHkListen').value = s.hotkeys.listen || '';
-    $('cfgHkAsk').value = s.hotkeys.ask || '';
-    $('cfgHkRead').value = s.hotkeys.read || '';
-  }
+  if ($('cfgHotkeyGemini')) $('cfgHotkeyGemini').value = s.hotkeyGemini || '';
+  if ($('cfgHotkeyRambler')) $('cfgHotkeyRambler').value = s.hotkeyRambler || 'Alt+D';
+  if ($('cfgHotkeyLive')) $('cfgHotkeyLive').value = s.hotkeyLive || '';
+  if ($('cfgHotkeyStop')) $('cfgHotkeyStop').value = s.hotkeyStop || '';
   if ($('cfgThemeSelect')) {
-    $('cfgThemeSelect').value = document.documentElement.getAttribute('data-theme') || 'dark';
+    $('cfgThemeSelect').value = s.theme || document.documentElement.getAttribute('data-theme') || 'dark';
   }
-  $('cfgPanelCorner').value = s.panelCorner || 'bottom-right';
-  $('cfgGlowEnabled').checked = s.glowEnabled !== false;
-  $('cfgAutostart').checked = Boolean(s.autostart);
+  if ($('cfgPanelCorner')) $('cfgPanelCorner').value = s.panelCorner || 'bottom-right';
+  if ($('cfgLanguage')) $('cfgLanguage').value = s.language || 'Deutsch';
+  if ($('cfgGlowStay')) $('cfgGlowStay').checked = s.glowStay !== false;
+  if ($('cfgAutostart')) $('cfgAutostart').checked = Boolean(s.autostart);
 }
 
 if ($('cfgProvider')) {
@@ -2275,39 +2306,76 @@ if ($('cfgThemeSelect')) {
   };
 }
 
+async function testAndSaveGeminiKey() {
+  const statusEl = $('cfgKeyStatus');
+  const btn = $('cfgTestKey');
+  const input = $('cfgApiKey');
+  if (!btn || !statusEl || !input) return;
+  const typedKey = input.value.trim();
+  btn.disabled = true;
+  statusEl.textContent = 'Prüfe API-Key …';
+  statusEl.className = 'small muted';
+  const res = await z.testKey(typedKey);
+  if (res && res.ok) {
+    if (typedKey) {
+      const saved = await z.saveSettings({ apiKey: typedKey });
+      btn.disabled = false;
+      if (saved && saved.keyError) {
+        statusEl.textContent = saved.keyError;
+        statusEl.className = 'bad small';
+        return;
+      }
+      await load(true);
+      await loadSettingsPage();
+      statusEl.textContent = 'API-Key gültig und verschlüsselt gespeichert!';
+      statusEl.className = 'ok small';
+      return;
+    }
+    btn.disabled = false;
+    statusEl.textContent = 'Gespeicherter API-Key funktioniert!';
+    statusEl.className = 'ok small';
+  } else {
+    btn.disabled = false;
+    statusEl.textContent = `Fehler: ${(res && (res.error || res.message)) || 'Ungültiger Schlüssel'}`;
+    statusEl.className = 'bad small';
+  }
+}
+
 if ($('cfgTestKey')) {
-  $('cfgTestKey').onclick = async () => {
-    $('cfgTestKey').disabled = true;
-    $('cfgKeyHint').textContent = 'Prüfe API-Key …';
-    $('cfgKeyHint').className = 'hint';
-    const res = await z.testKey($('cfgApiKey').value.trim());
-    $('cfgTestKey').disabled = false;
-    $('cfgKeyHint').textContent = res.ok ? 'API-Key funktioniert!' : `Fehler: ${res.error}`;
-    $('cfgKeyHint').className = res.ok ? 'ok small' : 'bad small';
-  };
+  $('cfgTestKey').onclick = testAndSaveGeminiKey;
+}
+
+if ($('cfgApiKey')) {
+  $('cfgApiKey').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      testAndSaveGeminiKey();
+    }
+  });
 }
 
 if ($('cfgOllamaCheck')) {
-  $('cfgOllamaCheck').onclick = () => refreshOllamaInZentrale($('cfgOllamaModel').value);
+  $('cfgOllamaCheck').onclick = () => refreshOllamaInZentrale($('cfgOllamaModel') && $('cfgOllamaModel').value);
 }
 
 if ($('cfgOllamaPull')) {
   $('cfgOllamaPull').onclick = async () => {
-    const name = $('cfgOllamaPullName').value.trim() || $('cfgOllamaModel').value.trim();
-    if (!name) return;
+    const statusEl = $('cfgOllamaStatus');
+    const select = $('cfgOllamaModel');
+    const name = (select && select.value.trim()) || 'gemma4:e4b';
+    if (!name || !statusEl) return;
     $('cfgOllamaPull').disabled = true;
-    $('cfgOllamaHint').textContent = `Lade „${name}“ herunter …`;
-    $('cfgOllamaHint').className = 'hint';
-    const res = await z.ollamaPull({ url: $('cfgOllamaUrl').value, model: name });
+    statusEl.textContent = `Lade „${name}“ herunter …`;
+    statusEl.className = 'small muted';
+    const res = await z.ollamaPull({ url: $('cfgOllamaUrl') ? $('cfgOllamaUrl').value : '', name, model: name });
     $('cfgOllamaPull').disabled = false;
     if (res && res.ok) {
-      $('cfgOllamaPullName').value = '';
       await refreshOllamaInZentrale(name);
-      $('cfgOllamaHint').textContent = `„${name}“ ist bereit.`;
-      $('cfgOllamaHint').className = 'ok small';
+      statusEl.textContent = `„${name}“ ist bereit.`;
+      statusEl.className = 'ok small';
     } else {
-      $('cfgOllamaHint').textContent = `Fehler: ${(res && res.error) || 'Unbekannt'}`;
-      $('cfgOllamaHint').className = 'bad small';
+      statusEl.textContent = `Fehler: ${(res && (res.error || res.message)) || 'Unbekannt'}`;
+      statusEl.className = 'bad small';
     }
   };
 }
@@ -2316,6 +2384,10 @@ document.querySelectorAll('.cfg-hotkey').forEach((input) => {
   input.addEventListener('keydown', (e) => {
     e.preventDefault();
     e.stopPropagation();
+    if ((e.key === 'Backspace' || e.key === 'Delete') && !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey) {
+      input.value = '';
+      return;
+    }
     const acc = eventToAccelerator(e);
     if (acc) {
       input.value = acc;
@@ -2326,28 +2398,52 @@ document.querySelectorAll('.cfg-hotkey').forEach((input) => {
 
 if ($('cfgSaveBtn')) {
   $('cfgSaveBtn').onclick = async () => {
+    const budgetRaw = ($('cfgMonthlyBudget') && $('cfgMonthlyBudget').value) || '0';
     const patch = {
       provider: $('cfgProvider').value,
-      ollamaUrl: $('cfgOllamaUrl').value.trim() || 'http://127.0.0.1:11434',
+      chatModel: ($('cfgChatModel') && $('cfgChatModel').value.trim()) || 'gemini-2.5-flash',
+      liveModel:
+        ($('cfgLiveModel') && $('cfgLiveModel').value.trim()) ||
+        (currentSettingsData && currentSettingsData.liveModel) ||
+        'gemini-3.1-flash-live-preview',
+      ramblerModel:
+        ($('cfgRamblerModel') && $('cfgRamblerModel').value.trim()) ||
+        (currentSettingsData && currentSettingsData.ramblerModel) ||
+        'gemini-3.8-flash',
+      dictationModel:
+        ($('cfgDictationModel') && $('cfgDictationModel').value.trim()) ||
+        (currentSettingsData && currentSettingsData.dictationModel) ||
+        'gemini-3.5-flash-lite',
+      liveVoice: ($('cfgLiveVoice') && $('cfgLiveVoice').value.trim()) || 'Kore',
+      liveFps: Number(($('cfgLiveFps') && $('cfgLiveFps').value) || 1),
+      monthlyBudgetUsd: Math.max(0, Number(String(budgetRaw).replace(',', '.')) || 0),
+      ollamaUrl: ($('cfgOllamaUrl') && $('cfgOllamaUrl').value.trim()) || 'http://127.0.0.1:11434',
       ollamaModel:
-        $('cfgOllamaModel').value || (currentSettingsData && currentSettingsData.ollamaModel) || 'gemma4:e4b',
-      monthlyBudget: Number($('cfgMonthlyBudget').value) || 0,
-      whisperModel: $('cfgWhisperModel').value,
-      language: $('cfgLanguage').value,
+        ($('cfgOllamaModel') && $('cfgOllamaModel').value) ||
+        (currentSettingsData && currentSettingsData.ollamaModel) ||
+        'gemma4:e4b',
+      ollamaContext: Number(($('cfgOllamaCtx') && $('cfgOllamaCtx').value) || 16384),
+      whisperModel: ($('cfgWhisperModel') && $('cfgWhisperModel').value) || 'onnx-community/whisper-small',
+      hotkeyGemini: ($('cfgHotkeyGemini') && $('cfgHotkeyGemini').value.trim()) || '',
+      hotkeyRambler: ($('cfgHotkeyRambler') && $('cfgHotkeyRambler').value.trim()) || '',
+      hotkeyLive: ($('cfgHotkeyLive') && $('cfgHotkeyLive').value.trim()) || '',
+      hotkeyStop: ($('cfgHotkeyStop') && $('cfgHotkeyStop').value.trim()) || '',
       theme: ($('cfgThemeSelect') && $('cfgThemeSelect').value) || currentTheme(),
-      panelCorner: $('cfgPanelCorner').value,
-      glowEnabled: $('cfgGlowEnabled').checked,
-      autostart: $('cfgAutostart').checked,
-      hotkeys: {
-        listen: $('cfgHkListen').value,
-        ask: $('cfgHkAsk').value,
-        read: $('cfgHkRead').value
-      }
+      panelCorner: ($('cfgPanelCorner') && $('cfgPanelCorner').value) || 'bottom-right',
+      language: ($('cfgLanguage') && $('cfgLanguage').value.trim()) || 'Deutsch',
+      glowStay: $('cfgGlowStay') ? $('cfgGlowStay').checked : true,
+      autostart: $('cfgAutostart') ? $('cfgAutostart').checked : true
     };
-    const typedKey = $('cfgApiKey').value.trim();
+    const typedKey = $('cfgApiKey') ? $('cfgApiKey').value.trim() : '';
     if (typedKey) patch.apiKey = typedKey;
     const res = await z.saveSettings(patch);
-    if (res && res.ok) {
+    const failed = (res && res.failedHotkeys) || [];
+    if ($('cfgHotkeyStatus')) {
+      $('cfgHotkeyStatus').textContent = failed.length
+        ? `Kürzel durch ein anderes Programm belegt: ${failed.join(', ')}`
+        : '';
+    }
+    if (res && res.ok !== false && !res.keyError) {
       $('cfgSaveStatus').textContent = 'Einstellungen gespeichert!';
       $('cfgSaveStatus').className = 'ok small';
       await load(true);
@@ -2356,7 +2452,7 @@ if ($('cfgSaveBtn')) {
         if ($('cfgSaveStatus')) $('cfgSaveStatus').textContent = '';
       }, 2500);
     } else {
-      $('cfgSaveStatus').textContent = (res && res.error) || 'Fehler beim Speichern';
+      $('cfgSaveStatus').textContent = (res && (res.keyError || res.error)) || 'Fehler beim Speichern';
       $('cfgSaveStatus').className = 'bad small';
     }
   };

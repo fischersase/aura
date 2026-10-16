@@ -9,7 +9,7 @@ const { protectionOf, assertStorable, enableWeakIfAllowed } = require('./keystor
 const DEFAULTS = {
   // Kürzel, die unter Windows standardmäßig frei sind.
   hotkeyGemini: 'Control+Alt+Space', // Strg+Alt+G belegt Google Drive für Desktop
-  hotkeyRambler: 'Control+Alt+D',
+  hotkeyRambler: 'Alt+D',
   hotkeyLive: 'Control+Alt+L',
   hotkeyStop: 'Control+Alt+Escape', // Notbremse, nur aktiv solange der Agent arbeitet
   agentEnabled: true, // Aura darf Werkzeuge nutzen (Befehle, Dateien, Programme öffnen)
@@ -55,6 +55,40 @@ const DEFAULT_PROFILE = {
 /** @type {Record<string, any> | null} */
 let cache = null;
 const file = () => path.join(app.getPath('userData'), 'settings.json');
+const localStateFile = () => path.join(app.getPath('userData'), 'Local State');
+
+function readOsCryptKey() {
+  try {
+    const raw = JSON.parse(fs.readFileSync(localStateFile(), 'utf8'));
+    return (raw && raw.os_crypt && typeof raw.os_crypt.encrypted_key === 'string' && raw.os_crypt.encrypted_key) || '';
+  } catch {
+    return '';
+  }
+}
+
+// Stellt unter Windows vor dem App-Start sicher, dass Local State denselben DPAPI-Schlüssel behält,
+// falls ein Installer-Update (taskkill) Local State zurückgesetzt hat.
+function restoreOsCryptKey() {
+  try {
+    const s = load();
+    if (!s.osCryptKeyBackup || !s.apiKeyEnc) return false;
+    const lsPath = localStateFile();
+    /** @type {Record<string, any>} */
+    let raw = {};
+    try {
+      const parsed = JSON.parse(fs.readFileSync(lsPath, 'utf8'));
+      if (parsed && typeof parsed === 'object') raw = parsed;
+    } catch {}
+    const current = raw.os_crypt && raw.os_crypt.encrypted_key;
+    if (current === s.osCryptKeyBackup) return false;
+    raw.os_crypt = { ...(raw.os_crypt || {}), encrypted_key: s.osCryptKeyBackup };
+    fs.mkdirSync(path.dirname(lsPath), { recursive: true });
+    fs.writeFileSync(lsPath, JSON.stringify(raw), { mode: 0o600 });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /** @returns {Record<string, any>} */
 function load() {
@@ -92,13 +126,21 @@ function getApiKey() {
   const buf = Buffer.from(s.apiKeyEnc, 'base64');
   if (safeStorage.isEncryptionAvailable()) {
     try {
-      return safeStorage.decryptString(buf);
+      const dec = safeStorage.decryptString(buf);
+      const osKey = readOsCryptKey();
+      if (osKey && s.osCryptKeyBackup !== osKey) save({ osCryptKeyBackup: osKey });
+      return dec;
     } catch {}
   }
   const plain = buf.toString('utf8');
   if (!LEGACY_PLAIN.test(plain)) return '';
   if (protectionOf(safeStorage) === 'strong') {
-    save({ apiKeyEnc: safeStorage.encryptString(plain).toString('base64'), apiKeyPlaintext: false });
+    const osKey = readOsCryptKey();
+    save({
+      apiKeyEnc: safeStorage.encryptString(plain).toString('base64'),
+      apiKeyPlaintext: false,
+      ...(osKey ? { osCryptKeyBackup: osKey } : {})
+    });
   } else if (!s.apiKeyPlaintext) {
     save({ apiKeyPlaintext: true }); // shown as a warning in the settings and the Zentrale
   }
@@ -119,15 +161,24 @@ function setApiKey(key) {
   const allowWeak = !!load().allowWeakSecretStorage;
   assertStorable(protectionOf(safeStorage), allowWeak);
   enableWeakIfAllowed(safeStorage, allowWeak);
-  save({ apiKeyEnc: safeStorage.encryptString(k).toString('base64'), apiKeyPlaintext: false });
+  const enc = safeStorage.encryptString(k).toString('base64');
+  const osKey = readOsCryptKey();
+  save({
+    apiKeyEnc: enc,
+    apiKeyPlaintext: false,
+    ...(osKey ? { osCryptKeyBackup: osKey } : {})
+  });
 }
 
 // Einstellungen ohne Geheimnisse, für die Oberfläche.
 function publicSettings() {
-  const { apiKeyEnc, ...rest } = load();
+  const { apiKeyEnc: _enc, osCryptKeyBackup: _osKey, ...rest } = load();
+  const key = getApiKey();
   return {
     ...rest,
-    hasApiKey: !!getApiKey(),
+    hasApiKey: !!key,
+    apiKeyHint: key ? `••••${key.slice(-4)}` : '',
+    apiKeyFromEnv: !!process.env.GEMINI_API_KEY,
     secretProtection: protectionOf(safeStorage),
     platform: process.platform,
     version: app.getVersion(),
@@ -167,6 +218,7 @@ module.exports = {
   save,
   getApiKey,
   setApiKey,
+  restoreOsCryptKey,
   publicSettings,
   isLocal,
   ready

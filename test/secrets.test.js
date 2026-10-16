@@ -205,3 +205,24 @@ test('website logins are bound to their origin and never show the password (AURA
   assert.strictEqual(listed.origin, 'https://www.bahn.de');
   assert.ok(!JSON.stringify(v.list()).includes('Geheim'), 'no part of the password in the listing');
 });
+
+test('store: backs up Local State os_crypt.encrypted_key and restores it after an upgrade resets Local State', () => {
+  const key = ['AIza', 'Sy', 'WinUpgrade'].join('') + 'w'.repeat(24);
+  const { store, dir } = loadStore(fakeSafeStorage('gnome_libsecret'));
+  const localStatePath = path.join(dir, 'Local State');
+  fs.writeFileSync(localStatePath, JSON.stringify({ os_crypt: { encrypted_key: 'DPAPI_KEY_V1' } }));
+
+  store.setApiKey(key);
+  const pub = store.publicSettings();
+  assert.strictEqual(pub.hasApiKey, true);
+  assert.strictEqual(pub.apiKeyHint, '••••wwww');
+  assert.strictEqual(pub.osCryptKeyBackup, undefined);
+  assert.strictEqual(pub.apiKeyEnc, undefined);
+
+  // Simulate NSIS installer upgrade wiping/replacing Local State with a new key
+  fs.writeFileSync(localStatePath, JSON.stringify({ os_crypt: { encrypted_key: 'NEW_DIFFERENT_KEY' } }));
+  assert.strictEqual(store.restoreOsCryptKey(), true);
+  const restored = JSON.parse(fs.readFileSync(localStatePath, 'utf8'));
+  assert.strictEqual(restored.os_crypt.encrypted_key, 'DPAPI_KEY_V1');
+  assert.strictEqual(store.getApiKey(), key);
+});

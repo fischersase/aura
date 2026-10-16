@@ -51,14 +51,17 @@ function builtinConfig(cfg) {
 }
 
 const R = (f) => path.join(__dirname, 'renderer', f);
-const ICON = path.join(__dirname, '..', 'assets', 'icon.png');
+const ICON = path.join(__dirname, '..', 'assets', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
+if (process.platform === 'win32' && typeof app.setAppUserModelId === 'function') {
+  app.setAppUserModelId('io.github.fischersase.aura');
+}
 const PANEL_W = 440;
 const PANEL_H = 620;
 const PANEL_MIN_W = 384;
 const PANEL_MIN_H = 84;
 const MARGIN = 4; // + 12 px Schattenrand im Panel-Fenster = 16 px Abstand
-const RAMBLER_W = 420;
-const RAMBLER_H = 92;
+const RAMBLER_W = 360;
+const RAMBLER_H = 84;
 
 const IS_LINUX = process.platform === 'linux';
 const WAYLAND = IS_LINUX && (process.env.XDG_SESSION_TYPE === 'wayland' || !!process.env.WAYLAND_DISPLAY);
@@ -68,18 +71,37 @@ const WAYLAND = IS_LINUX && (process.env.XDG_SESSION_TYPE === 'wayland' || !!pro
 function migrateFromGeminiOverlay() {
   try {
     const next = app.getPath('userData');
-    const prev = path.join(app.getPath('appData'), 'Gemini Overlay');
-    if (prev === next || fs.existsSync(path.join(next, 'settings.json'))) return;
-    if (!fs.existsSync(path.join(prev, 'settings.json'))) return;
-    fs.mkdirSync(next, { recursive: true });
-    for (const f of ['settings.json', 'usage.json', 'Local State']) {
-      if (fs.existsSync(path.join(prev, f))) fs.copyFileSync(path.join(prev, f), path.join(next, f));
+    for (const oldName of ['Gemini Overlay', 'aura-desktop', 'windows-gemini']) {
+      const prev = path.join(app.getPath('appData'), oldName);
+      if (prev === next || !fs.existsSync(path.join(prev, 'settings.json'))) continue;
+      fs.mkdirSync(next, { recursive: true });
+      const nextSettingsFile = path.join(next, 'settings.json');
+      if (!fs.existsSync(nextSettingsFile)) {
+        for (const f of ['settings.json', 'usage.json', 'Local State', 'secrets.json']) {
+          if (fs.existsSync(path.join(prev, f))) fs.copyFileSync(path.join(prev, f), path.join(next, f));
+        }
+      } else {
+        // Falls settings.json schon existiert, aber der Schlüssel oder Local State dort fehlt: nachziehen.
+        const cur = JSON.parse(fs.readFileSync(nextSettingsFile, 'utf8'));
+        const old = JSON.parse(fs.readFileSync(path.join(prev, 'settings.json'), 'utf8'));
+        if (!cur.apiKeyEnc && old.apiKeyEnc) {
+          cur.apiKeyEnc = old.apiKeyEnc;
+          if (old.osCryptKeyBackup) cur.osCryptKeyBackup = old.osCryptKeyBackup;
+          fs.writeFileSync(nextSettingsFile, JSON.stringify(cur, null, 2), { mode: 0o600 });
+          if (fs.existsSync(path.join(prev, 'Local State'))) {
+            fs.copyFileSync(path.join(prev, 'Local State'), path.join(next, 'Local State'));
+          }
+        } else if (!fs.existsSync(path.join(next, 'Local State')) && fs.existsSync(path.join(prev, 'Local State'))) {
+          fs.copyFileSync(path.join(prev, 'Local State'), path.join(next, 'Local State'));
+        }
+      }
     }
   } catch (err) {
     console.warn('Übernahme der alten Einstellungen fehlgeschlagen:', err.message);
   }
 }
 migrateFromGeminiOverlay();
+store.restoreOsCryptKey();
 
 // SharedArrayBuffer: Whisper rechnet mit mehreren Threads.
 // GlobalShortcutsPortal: globale Kürzel unter Wayland (GNOME/KDE fragen einmal nach).
@@ -95,7 +117,15 @@ let panelOpen = false;
 let panelMinimized = false;
 let liveActive = false;
 let currentDisplay = null;
-const ramblerState = { recording: false, busy: false, saved: null, selection: '', last: null };
+const ramblerState = {
+  recording: false,
+  busy: false,
+  saved: null,
+  selection: '',
+  last: null,
+  targetAuraWin: null,
+  activeWinId: ''
+};
 
 if (!app.requestSingleInstanceLock({ version: app.getVersion() })) app.quit();
 
@@ -146,6 +176,7 @@ function baseWindow({ preload = 'preload.js', ...opts }) {
     skipTaskbar: true,
     hasShadow: false,
     show: false,
+    icon: ICON,
     backgroundColor: '#00000000',
     webPreferences: {
       preload: path.join(__dirname, preload),
@@ -415,19 +446,29 @@ async function toggleRambler() {
   }
   ramblerState.busy = true;
   try {
-    // Markierten Text holen: Zwischenablage sichern, Strg+C senden, lesen, wiederherstellen.
-    const saved = saveClipboard();
-    clipboard.clear();
-    const sent = await keys.send('^c');
-    await sleep(120);
-    const selection = sent ? clipboard.readText() : '';
-    ramblerState.canType = sent;
-    restoreClipboard(saved);
-    ramblerState.selection = selection;
+    clearTimeout(ramblerState.hideTimer);
+    ramblerState.selection = '';
+    ramblerState.targetAuraWin = BrowserWindow.getFocusedWindow() || null;
+    ramblerState.activeWinId = '';
+    if (ramblerState.targetAuraWin && !ramblerState.targetAuraWin.isDestroyed()) {
+      ramblerState.targetAuraWin.webContents
+        .executeJavaScript('window.getSelection ? String(window.getSelection()) : ""', true)
+        .then((sel) => {
+          if (sel && String(sel).trim()) ramblerState.selection = String(sel).trim();
+        })
+        .catch(() => {});
+    } else {
+      keys
+        .activeWindow()
+        .then((id) => {
+          ramblerState.activeWinId = id || '';
+        })
+        .catch(() => {});
+    }
     placeRamblerBar();
     ramblerBar.showInactive();
     ramblerState.recording = true;
-    ramblerSend('rambler:start', { selection: !!selection });
+    ramblerSend('rambler:start', { selection: false });
   } finally {
     ramblerState.busy = false;
   }
@@ -436,9 +477,22 @@ async function toggleRambler() {
 // Fügt Text ins aktive Feld ein. Ohne Tastenwerkzeug (Linux ohne xdotool/wtype)
 // bleibt er in der Zwischenablage; Rückgabe false = selbst einfügen.
 async function pasteText(text) {
+  if (ramblerBar && !ramblerBar.isDestroyed() && ramblerBar.isVisible()) {
+    ramblerBar.hide();
+    await sleep(40);
+  }
+  if (ramblerState.targetAuraWin && !ramblerState.targetAuraWin.isDestroyed()) {
+    try {
+      ramblerState.targetAuraWin.focus();
+      ramblerState.targetAuraWin.webContents.insertText(text);
+      return true;
+    } catch {
+      // Fallback auf Zwischenablage + Strg+V
+    }
+  }
   const saved = saveClipboard();
   clipboard.writeText(text);
-  const sent = await keys.send('^v');
+  const sent = await keys.send('^v', ramblerState.activeWinId);
   if (!sent) return false;
   await sleep(350);
   restoreClipboard(saved);
@@ -465,15 +519,19 @@ ipcMain.on('rambler:audio', async (_e, { wavBase64 }) => {
     const s = store.load();
     let out;
     if (store.isLocal()) {
-      const transcript = await transcribe(wavBase64);
-      if (!transcript) throw new Error('Nichts verstanden.');
-      out = await ollama.rambler({
-        url: s.ollamaUrl,
-        model: s.ollamaModel,
-        transcript,
-        selection: ramblerState.selection,
-        language: s.language
-      });
+      const transcript = await transcribe(wavBase64, whisperLanguage(s.language));
+      if (!transcript || !transcript.trim()) throw new Error('Nichts verstanden.');
+      try {
+        out = await ollama.rambler({
+          url: s.ollamaUrl,
+          model: s.ollamaModel,
+          transcript,
+          selection: ramblerState.selection,
+          language: s.language
+        });
+      } catch {
+        out = { text: transcript.trim(), transcript: transcript.trim() };
+      }
     } else {
       out = await gemini.rambler({
         apiKey: store.getApiKey(),
@@ -489,6 +547,7 @@ ipcMain.on('rambler:audio', async (_e, { wavBase64 }) => {
     const pasted = await pasteText(out.text);
     ramblerState.last = { ...out, fullAvailable: !ramblerState.selection };
     if (!pasted) {
+      ramblerBar.showInactive();
       ramblerSend('rambler:state', {
         state: 'error',
         message: 'In der Zwischenablage – mit Strg+V einfügen (xdotool/wtype fehlt)'
@@ -497,8 +556,9 @@ ipcMain.on('rambler:audio', async (_e, { wavBase64 }) => {
       return;
     }
     ramblerSend('rambler:state', { state: 'done', fullAvailable: !ramblerState.selection });
-    hideRamblerBarSoon(7000);
+    ramblerBar.hide();
   } catch (err) {
+    ramblerBar.showInactive();
     ramblerSend('rambler:state', { state: 'error', message: String(err.message || err) });
     hideRamblerBarSoon(5000);
   }
@@ -510,15 +570,15 @@ ipcMain.on('rambler:cancel', () => {
 });
 
 ipcMain.on('rambler:undo', async () => {
-  await keys.send('^z');
   ramblerBar.hide();
+  await keys.send('^z', ramblerState.activeWinId);
 });
 
 ipcMain.on('rambler:full', async () => {
   if (!ramblerState.last) return;
-  await keys.send('^z');
-  await pasteText(ramblerState.last.transcript);
   ramblerBar.hide();
+  await keys.send('^z', ramblerState.activeWinId);
+  await pasteText(ramblerState.last.transcript);
 });
 
 ipcMain.on('rambler:error', (_e, message) => {
@@ -633,7 +693,12 @@ function saveSettingsPatch(patch) {
   applyAutostart();
   broadcastUsage();
   preloadStt().catch(() => {});
-  return { settings: store.publicSettings(), failedHotkeys: failed, ...(keyError ? { keyError } : {}) };
+  return {
+    ok: !keyError,
+    settings: store.publicSettings(),
+    failedHotkeys: failed,
+    ...(keyError ? { keyError, error: keyError } : {})
+  };
 }
 
 async function testGeminiKey(key) {
@@ -641,7 +706,8 @@ async function testGeminiKey(key) {
     await gemini.testKey((key || '').trim() || store.getApiKey());
     return { ok: true };
   } catch (err) {
-    return { ok: false, message: String(err.message || err) };
+    const message = String(err.message || err);
+    return { ok: false, message, error: message };
   }
 }
 
@@ -1487,17 +1553,19 @@ Object.assign(zentrale.API, {
     try {
       const v = await ollama.version(u);
       const models = await ollama.listModels(u);
-      return { ok: true, version: v, models, recommended: ollama.RECOMMENDED, remote };
+      return { ok: true, running: true, version: v, models, recommended: ollama.RECOMMENDED, remote };
     } catch (err) {
-      return { ok: false, message: String(err.message || err), recommended: ollama.RECOMMENDED, remote };
+      const message = String(err.message || err);
+      return { ok: false, running: false, message, error: message, recommended: ollama.RECOMMENDED, remote };
     }
   },
-  ollamaPull: async ({ url, name } = {}) => {
+  ollamaPull: async ({ url, name, model } = {}) => {
     try {
-      await ollama.pull(url || store.load().ollamaUrl, String(name || ''), () => {});
+      await ollama.pull(url || store.load().ollamaUrl, String(name || model || ''), () => {});
       return { ok: true };
     } catch (err) {
-      return { ok: false, message: String(err.message || err) };
+      const message = String(err.message || err);
+      return { ok: false, message, error: message };
     }
   },
   // Built-in Gemini Chat inside Aura Zentrale
@@ -1749,11 +1817,11 @@ ipcMain.handle('live:turn', async (_e, { id, wavBase64, history, screen: withScr
   const ctrl = new AbortController();
   liveAborts.set(id, ctrl);
   try {
-    const question = await transcribe(wavBase64);
+    const s = store.load();
+    const question = await transcribe(wavBase64, whisperLanguage(s.language));
     if (!question || question.length < 2) return { empty: true };
     if (panel && !panel.isDestroyed()) panel.webContents.send('live:heard', { id, text: question });
     const jpeg = withScreen ? await screenshotJpeg(currentDisplay, 1280) : null;
-    const s = store.load();
     if (voiceAgentReady()) {
       ctrl.signal.addEventListener('abort', () => agentV2.cancel('voice-' + id), { once: true });
       const say = await runVoiceTask('voice-' + id, question, jpeg);
@@ -1815,16 +1883,37 @@ ipcMain.on('ollama:abortPull', () => pullCtrl && pullCtrl.abort());
 
 // ---------- Hotkeys, Tray, Autostart ----------
 
+function normalizeAccelerator(raw) {
+  if (!raw || typeof raw !== 'string') return '';
+  return raw
+    .split('+')
+    .map((part) => {
+      const p = part.trim();
+      const low = p.toLowerCase();
+      if (low === 'strg' || low === 'ctrl' || low === 'control') return 'CommandOrControl';
+      if (low === 'cmd' || low === 'command' || low === 'meta' || low === 'super') return 'Super';
+      if (low === 'alt') return 'Alt';
+      if (low === 'shift' || low === 'umschalt') return 'Shift';
+      if (low === 'leertaste' || low === 'space' || low === ' ') return 'Space';
+      if (low === 'esc' || low === 'escape') return 'Escape';
+      if (p.length === 1) return p.toUpperCase();
+      return p;
+    })
+    .filter(Boolean)
+    .join('+');
+}
+
 function registerHotkeys() {
   globalShortcut.unregisterAll();
   const s = store.load();
   const failed = [];
   const reg = (acc, fn, name) => {
-    if (!acc) return;
+    const norm = normalizeAccelerator(acc);
+    if (!norm) return;
     try {
-      if (!globalShortcut.register(acc, fn)) failed.push(`${name} (${acc})`);
+      if (!globalShortcut.register(norm, fn)) failed.push(`${name} (${norm})`);
     } catch {
-      failed.push(`${name} (${acc})`);
+      failed.push(`${name} (${norm})`);
     }
   };
   reg(s.hotkeyGemini, toggleGemini, 'Aura');
