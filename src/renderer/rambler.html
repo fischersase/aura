@@ -5,51 +5,206 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:">
 <title>Rambler</title>
 <style>
-  :root { --bg: rgba(30,31,32,.95); --text: #e3e3e3; --muted: #a8abb0; --spring: cubic-bezier(.34,1.56,.64,1);
-    font-family: "Google Sans", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; }
-  @media (prefers-color-scheme: light) { :root { --bg: rgba(248,250,253,.96); --text: #1f1f1f; --muted: #5f6368; } }
-  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; color: var(--text); user-select: none; }
+  :root {
+    --spring: cubic-bezier(.34, 1.56, .64, 1);
+    font-family: "Google Sans", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  }
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: transparent;
+    overflow: hidden;
+    color: #ece8f8;
+    user-select: none;
+  }
   .bar {
-    position: absolute; left: 12px; right: 12px; top: 10px; height: 56px; border-radius: 28px;
-    background: var(--bg); display: flex; align-items: center; gap: 10px; padding: 0 8px 0 16px;
-    box-shadow: 0 8px 28px rgba(0,0,0,.35); animation: barIn .45s var(--spring) both;
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 0 10px;
+    animation: barIn .32s var(--spring) both;
   }
-  .bar::before {
-    content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1.5px; pointer-events: none;
-    background: conic-gradient(from var(--a), #4285F4, #9B72CB, #EA4335, #FBBC04, #34A853, #4285F4);
-    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
-    animation: spin 3s linear infinite;
+  @keyframes barIn {
+    from { transform: translateY(14px) scale(.82); opacity: 0; }
+    to { transform: translateY(0) scale(1); opacity: 1; }
   }
-  @property --a { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
-  @keyframes spin { to { --a: 360deg; } }
-  @keyframes barIn { from { transform: translateY(16px) scale(.6); opacity: 0; } }
-  .bar.out { animation: barOut .2s ease-in forwards; }
-  @keyframes barOut { to { transform: translateY(10px) scale(.9); opacity: 0; } }
-  .wave { display: flex; align-items: center; gap: 3px; height: 28px; width: 46px; }
-  .wave i { flex: 1; border-radius: 2px; height: 4px; background: linear-gradient(#4285F4, #9B72CB); transition: height .08s linear; }
-  .label { flex: 1; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .label small { color: var(--muted); font-size: 12px; margin-left: 6px; }
-  button { font: inherit; font-size: 13px; color: var(--text); border: 0; cursor: pointer; border-radius: 18px; padding: 8px 12px; background: rgba(255,255,255,.08); }
-  @media (prefers-color-scheme: light) { button { background: rgba(0,0,0,.06); } }
-  button:hover { filter: brightness(1.2); }
-  button.primary { background: #4285F4; color: #fff; }
-  .icon { width: 36px; height: 36px; padding: 0; display: grid; place-items: center; }
-  .icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
-  .shimmer { background: linear-gradient(90deg, var(--muted) 0%, var(--text) 40%, var(--muted) 80%); background-size: 200% 100%;
-    -webkit-background-clip: text; color: transparent; animation: shim 1.4s linear infinite; }
-  @keyframes shim { from { background-position: 200% 0; } to { background-position: 0 0; } }
+  .bar.out {
+    animation: barOut .18s ease-in forwards;
+  }
+  @keyframes barOut {
+    to { transform: translateY(10px) scale(.88); opacity: 0; }
+  }
+
+  /* Left cancel pill (dark slate-violet oval) */
+  .pill-cancel {
+    width: 56px;
+    height: 42px;
+    border-radius: 21px;
+    border: 1px solid rgba(255, 255, 255, .1);
+    background: rgba(38, 37, 48, .96);
+    color: #e4e1ee;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    padding: 0;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, .34);
+    transition: transform .14s ease, background .14s ease, filter .14s ease;
+  }
+  .pill-cancel:hover {
+    background: rgba(52, 50, 66, .98);
+    transform: translateY(-1px);
+  }
+  .pill-cancel:active {
+    transform: scale(.95);
+  }
+  .pill-cancel svg {
+    width: 17px;
+    height: 17px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.1;
+    stroke-linecap: round;
+  }
+
+  /* Center glowing indigo/purple waveform capsule */
+  .capsule {
+    position: relative;
+    min-width: 112px;
+    height: 42px;
+    border-radius: 21px;
+    padding: 0 18px;
+    background: linear-gradient(135deg, #5b6ef5 0%, #6f5ce8 52%, #8655e6 100%);
+    box-shadow:
+      0 6px 22px rgba(104, 87, 232, .48),
+      inset 0 1px 1px rgba(255, 255, 255, .3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    overflow: hidden;
+    transition: min-width .2s ease, background .2s ease;
+  }
+  .capsule::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 30% 20%, rgba(255, 255, 255, .22), transparent 65%);
+    pointer-events: none;
+  }
+  .bar.error-mode .capsule {
+    background: linear-gradient(135deg, #4b2c34 0%, #612c38 100%);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, .4);
+    max-width: 240px;
+  }
+
+  .wave {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    height: 24px;
+  }
+  .wave i {
+    display: block;
+    width: 3px;
+    height: 5px;
+    border-radius: 99px;
+    background: rgba(255, 255, 255, .92);
+    transition: height .07s linear, opacity .15s ease;
+  }
+  .bar.processing .wave i {
+    animation: wavePulse .9s ease-in-out infinite;
+  }
+  .bar.processing .wave i:nth-child(1) { animation-delay: 0s; }
+  .bar.processing .wave i:nth-child(2) { animation-delay: .1s; }
+  .bar.processing .wave i:nth-child(3) { animation-delay: .2s; }
+  .bar.processing .wave i:nth-child(4) { animation-delay: .3s; }
+  .bar.processing .wave i:nth-child(5) { animation-delay: .4s; }
+  .bar.processing .wave i:nth-child(6) { animation-delay: .5s; }
+  .bar.processing .wave i:nth-child(7) { animation-delay: .6s; }
+  .bar.processing .wave i:nth-child(8) { animation-delay: .7s; }
+  .bar.processing .wave i:nth-child(9) { animation-delay: .8s; }
+  @keyframes wavePulse {
+    0%, 100% { height: 5px; opacity: .55; }
+    50% { height: 18px; opacity: 1; }
+  }
+
+  /* Right confirm pill (light lavender oval with checkmark) */
+  .pill-confirm {
+    width: 56px;
+    height: 42px;
+    border-radius: 21px;
+    border: 0;
+    background: #e5dff9;
+    color: #251b45;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    padding: 0;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, .3);
+    transition: transform .14s ease, background .14s ease, filter .14s ease;
+  }
+  .pill-confirm:hover {
+    background: #efeaff;
+    transform: translateY(-1px);
+  }
+  .pill-confirm:active {
+    transform: scale(.95);
+  }
+  .pill-confirm svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .label {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 210px;
+  }
+  .label.err {
+    color: #ffb4ab;
+  }
+  .action-btn {
+    font: inherit;
+    font-size: 12px;
+    color: #ece8f8;
+    border: 1px solid rgba(255, 255, 255, .14);
+    cursor: pointer;
+    border-radius: 18px;
+    padding: 7px 11px;
+    background: rgba(38, 37, 48, .95);
+  }
   .hidden { display: none !important; }
-  .err { color: #f28b82; }
 </style>
 </head>
 <body>
 <div id="bar" class="bar hidden">
-  <div id="wave" class="wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-  <div id="label" class="label">Rambler hört zu …</div>
-  <button id="cancel" class="icon" title="Abbrechen"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-  <button id="stop" class="primary" title="Fertig">Fertig</button>
-  <button id="undo" class="hidden">Rückgängig</button>
-  <button id="full" class="hidden" title="Unbearbeitetes Transkript einfügen">Volltranskript</button>
+  <button id="cancel" type="button" class="pill-cancel" title="Abbrechen (Esc)" aria-label="Abbrechen">
+    <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+  </button>
+  <div id="capsule" class="capsule">
+    <div id="wave" class="wave" aria-hidden="true">
+      <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+    </div>
+    <div id="label" class="label hidden"></div>
+  </div>
+  <button id="stop" type="button" class="pill-confirm" title="Fertig – Text einfügen" aria-label="Fertig">
+    <svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+  </button>
+  <button id="undo" type="button" class="action-btn hidden">Rückgängig</button>
+  <button id="full" type="button" class="action-btn hidden" title="Unbearbeitetes Transkript einfügen">Volltranskript</button>
 </div>
 <script src="audio.js"></script>
 <script src="rambler.js"></script>

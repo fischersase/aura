@@ -1,4 +1,4 @@
-// Rambler-Leiste: nimmt auf, zeigt Pegel, schickt WAV an den Hauptprozess.
+// Rambler-Leiste: nimmt auf, zeigt Pegel in der mittleren Kapsel, schickt WAV an den Hauptprozess.
 const $ = (id) => document.getElementById(id);
 const bar = $('bar');
 const bars = [...document.querySelectorAll('#wave i')];
@@ -13,22 +13,28 @@ function show(state, opts = {}) {
   if (state === 'listening') {
     bar.classList.add('hidden');
     void bar.offsetWidth;
-  } // Einblend-Animation neu starten
-  bar.classList.remove('hidden', 'out');
-  $('wave').classList.toggle('hidden', state !== 'listening');
+  }
+  bar.classList.remove('hidden', 'out', 'processing', 'error-mode');
+  if (state === 'processing') bar.classList.add('processing');
+  if (state === 'error') bar.classList.add('error-mode');
+
+  const showWave = state === 'listening' || state === 'processing';
+  $('wave').classList.toggle('hidden', !showWave);
   $('stop').classList.toggle('hidden', state !== 'listening');
   $('cancel').classList.toggle('hidden', state === 'done');
   $('undo').classList.toggle('hidden', state !== 'done');
   $('full').classList.toggle('hidden', !(state === 'done' && opts.fullAvailable));
+
   const label = $('label');
   label.className = 'label';
-  if (state === 'listening') {
-    label.innerHTML = opts.selection
-      ? 'Sag, wie der markierte Text geändert werden soll'
-      : 'Rambler hört zu … <small>nochmal Kürzel = fertig</small>';
-  } else if (state === 'processing') {
-    label.textContent = 'Rambler schreibt …';
-    label.classList.add('shimmer');
+  if (state === 'listening' || state === 'processing') {
+    label.textContent = '';
+    label.classList.add('hidden');
+    if (state === 'processing') {
+      bars.forEach((b) => {
+        b.style.height = '';
+      });
+    }
   } else if (state === 'done') {
     label.textContent = 'Eingefügt';
   } else if (state === 'error') {
@@ -44,10 +50,14 @@ async function startRecording(selection) {
   try {
     mic = await Audio16.openMic((samples, rms) => {
       chunks.push(samples);
-      const v = Math.min(1, rms * 8);
+      const t = Date.now() / 110;
+      const v = Math.min(1, rms * 9);
       bars.forEach((b, i) => {
-        const f = 0.35 + 0.65 * Math.abs(Math.sin(Date.now() / 120 + i * 1.3));
-        b.style.height = Math.max(4, v * 28 * f) + 'px';
+        const centerBoost = 1 - Math.abs(i - (bars.length - 1) / 2) / (bars.length / 1.4);
+        const wave = 0.4 + 0.6 * Math.abs(Math.sin(t + i * 0.85));
+        const idle = 4 + 3 * Math.abs(Math.sin(t * 0.6 + i * 0.7)) * centerBoost;
+        const active = v * 20 * wave * (0.55 + 0.45 * centerBoost);
+        b.style.height = Math.round(Math.min(22, idle + active)) + 'px';
       });
     });
     clearTimeout(maxTimer);
@@ -66,7 +76,7 @@ function closeMic() {
 function stopRecording() {
   if (!mic) return;
   closeMic();
-  if (Date.now() - startedAt < 400 || !chunks.length) {
+  if (Date.now() - startedAt < 300 || !chunks.length) {
     window.api.ramblerAudio('');
     return;
   }
@@ -91,6 +101,7 @@ $('full').onclick = () => window.api.ramblerFull();
 // Lokales Whisper lädt beim ersten Diktat sein Modell herunter.
 window.api.onSttProgress((p) => {
   const label = $('label');
-  if (!label.classList.contains('shimmer')) return;
-  label.textContent = `Lade Spracherkennung … ${Math.round((p.loaded / p.total) * 100)} %`;
+  if (!bar.classList.contains('processing') || !p || !p.total) return;
+  label.classList.remove('hidden');
+  label.textContent = `${Math.round((p.loaded / p.total) * 100)} %`;
 });

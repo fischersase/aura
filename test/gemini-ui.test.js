@@ -79,3 +79,82 @@ test('Aura Zentrale implements minimalist dark Google Gemini layout for Connecto
   assert.match(zJs, /renderQuickRules/);
   assert.match(zJs, /loadSettingsPage/);
 });
+
+test('Settings page DOM IDs in zentrale.js match zentrale.html and saveSettingsPatch returns ok', () => {
+  const zHtml = read('renderer/zentrale.html');
+  const zJs = read('renderer/zentrale.js');
+  const mainJs = read('main.js');
+
+  for (const id of [
+    'cfgProvider',
+    'cfgGeminiBlock',
+    'cfgApiKey',
+    'cfgTestKey',
+    'cfgKeyStatus',
+    'cfgChatModel',
+    'cfgLiveModel',
+    'cfgRamblerModel',
+    'cfgDictationModel',
+    'cfgLiveVoice',
+    'cfgLiveFps',
+    'cfgMonthlyBudget',
+    'cfgUsageText',
+    'cfgOllamaBlock',
+    'cfgOllamaStatus',
+    'cfgOllamaUrl',
+    'cfgOllamaCheck',
+    'cfgOllamaModel',
+    'cfgOllamaPull',
+    'cfgOllamaCtx',
+    'cfgWhisperModel',
+    'cfgHotkeyGemini',
+    'cfgHotkeyRambler',
+    'cfgHotkeyLive',
+    'cfgHotkeyStop',
+    'cfgHotkeyStatus',
+    'cfgThemeSelect',
+    'cfgPanelCorner',
+    'cfgLanguage',
+    'cfgGlowStay',
+    'cfgAutostart',
+    'cfgSaveStatus',
+    'cfgSaveBtn'
+  ]) {
+    assert.ok(zHtml.includes(`id="${id}"`), `zentrale.html has #${id}`);
+    assert.ok(zJs.includes(`$('${id}')`), `zentrale.js binds #${id}`);
+  }
+  assert.match(mainJs, /ok:\s*!keyError/);
+});
+
+test('Windows app icon, Aura Ring + Center Dot in panel/Zentrale, and Rambler (Alt+D) 3-part pill UI', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
+  const mainJs = read('main.js');
+  const storeJs = read('store.js');
+  const keysJs = read('keys.js');
+  const panelHtml = read('renderer/panel.html');
+  const panelCss = read('renderer/panel.css');
+  const zHtml = read('renderer/zentrale.html');
+  const ramblerHtml = read('renderer/rambler.html');
+  const ramblerJs = read('renderer/rambler.js');
+
+  // Windows executable icon embedding & AppUserModelId
+  assert.strictEqual(pkg.build.win.icon, 'assets/icon.ico');
+  assert.notStrictEqual(pkg.build.win.signAndEditExecutable, false);
+  assert.match(mainJs, /process\.platform === 'win32' \? 'icon\.ico' : 'icon\.png'/);
+  assert.match(mainJs, /setAppUserModelId\('io\.github\.fischersase\.aura'\)/);
+
+  // Small panel and Zentrale greeting use the Aura Ring + Center Dot instead of the 4-pointed Gemini star
+  assert.match(panelHtml, /<symbol id="spark"[^>]*><path fill="url\(#g\)" fill-rule="evenodd"/);
+  assert.doesNotMatch(panelHtml, /12 2c\.6 5\.3/);
+  assert.match(panelCss, /button svg\.spark\s*\{\s*stroke:\s*none;/);
+  assert.match(zHtml, /class="zchat-greet-icon"[\s\S]*?fill-rule="evenodd"/);
+
+  // Rambler defaults to Alt+D, uses 3-part pill UI (cancel X, purple waveform capsule, confirm checkmark), and Win32 keybd_event
+  assert.match(storeJs, /hotkeyRambler:\s*'Alt\+D'/);
+  assert.match(ramblerHtml, /class="pill-cancel"/);
+  assert.match(ramblerHtml, /id="capsule" class="capsule"/);
+  assert.match(ramblerHtml, /class="pill-confirm"/);
+  assert.match(ramblerJs, /centerBoost/);
+  assert.match(keysJs, /keybd_event/);
+  assert.match(mainJs, /transcribe\(wavBase64,\s*whisperLanguage\(s\.language\)\)/);
+});

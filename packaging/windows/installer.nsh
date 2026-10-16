@@ -6,7 +6,10 @@
 ; and quits, so the user keeps seeing the old version. /T also ends the agent (python.exe) and other child processes.
 !macro customInit
   System::Call 'kernel32::GetCurrentProcessId() i .r0'
+  nsExec::Exec `"$SYSDIR\cmd.exe" /C taskkill /IM Aura.exe /FI "PID ne $0" /FI "USERNAME eq %USERNAME%"`
+  Pop $1
+  Sleep 800
   nsExec::Exec `"$SYSDIR\cmd.exe" /C taskkill /F /T /IM Aura.exe /FI "PID ne $0" /FI "USERNAME eq %USERNAME%"`
   Pop $1
-  Sleep 1500
+  Sleep 1000
 !macroend
