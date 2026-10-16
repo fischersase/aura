@@ -49,6 +49,21 @@ jobs:
           $env:AURA_AGENT_PYTHON = $py.FullName
           node --test test/agent2.test.js
           if ($LASTEXITCODE) { throw 'Brücken-Test fehlgeschlagen' }
+      # Oberfläche wie beim Nutzer: Eck-Chat (--toggle) und Einstellungen (--settings) öffnen und per
+      # DevTools-Protokoll prüfen, dass beide Fenster Antworten vom Hauptprozess bekommen.
+      - name: Oberfläche testen (Eck-Chat und Einstellungen)
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem "$env:LOCALAPPDATA\Programs" -Recurse -Filter Aura.exe | Select-Object -First 1
+          if (-not $exe) { throw 'Aura.exe nicht gefunden' }
+          node scripts/win-ui-smoke.js $exe.FullName
+          if ($LASTEXITCODE) { throw 'Oberflächen-Test fehlgeschlagen' }
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: aura-ui-smoke
+          path: aura-smoke/
+          retention-days: 14
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: Aura-Setup
