@@ -33,7 +33,7 @@ function createApp({ db, auth, metrics, jiraClient, jiraWorker }) {
     app.set('trust proxy', Number(process.env.TRUSTED_PROXY_HOPS || 1));
   }
 
-  app.use(helmet({ contentSecurityPolicy: false }));
+  app.use(helmet());
   app.use(express.json({ limit: '512kb' }));
   if (metrics) app.use(metrics.middleware);
 
@@ -43,6 +43,20 @@ function createApp({ db, auth, metrics, jiraClient, jiraWorker }) {
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: (req) => String(req.headers['x-aura-install-id'] || req.ip || 'anon')
+  });
+
+  const authLimiter = rateLimit({
+    windowMs: 60_000,
+    max: 30,
+    standardHeaders: true,
+    legacyHeaders: false
+  });
+
+  const adminLimiter = rateLimit({
+    windowMs: 60_000,
+    max: 120,
+    standardHeaders: true,
+    legacyHeaders: false
   });
 
   const feedbackLimiter = rateLimit({
@@ -78,7 +92,7 @@ function createApp({ db, auth, metrics, jiraClient, jiraWorker }) {
 
   // ---------- Auth Routes (Headhunter Google OAuth + Dev-Mode) ----------
 
-  app.get('/api/auth/config', (_req, res) => {
+  app.get('/api/auth/config', authLimiter, (_req, res) => {
     res.json({
       googleConfigured: auth.googleConfigured(),
       googleClientId: auth.googleClientId(),
@@ -87,7 +101,7 @@ function createApp({ db, auth, metrics, jiraClient, jiraWorker }) {
     });
   });
 
-  app.get('/api/auth/me', async (req, res) => {
+  app.get('/api/auth/me', authLimiter, async (req, res) => {
     const user = await auth.resolveUser(req);
     if (!user || !user.is_admin) return res.status(401).json({ authenticated: false });
     return res.json({
@@ -96,7 +110,7 @@ function createApp({ db, auth, metrics, jiraClient, jiraWorker }) {
     });
   });
 
-  app.post('/api/auth/google', async (req, res) => {
+  app.post('/api/auth/google', authLimiter, async (req, res) => {
     try {
       const credential = req.body && req.body.credential;
       if (!credential || typeof credential !== 'string') {
@@ -117,7 +131,7 @@ function createApp({ db, auth, metrics, jiraClient, jiraWorker }) {
     }
   });
 
-  app.post('/api/auth/dev', async (req, res) => {
+  app.post('/api/auth/dev', authLimiter, async (req, res) => {
     if (!auth.devLoginEnabled()) return res.status(404).json({ error: 'Not found.' });
     const token = req.body && req.body.token;
     if (!auth.devTokenMatches(token)) return res.status(401).json({ error: 'Ungültiges Dev-Token.' });
@@ -131,7 +145,7 @@ function createApp({ db, auth, metrics, jiraClient, jiraWorker }) {
     return res.json({ authenticated: true, user: { email: user.email, name: user.name, isAdmin: true } });
   });
 
-  app.post('/api/auth/logout', async (req, res) => {
+  app.post('/api/auth/logout', authLimiter, async (req, res) => {
     await auth.destroySession(req, res);
     res.json({ ok: true });
   });
@@ -429,7 +443,7 @@ function createApp({ db, auth, metrics, jiraClient, jiraWorker }) {
   });
 
   // Öffentliche (read-only) aktive Remote-Config / Canary-Rollouts
-  app.get('/api/config/remote', async (_req, res) => {
+  app.get('/api/config/remote', ingestLimiter, async (_req, res) => {
     const r = await db.query(
       `SELECT id, cluster_tag, target_type, title, config_patch, rollout_pct, status, updated_at
        FROM improvement_proposals
@@ -442,6 +456,7 @@ function createApp({ db, auth, metrics, jiraClient, jiraWorker }) {
   // ---------- Protected Admin Console APIs (404 für Nicht-Admins!) ----------
 
   const admin = express.Router();
+  admin.use(adminLimiter);
   admin.use(auth.requireAdmin);
 
   // Modul 1: Executive & Product Analytics

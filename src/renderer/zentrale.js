@@ -205,7 +205,14 @@ if ($('themeToggle')) {
 
 // ---------- Eingebauter Gemini-Chat in der Zentrale ----------
 
-const newZChatId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const newZChatId = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  const bytes = new Uint8Array(8);
+  crypto.getRandomValues(bytes);
+  return Date.now().toString(36) + Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+};
 let activeChatId = newZChatId();
 let activeChatHistory = [];
 let zChatBusy = false;
