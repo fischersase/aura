@@ -260,6 +260,7 @@ $('minCloseBtn').onclick = (e) => {
 };
 $('closeBtn').onclick = () => window.api.hidePanel();
 $('openSettings').onclick = () => window.api.openSettings();
+if ($('feedbackBtn')) $('feedbackBtn').onclick = () => window.api.openFeedback();
 $('openZentrale').onclick = async () => {
   if (!incognito && chatHistory.length) {
     try {

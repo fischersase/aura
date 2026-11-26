@@ -63,6 +63,15 @@ const CONFIG = ['setup.html', 'settings.html'];
 /** @type {Record<string, string[]>} */
 const IPC_ACCESS = {
   'setup:done': ['setup.html'],
+  'setup:readClipboardKey': ['setup.html'],
+  'hardware:info': [...PANEL, ...CONFIG],
+  'update:check': [...PANEL, ...CONFIG],
+  'update:getInfo': ['update.html'],
+  'update:install': ['update.html'],
+  'update:later': ['update.html'],
+  'update:skip': ['update.html'],
+  'update:openRelease': ['update.html'],
+  'feedback:open': PANEL,
   'settings:get': [...PANEL, ...CONFIG],
   'settings:save': [...PANEL, ...CONFIG],
   'settings:testKey': CONFIG,

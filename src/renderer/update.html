@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="dark">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'">
+<title>Aura – Update verfügbar</title>
+<style>
+  :root {
+    --bg: #131314;
+    --card: #1e1f20;
+    --text: #e3e3e3;
+    --muted: #9aa0a6;
+    --blue: #a8c7fa;
+    --line: rgba(255, 255, 255, .1);
+    font-family: "Google Sans", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.5;
+    padding: 22px 24px 20px;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  .head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+  .head img {
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+  }
+  h1 {
+    margin: 0;
+    font-size: 19px;
+    font-weight: 500;
+  }
+  .ver {
+    margin-top: 3px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .ver strong {
+    color: #81c995;
+    font-weight: 600;
+  }
+  .notes {
+    flex: 1;
+    overflow: auto;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 12px 14px;
+    font-size: 13px;
+    color: #d2d6dc;
+    white-space: pre-wrap;
+    margin-bottom: 14px;
+  }
+  .progress-wrap {
+    margin-bottom: 12px;
+  }
+  .progress-bar {
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .1);
+    overflow: hidden;
+    margin-top: 6px;
+  }
+  .progress-bar i {
+    display: block;
+    height: 100%;
+    width: 0;
+    background: linear-gradient(90deg, #4285f4, #a8c7fa);
+    transition: width .18s ease;
+  }
+  .status {
+    font-size: 12.5px;
+    color: var(--muted);
+    min-height: 18px;
+  }
+  .status.ok { color: #81c995; }
+  .status.bad { color: #f28b82; }
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .spacer { flex: 1; }
+  button {
+    font: inherit;
+    border: 0;
+    border-radius: 999px;
+    padding: 9px 16px;
+    cursor: pointer;
+    background: #282a2c;
+    color: var(--text);
+    transition: background .15s ease;
+  }
+  button:hover:not(:disabled) { background: #36393c; }
+  button:disabled { opacity: .55; cursor: not-allowed; }
+  button.primary {
+    background: var(--blue);
+    color: #062e6f;
+    font-weight: 600;
+  }
+  button.primary:hover:not(:disabled) { background: #c2d9ff; }
+  button.ghost {
+    background: transparent;
+    color: var(--muted);
+    padding: 9px 10px;
+  }
+  button.ghost:hover:not(:disabled) { color: var(--text); background: rgba(255, 255, 255, .06); }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+  <div class="head">
+    <img src="../../assets/icon.png" alt="">
+    <div>
+      <h1>Neue Aura-Version verfügbar</h1>
+      <div id="verLine" class="ver">Lade Update-Informationen …</div>
+    </div>
+  </div>
+
+  <div id="notes" class="notes">Lade Änderungsübersicht …</div>
+
+  <div id="progressWrap" class="progress-wrap hidden">
+    <div id="status" class="status" role="status" aria-live="polite"></div>
+    <div class="progress-bar"><i id="barFill"></i></div>
+  </div>
+
+  <div class="actions">
+    <button type="button" id="skipBtn" class="ghost">Version überspringen</button>
+    <span class="spacer"></span>
+    <button type="button" id="laterBtn">Später</button>
+    <button type="button" id="installBtn" class="primary">Jetzt installieren</button>
+  </div>
+
+  <script src="update.js"></script>
+</body>
+</html>

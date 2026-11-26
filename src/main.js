@@ -19,6 +19,9 @@ const path = require('path');
 const store = require('./store');
 const gemini = require('./gemini');
 const ollama = require('./ollama');
+const hardware = require('./hardware');
+const updater = require('./updater');
+const feedback = require('./feedback');
 const keys = require('./keys');
 const usage = require('./usage');
 const chats = require('./chats');
@@ -112,7 +115,8 @@ if (IS_LINUX) {
 }
 app.commandLine.appendSwitch('enable-features', features.join(','));
 
-let overlay, panel, ramblerBar, setupWin, sttWin, tray;
+let overlay, panel, ramblerBar, setupWin, sttWin, updateWin, tray;
+let pendingUpdate = null;
 let panelOpen = false;
 let panelMinimized = false;
 let liveActive = false;
@@ -321,6 +325,116 @@ ipcMain.on('setup:done', () => {
   if (setupWin && !setupWin.isDestroyed()) setupWin.close();
   registerHotkeys();
   setTimeout(() => openPanel(), 400);
+});
+
+// Gibt nur einen gültigen Gemini API-Key aus der Zwischenablage zurück (nie beliebige andere Inhalte).
+ipcMain.handle('setup:readClipboardKey', () => {
+  const txt = String(clipboard.readText() || '').trim();
+  if (/^AIza[0-9A-Za-z_-]{20,}$/.test(txt)) return { found: true, key: txt };
+  return { found: false };
+});
+
+async function getHardwarePayload() {
+  const hw = await hardware.detectHardware();
+  return {
+    ...hw,
+    summary: hardware.formatHardwareSummary(hw),
+    geminiModels: hardware.GEMINI_MODELS
+  };
+}
+
+ipcMain.handle('hardware:info', () => getHardwarePayload());
+
+function openUpdatePopup(info) {
+  pendingUpdate = info;
+  if (updateWin && !updateWin.isDestroyed()) {
+    updateWin.show();
+    updateWin.focus();
+    return;
+  }
+  updateWin = new BrowserWindow({
+    width: 520,
+    height: 430,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    title: `Aura – Update v${info.latestVersion}`,
+    icon: ICON,
+    autoHideMenuBar: true,
+    backgroundColor: '#131314',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload-update.js'),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+  updateWin.loadFile(R('update.html'));
+  updateWin.on('closed', () => {
+    updateWin = null;
+  });
+}
+
+async function checkAndShowUpdate({ manual = false } = {}) {
+  try {
+    const info = await updater.checkForUpdate({
+      currentVersion: app.getVersion(),
+      skippedVersion: store.load().skippedUpdateVersion || '',
+      platform: process.platform
+    });
+    if (info.updateAvailable && (manual || !info.skipped)) {
+      openUpdatePopup(info);
+    }
+    return { ok: true, ...info };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+ipcMain.handle('update:check', () => checkAndShowUpdate({ manual: true }));
+ipcMain.handle('update:getInfo', () => pendingUpdate);
+ipcMain.on('update:later', () => {
+  if (updateWin && !updateWin.isDestroyed()) updateWin.close();
+});
+ipcMain.on('update:skip', (_e, version) => {
+  if (version) store.save({ skippedUpdateVersion: String(version).replace(/^v/i, '') });
+  if (updateWin && !updateWin.isDestroyed()) updateWin.close();
+});
+ipcMain.on('update:openRelease', () => {
+  if (pendingUpdate && pendingUpdate.releaseUrl && /^https:\/\//.test(pendingUpdate.releaseUrl)) {
+    shell.openExternal(pendingUpdate.releaseUrl);
+  }
+  if (updateWin && !updateWin.isDestroyed()) updateWin.close();
+});
+ipcMain.handle('update:install', async () => {
+  if (!pendingUpdate || !pendingUpdate.downloadUrl) {
+    return { ok: false, error: 'Kein passendes Update-Paket gefunden.' };
+  }
+  try {
+    const res = await updater.downloadAndVerify({
+      downloadUrl: pendingUpdate.downloadUrl,
+      sumsUrl: pendingUpdate.sumsUrl,
+      assetName: pendingUpdate.assetName,
+      version: pendingUpdate.latestVersion,
+      onProgress: (p) => {
+        if (updateWin && !updateWin.isDestroyed()) updateWin.webContents.send('update:progress', p);
+      }
+    });
+    if (process.platform === 'win32') {
+      const openErr = await shell.openPath(res.filePath);
+      if (openErr) return { ok: false, error: `Installer konnte nicht gestartet werden: ${openErr}` };
+      setTimeout(() => app.quit(), 450);
+      return { ok: true, verified: res.verified };
+    }
+    shell.showItemInFolder(res.filePath);
+    return { ok: true, verified: res.verified, filePath: res.filePath };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+});
+
+ipcMain.on('feedback:open', () => {
+  minimizePanel();
+  zentrale.open(ICON, { feedback: true });
 });
 
 function openSettings() {
@@ -1651,6 +1765,36 @@ Object.assign(zentrale.API, {
   getSettings: () => ({ ...store.publicSettings(), usage: usageSummary() }),
   saveSettings: (patch) => saveSettingsPatch(patch),
   testKey: (key) => testGeminiKey(key),
+  hardwareInfo: () => getHardwarePayload(),
+  checkUpdate: () => checkAndShowUpdate({ manual: true }),
+  copyText: (text) => {
+    clipboard.writeText(String(text || ''));
+    return { ok: true };
+  },
+  sendFeedback: async ({ kind, title, message, includeSystemInfo, openBrowser = true } = {}) => {
+    try {
+      const s = store.load();
+      const hw = await hardware.detectHardware();
+      const built = feedback.buildFeedback({
+        kind,
+        title,
+        message,
+        includeSystemInfo,
+        context: {
+          version: app.getVersion(),
+          platform: process.platform,
+          arch: process.arch,
+          provider: s.provider,
+          model: s.provider === 'ollama' ? s.ollamaModel : s.chatModel,
+          hardwareSummary: hardware.formatHardwareSummary(hw)
+        }
+      });
+      if (openBrowser && /^https:\/\//.test(built.githubUrl)) shell.openExternal(built.githubUrl);
+      return { ok: true, ...built };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  },
   ollamaStatus: async (url) => {
     const u = url || store.load().ollamaUrl;
     const remote = !ollama.isLocalUrl(u);
@@ -2094,6 +2238,8 @@ function createTray() {
       { label: 'Aura Zentrale im Browser …', click: () => web.open() },
       { label: 'Einstellungen …', click: () => openSettings() },
       { label: 'Einrichtung erneut starten …', click: () => openSetup() },
+      { label: 'Feedback geben …', click: () => zentrale.open(ICON, { feedback: true }) },
+      { label: 'Nach Updates suchen …', click: () => checkAndShowUpdate({ manual: true }) },
       { type: 'separator' },
       { label: `Version ${app.getVersion()}`, enabled: false },
       { label: 'Beenden', click: () => app.quit() }
@@ -2128,6 +2274,19 @@ app.whenReady().then(() => {
   else if (!handleArgs(process.argv) && failed.length) openSettings();
   preloadStt().catch(() => {});
   scheduler.start();
+  // Automatisches Update-Popup (v. a. unter Windows bei neuer GitHub-Release-.exe) beim Start & alle 6 Stunden.
+  if (app.isPackaged || process.env.AURA_CHECK_UPDATES === '1') {
+    setTimeout(() => {
+      if (store.load().setupDone) checkAndShowUpdate({ manual: false }).catch(() => {});
+    }, 6000);
+    const updTimer = setInterval(
+      () => {
+        if (store.load().setupDone) checkAndShowUpdate({ manual: false }).catch(() => {});
+      },
+      6 * 3600 * 1000
+    );
+    updTimer.unref?.();
+  }
   screen.on('display-removed', () => {
     currentDisplay = null;
   });

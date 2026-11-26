@@ -21,13 +21,23 @@ function status(el, text, ok) {
 function show(i) {
   step = i;
   const name = flow()[i];
-  Object.entries(stepEls).forEach(([n, el]) => el.classList.toggle('on', n === name));
+  Object.entries(stepEls).forEach(([n, el]) => {
+    const active = n === name;
+    el.classList.toggle('on', active);
+    el.hidden = !active;
+  });
   document.querySelector('.dots').innerHTML = flow()
-    .map((_, n) => `<i class="${n <= i ? 'on' : ''}"></i>`)
+    .map((_, n) => `<i class="${n <= i ? 'on' : ''}"${n === i ? ' aria-current="step"' : ''}></i>`)
     .join('');
   $('back').style.visibility = i === 0 ? 'hidden' : 'visible';
   $('next').textContent = i === 0 ? "Los geht's" : i === flow().length - 1 ? 'Fertig' : 'Weiter';
-  if (name === 'key') setTimeout(() => $('apiKey').focus(), 50);
+  if (name === 'key') {
+    setTimeout(() => $('apiKey').focus(), 50);
+    checkClipboardForKey();
+  } else {
+    const h = stepEls[name] && stepEls[name].querySelector('h1');
+    if (h) setTimeout(() => h.focus(), 40);
+  }
   if (name === 'ollama') {
     if (!olPanel) olPanel = OllamaPanel($('ollamaBox'), settings);
     olPanel.check();
@@ -35,12 +45,42 @@ function show(i) {
 }
 
 function pickProvider(p) {
+  const btn = document.querySelector(`[data-provider="${p}"]`);
+  if (btn && btn.disabled) return;
   provider = p;
   document.querySelectorAll('[data-provider]').forEach((b) => b.classList.toggle('on', b.dataset.provider === p));
 }
 document.querySelectorAll('[data-provider]').forEach((b) => {
   b.onclick = () => pickProvider(b.dataset.provider);
 });
+
+async function checkClipboardForKey() {
+  if (!window.api.readClipboardKey || $('apiKey').value.trim()) {
+    if ($('clipBanner')) $('clipBanner').classList.add('hidden');
+    return;
+  }
+  try {
+    const r = await window.api.readClipboardKey();
+    if ($('clipBanner')) $('clipBanner').classList.toggle('hidden', !(r && r.found));
+  } catch {}
+}
+
+async function pasteAndTestFromClipboard() {
+  if (!window.api.readClipboardKey) return;
+  const r = await window.api.readClipboardKey();
+  if (!r || !r.found || !r.key) {
+    status(
+      $('keyStatus'),
+      'In der Zwischenablage wurde kein Gemini-Key (beginnt mit „AIza“) gefunden. Bitte zuerst in Google AI Studio kopieren.',
+      false
+    );
+    return;
+  }
+  $('apiKey').value = r.key;
+  if ($('clipBanner')) $('clipBanner').classList.add('hidden');
+  keyOk = false;
+  await testKey();
+}
 
 async function testKey() {
   const key = $('apiKey').value.trim();
@@ -50,14 +90,28 @@ async function testKey() {
     return true;
   }
   if (!key) {
-    status($('keyStatus'), 'Bitte den Key einfügen.', false);
+    status($('keyStatus'), 'Bitte den Key einfügen (beginnt mit „AIza“).', false);
+    $('apiKey').setAttribute('aria-invalid', 'true');
     return false;
   }
-  status($('keyStatus'), 'Prüfe …');
+  if (!/^AIza[0-9A-Za-z_-]{15,}$/.test(key)) {
+    status(
+      $('keyStatus'),
+      'Das sieht noch nicht wie ein Gemini API-Key aus – er beginnt immer mit „AIza“ (ohne Leerzeichen).',
+      false
+    );
+    $('apiKey').setAttribute('aria-invalid', 'true');
+    return false;
+  }
+  $('apiKey').removeAttribute('aria-invalid');
+  status($('keyStatus'), 'Prüfe Verbindung zu Google Gemini …');
   const r = await window.api.testKey(key);
   keyOk = r.ok;
-  status($('keyStatus'), r.ok ? 'Key funktioniert.' : 'Fehler: ' + r.message, r.ok);
-  if (!r.ok) return false;
+  status($('keyStatus'), r.ok ? 'Key funktioniert und ist verschlüsselt gespeichert!' : 'Fehler: ' + r.message, r.ok);
+  if (!r.ok) {
+    $('apiKey').setAttribute('aria-invalid', 'true');
+    return false;
+  }
   const saved = await window.api.saveSettings({ apiKey: key });
   if (saved.keyError) {
     // No keyring: the key works but is not stored (AURA-93).
@@ -65,15 +119,29 @@ async function testKey() {
     status($('keyStatus'), saved.keyError, false);
     return false;
   }
+  hasKey = true;
   return true;
 }
 
 $('testKey').onclick = testKey;
+if ($('pasteKeyBtn')) $('pasteKeyBtn').onclick = pasteAndTestFromClipboard;
+if ($('pasteClipBannerBtn')) $('pasteClipBannerBtn').onclick = pasteAndTestFromClipboard;
+if ($('toggleKeyVis')) {
+  $('toggleKeyVis').onclick = () => {
+    const shown = $('apiKey').type === 'text';
+    $('apiKey').type = shown ? 'password' : 'text';
+    $('toggleKeyVis').setAttribute('aria-pressed', String(!shown));
+  };
+}
 $('apiKey').addEventListener('input', () => {
   keyOk = false;
+  $('apiKey').removeAttribute('aria-invalid');
 });
 $('apiKey').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') $('next').click();
+  if (e.key === 'Enter' && !e.isComposing) $('next').click();
+});
+window.addEventListener('focus', () => {
+  if (flow()[step] === 'key') checkClipboardForKey();
 });
 
 $('back').onclick = () => show(Math.max(0, step - 1));
@@ -118,4 +186,26 @@ window.api.getSettings().then((s) => {
   $('kL').textContent = pretty(s.hotkeyLive);
   $('kD').textContent = pretty(s.hotkeyRambler);
 });
+if (window.api.hardwareInfo) {
+  window.api.hardwareInfo().then((hw) => {
+    if (!hw) return;
+    if ($('hwBanner')) $('hwBanner').textContent = `Dein PC: ${hw.summary}`;
+    const vram = Number(hw.vramGb || 0);
+    const ram = Number(hw.ramGb || 0);
+    const canLocal = vram >= 4 || ram >= 8;
+    const olBtn = $('ollamaChoiceBtn');
+    const olBadge = $('ollamaChoiceBadge');
+    if (olBtn && olBadge) {
+      if (!canLocal) {
+        olBtn.disabled = true;
+        olBadge.textContent = `Nicht genug Speicher (${hw.summary} · braucht ≥ 4 GB VRAM oder 8 GB RAM)`;
+        if (provider === 'ollama') pickProvider('gemini');
+      } else if (vram >= 8) {
+        olBadge.textContent = `Gut geeignet (${vram} GB VRAM erkannt)`;
+      } else {
+        olBadge.textContent = `Kleine Modelle möglich (${ram} GB RAM · große Modelle ausgegraut)`;
+      }
+    }
+  });
+}
 show(0);
