@@ -486,7 +486,13 @@ async function toggleRambler() {
     // Falls der Renderer (z. B. beim Öffnen des Mikrofons) nicht innerhalb von 1,5 s antwortet, hart aufräumen.
     clearTimeout(ramblerState.stopGuardTimer);
     ramblerState.stopGuardTimer = setTimeout(() => {
-      if (!ramblerState.recording && !ramblerState.processing && ramblerBar && !ramblerBar.isDestroyed() && ramblerBar.isVisible()) {
+      if (
+        !ramblerState.recording &&
+        !ramblerState.processing &&
+        ramblerBar &&
+        !ramblerBar.isDestroyed() &&
+        ramblerBar.isVisible()
+      ) {
         cancelRambler();
       }
     }, 1500);
