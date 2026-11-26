@@ -35,14 +35,23 @@ function createDb(config = {}) {
   async function ensureGrafanaRoLogin(targetPool) {
     const pw = process.env.GRAFANA_DB_PASSWORD || '';
     if (!pw) return false;
-    // Parametrisierte Password-Setzung per format(%L) in DO-Block verhindert SQL-Injection zuverlässig.
-    await targetPool.query(
-      `DO $$
-       BEGIN
-         EXECUTE format('ALTER ROLE grafana_ro WITH LOGIN PASSWORD %L', $1);
-       END $$;`,
-      [pw]
-    );
+    const client = await targetPool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`SELECT set_config('aura.grafana_pw', $1, true)`, [pw]);
+      await client.query(`
+        DO $$
+        BEGIN
+          EXECUTE format('ALTER ROLE grafana_ro WITH LOGIN PASSWORD %L', current_setting('aura.grafana_pw'));
+        END $$;
+      `);
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
     return true;
   }
 
