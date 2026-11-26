@@ -330,6 +330,16 @@ function openSetup() {
 
 ipcMain.on('setup:done', () => {
   store.save({ setupDone: true });
+  const s = store.load();
+  telemetryClient.sendHeartbeat().catch(() => {});
+  telemetryClient.recordEvent({
+    eventType: 'setup_complete',
+    feature: 'onboarding',
+    provider: s.provider,
+    model: store.isLocal() ? s.ollamaModel : s.chatModel,
+    status: 'ok'
+  });
+  telemetryClient.flush().catch(() => {});
   if (setupWin && !setupWin.isDestroyed()) setupWin.close();
   registerHotkeys();
   setTimeout(() => openPanel(), 400);
@@ -697,6 +707,9 @@ ipcMain.on('rambler:audio', async (_e, { wavBase64 }) => {
     cancelRambler();
     return;
   }
+  const ramblerStarted = Date.now();
+  const sRambler = store.load();
+  const ramblerModelName = store.isLocal() ? sRambler.ollamaModel : sRambler.ramblerModel;
   if (ramblerState.abortCtrl) {
     try {
       ramblerState.abortCtrl.abort();
@@ -764,9 +777,26 @@ ipcMain.on('rambler:audio', async (_e, { wavBase64 }) => {
     registerRamblerEscape(false);
     ramblerSend('rambler:state', { state: 'done', fullAvailable: !ramblerState.selection });
     ramblerBar.hide();
+    telemetryClient.recordEvent({
+      eventType: 'rambler_dictation',
+      feature: 'rambler',
+      provider: sRambler.provider,
+      model: ramblerModelName,
+      latencyMs: Date.now() - ramblerStarted,
+      status: 'ok'
+    });
   } catch (err) {
     if (ctrl.signal.aborted && !timedOut) return;
     const msg = timedOut ? 'Zeitüberschreitung bei der Spracherkennung.' : String(err.message || err);
+    telemetryClient.recordEvent({
+      eventType: 'rambler_dictation',
+      feature: 'rambler',
+      provider: sRambler.provider,
+      model: ramblerModelName,
+      latencyMs: Date.now() - ramblerStarted,
+      status: 'error',
+      errorCode: timedOut ? 'rambler_timeout' : 'rambler_error'
+    });
     if (ramblerBar && !ramblerBar.isDestroyed()) ramblerBar.showInactive();
     ramblerSend('rambler:state', { state: 'error', message: msg });
     hideRamblerBarSoon(5000);
@@ -948,19 +978,34 @@ ipcMain.on('open:external', (_e, url) => {
 ipcMain.on('chat:send', async (e, { id, chatId, history, includeScreen, incognito }) => {
   const ctrl = new AbortController();
   chatAborts.set(id, ctrl);
+  const started = Date.now();
+  const s = store.load();
+  const modelName = store.isLocal() ? s.ollamaModel : s.chatModel;
+  const featureName = s.agentEnabled
+    ? agentVersion() === 'v2' && agentV2.available()
+      ? 'agent_v2'
+      : 'agent_v1'
+    : 'panel_chat';
+  let replyText = '';
+  const collectedSpans = [];
+  let totalTokens = 0;
   try {
     const over = budgetError();
     if (over) throw new Error(over);
-    const s = store.load();
     const contents = JSON.parse(JSON.stringify(history));
     if (includeScreen) {
       const jpeg = await screenshotJpeg(currentDisplay);
       contents[contents.length - 1].parts.unshift({ inlineData: { mimeType: 'image/jpeg', data: jpeg } });
       e.sender.send('chat:screen', { id, jpeg });
     }
-    const onText = (t) => e.sender.send('chat:chunk', { id, text: t });
+    const onText = (t) => {
+      replyText += t;
+      e.sender.send('chat:chunk', { id, text: t });
+    };
     if (s.agentEnabled && agentVersion() === 'v2' && agentV2.available()) {
-      await runAgentV2(e.sender, id, chatId || id, ctrl, contents, onText, !!incognito);
+      const done = await runAgentV2(e.sender, id, chatId || id, ctrl, contents, onText, !!incognito, collectedSpans);
+      if (done && done.text && !replyText) replyText = done.text;
+      if (done && done.usage) totalTokens = Number(done.usage.prompt || 0) + Number(done.usage.output || 0);
     } else if (s.agentEnabled) {
       await runAgent(e.sender, id, ctrl, contents, onText);
     } else if (store.isLocal()) {
@@ -981,13 +1026,59 @@ ipcMain.on('chat:send', async (e, { id, chatId, history, includeScreen, incognit
         signal: ctrl.signal,
         onText
       });
+      if (res && res.usage) {
+        totalTokens = Number(res.usage.promptTokenCount || 0) + Number(res.usage.candidatesTokenCount || 0);
+      }
       usage.addTokens(s.chatModel, res.usage);
       broadcastUsage();
     }
     e.sender.send('chat:done', { id });
+    const latencyMs = Date.now() - started;
+    telemetryClient.recordEvent({
+      eventType: 'chat_turn',
+      feature: featureName,
+      provider: s.provider,
+      model: modelName,
+      latencyMs,
+      tokensOut: totalTokens || null,
+      status: 'ok'
+    });
+    if (!incognito && s.telemetryTracesOptIn) {
+      const flatMsgs = [
+        ...contents.map((m) => ({
+          role: m.role === 'model' ? 'assistant' : 'user',
+          text: (m.parts || []).map((p) => p.text || '').join('\n')
+        })),
+        { role: 'assistant', text: replyText }
+      ];
+      telemetryClient
+        .recordSessionTrace({
+          sessionId: String(chatId || id || `panel-${started}`),
+          mode: featureName,
+          provider: s.provider,
+          model: modelName,
+          messages: flatMsgs,
+          spans: collectedSpans,
+          totalLatencyMs: latencyMs,
+          totalTokens,
+          hasError: collectedSpans.some((sp) => sp.status !== 'ok')
+        })
+        .catch(() => {});
+    }
   } catch (err) {
     if (err.name === 'AbortError') e.sender.send('chat:done', { id });
-    else e.sender.send('chat:error', { id, message: String(err.message || err) });
+    else {
+      e.sender.send('chat:error', { id, message: String(err.message || err) });
+      telemetryClient.recordEvent({
+        eventType: 'chat_turn',
+        feature: featureName,
+        provider: s.provider,
+        model: modelName,
+        latencyMs: Date.now() - started,
+        status: 'error',
+        errorCode: String((err && err.code) || 'panel_chat_error').slice(0, 64)
+      });
+    }
   } finally {
     chatAborts.delete(id);
   }
@@ -1579,10 +1670,13 @@ function notifyIfHidden(text, verified) {
   n.show();
 }
 
-async function runAgentV2(sender, id, chatId, ctrl, contents, onText, incognito = false) {
+async function runAgentV2(sender, id, chatId, ctrl, contents, onText, incognito = false, collectedSpans = null) {
   const send = (ch, data) => {
     if (!sender.isDestroyed()) sender.send(ch, data);
   };
+  const stepStarts = new Map();
+  const sForTel = store.load();
+  const modelForTel = store.isLocal() ? sForTel.ollamaModel : sForTel.chatModel;
   const last = contents[contents.length - 1] || { parts: [] };
   const text = last.parts
     .filter((p) => p.text)
@@ -1616,7 +1710,7 @@ async function runAgentV2(sender, id, chatId, ctrl, contents, onText, incognito 
       { taskId: id, chatId, text, images, incognito },
       {
         onText,
-        onStep: (st) =>
+        onStep: (st) => {
           send('agent:step', {
             chatId: id,
             id: st.stepId,
@@ -1624,7 +1718,39 @@ async function runAgentV2(sender, id, chatId, ctrl, contents, onText, incognito 
             label: st.label,
             state: st.state,
             verified: st.verified
-          }),
+          });
+          if (st && st.stepId) {
+            if (st.state === 'running' || st.state === 'pending') {
+              if (!stepStarts.has(st.stepId)) stepStarts.set(st.stepId, Date.now());
+            } else if (st.state === 'done' || st.state === 'ok' || st.state === 'error' || st.state === 'denied') {
+              const t0 = stepStarts.get(st.stepId) || Date.now();
+              const dur = Math.max(0, Date.now() - t0);
+              const spanStatus = st.state === 'done' || st.state === 'ok' ? 'ok' : st.state;
+              telemetryClient.recordEvent({
+                eventType: 'tool_call',
+                feature: 'agent_v2',
+                provider: sForTel.provider,
+                model: modelForTel,
+                toolName: st.tool || 'unknown',
+                latencyMs: dur,
+                status: spanStatus,
+                errorCode: spanStatus !== 'ok' ? `tool_${spanStatus}` : null
+              });
+              if (Array.isArray(collectedSpans)) {
+                collectedSpans.push({
+                  spanId: `${id}-${st.stepId}`,
+                  spanType: 'tool',
+                  toolName: st.tool || 'unknown',
+                  durationMs: dur,
+                  status: spanStatus,
+                  errorType: spanStatus !== 'ok' ? st.label || spanStatus : null,
+                  io: { label: st.label || '', verified: st.verified ?? null },
+                  startedAt: new Date(t0).toISOString()
+                });
+              }
+            }
+          }
+        },
         onPlan: (items) => send('agent:plan', { chatId: id, items })
       }
     );
@@ -1639,6 +1765,7 @@ async function runAgentV2(sender, id, chatId, ctrl, contents, onText, incognito 
       });
       broadcastUsage();
     }
+    return done;
   } finally {
     ctrl.signal.removeEventListener('abort', onAbort);
     v2Senders.delete(id);
@@ -2038,6 +2165,14 @@ const liveRelay = new LiveRelay({ getKey: () => store.getApiKey() });
 ipcMain.handle('live:open', (e) => {
   const over = budgetError();
   if (over) return { error: over };
+  const s = store.load();
+  telemetryClient.recordEvent({
+    eventType: 'live_open',
+    feature: 'live',
+    provider: s.provider,
+    model: store.isLocal() ? s.ollamaModel : s.liveModel,
+    status: 'ok'
+  });
   return liveRelay.open(e.sender);
 });
 ipcMain.on('live:send', (e, { id, data }) => liveRelay.send(e.sender, id, data));
