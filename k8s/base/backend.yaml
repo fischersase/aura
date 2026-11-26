@@ -1,0 +1,129 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+spec:
+  ports:
+    - port: 3001
+      targetPort: 3001
+  selector:
+    app: backend
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: backend
+          image: aura-admin-backend:latest
+          imagePullPolicy: Never
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - containerPort: 3001
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "3001"
+            - name: AURA_ENV
+              value: "production"
+            - name: TRUSTED_PROXY_CIDRS
+              value: "10.42.0.0/16"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: aura-admin-secrets
+                  key: DATABASE_URL
+            - name: GOOGLE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aura-admin-secrets
+                  key: GOOGLE_CLIENT_ID
+                  optional: true
+            - name: ADMIN_BOOTSTRAP_EMAILS
+              valueFrom:
+                secretKeyRef:
+                  name: aura-admin-secrets
+                  key: ADMIN_BOOTSTRAP_EMAILS
+            - name: GRAFANA_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-secrets
+                  key: GRAFANA_DB_PASSWORD
+                  optional: true
+            - name: GEMINI_JUDGE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aura-admin-secrets
+                  key: GEMINI_JUDGE_API_KEY
+                  optional: true
+            # Jira-Feedback-Strecke (exakt wie Headhunter): ohne JIRA_EMAIL & JIRA_API_TOKEN
+            # komplett inaktiv; sobald das Secret gesetzt ist, holt der Sweep alles nach.
+            - name: JIRA_BASE_URL
+              value: "https://fischersase-1752739551638.atlassian.net"
+            - name: JIRA_PROJECT_KEY
+              value: "AURA"
+            - name: JIRA_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: aura-admin-secrets
+                  key: JIRA_EMAIL
+                  optional: true
+            - name: JIRA_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: aura-admin-secrets
+                  key: JIRA_API_TOKEN
+                  optional: true
+            - name: JIRA_ISSUE_TYPE_IDS
+              valueFrom:
+                secretKeyRef:
+                  name: aura-admin-secrets
+                  key: JIRA_ISSUE_TYPE_IDS
+                  optional: true
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3001
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3001
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+      volumes:
+        - name: tmp
+          emptyDir: {}

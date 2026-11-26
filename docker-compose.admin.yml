@@ -1,0 +1,101 @@
+# Lokaler Komplett-Stack für Aura Admin Console (Postgres + Backend + Frontend + Prometheus + Grafana).
+# Start:
+#   DEV_ADMIN_TOKEN=dev-secret-change-me docker compose -f docker-compose.admin.yml up --build
+# Admin Console: http://127.0.0.1:8088
+# Grafana:       http://127.0.0.1:3005 (admin / ${GRAFANA_ADMIN_PASSWORD:-local-dev-grafana})
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: aura_admin
+      POSTGRES_USER: aura_admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aura_local_dev_pw}
+    volumes:
+      - aura_admin_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aura_admin -d aura_admin"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: ./admin/backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      AURA_ENV: development
+      DATABASE_URL: postgres://aura_admin:${POSTGRES_PASSWORD:-aura_local_dev_pw}@postgres:5432/aura_admin
+      DEV_ADMIN_TOKEN: ${DEV_ADMIN_TOKEN:-aura-dev-admin}
+      ADMIN_BOOTSTRAP_EMAILS: ${ADMIN_BOOTSTRAP_EMAILS:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD:-grafana_local_ro_pw}
+      GRAFANA_PUBLIC_URL: http://127.0.0.1:3005
+      GEMINI_JUDGE_API_KEY: ${GEMINI_JUDGE_API_KEY:-}
+      JIRA_BASE_URL: ${JIRA_BASE_URL:-https://fischersase-1752739551638.atlassian.net}
+      JIRA_PROJECT_KEY: ${JIRA_PROJECT_KEY:-AURA}
+      JIRA_EMAIL: ${JIRA_EMAIL:-}
+      JIRA_API_TOKEN: ${JIRA_API_TOKEN:-}
+      JIRA_ISSUE_TYPE_IDS: ${JIRA_ISSUE_TYPE_IDS:-}
+    ports:
+      - "127.0.0.1:3001:3001"
+
+  frontend:
+    build: ./admin/frontend
+    depends_on:
+      - backend
+    environment:
+      BACKEND_UPSTREAM: backend:3001
+    ports:
+      - "127.0.0.1:8088:8080"
+
+  postgres-exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.20.1
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command:
+      - "--extend.query-path=/etc/postgres-exporter/queries.yaml"
+      - "--no-collector.wal"
+    environment:
+      DATA_SOURCE_URI: postgres:5432/aura_admin?sslmode=disable
+      DATA_SOURCE_USER: grafana_ro
+      DATA_SOURCE_PASS: ${GRAFANA_DB_PASSWORD:-grafana_local_ro_pw}
+    volumes:
+      - ./k8s/base/postgres-exporter-queries.yaml:/etc/postgres-exporter/queries.yaml:ro
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    depends_on:
+      - backend
+      - postgres-exporter
+    volumes:
+      - ./admin/monitoring/prometheus.local.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "127.0.0.1:9095:9090"
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    depends_on:
+      - prometheus
+      - postgres
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-local-dev-grafana}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      PROMETHEUS_URL: http://prometheus:9090
+      GRAFANA_DB_URL: postgres:5432
+      GRAFANA_DB_NAME: aura_admin
+      GRAFANA_DB_USER: grafana_ro
+      GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD:-grafana_local_ro_pw}
+      GRAFANA_DB_SSLMODE: disable
+    volumes:
+      - ./k8s/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./k8s/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "127.0.0.1:3005:3000"
+
+volumes:
+  aura_admin_pgdata:

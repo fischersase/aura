@@ -31,6 +31,7 @@ const ALLOW = new Set([
   'hardwareInfo',
   'checkUpdate',
   'sendFeedback',
+  'rateSession',
   'copyText',
   'setAgent',
   'openUrl',
@@ -76,6 +77,7 @@ const CONFIRM = {
   saveSettings: () => 'Einstellungen und Modellauswahl speichern',
   ollamaPull: (a) => `Lokales Modell „${a && a.name}“ über Ollama herunterladen`,
   askChat: () => 'Nachricht im Chat senden',
+  deleteRemoteTelemetry: () => 'Alle gespeicherten Protokolle dieser Installation vom Admin-Server löschen',
   installExtension: () => 'GNOME-Erweiterung installieren'
 };
 

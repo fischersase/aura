@@ -19,7 +19,17 @@ const shared = {
 };
 
 module.exports = [
-  { ignores: ['src/vendor/**', 'dist/**', 'build/**', 'node_modules/**', 'agent/**', 'gnome-extension/**'] },
+  {
+    ignores: [
+      'src/vendor/**',
+      'dist/**',
+      'build/**',
+      'node_modules/**',
+      'admin/backend/node_modules/**',
+      'agent/**',
+      'gnome-extension/**'
+    ]
+  },
   js.configs.recommended,
   security.configs.recommended,
   {
@@ -68,6 +78,16 @@ module.exports = [
   {
     files: ['src/renderer/pcm-worklet.js'],
     languageOptions: { ecmaVersion: 2024, sourceType: 'script', globals: { ...globals.audioWorklet } },
+    rules: shared
+  },
+  {
+    files: ['admin/backend/src/**/*.js'],
+    languageOptions: { ecmaVersion: 2024, sourceType: 'commonjs', globals: { ...globals.node } },
+    rules: shared
+  },
+  {
+    files: ['admin/frontend/**/*.js'],
+    languageOptions: { ecmaVersion: 2024, sourceType: 'script', globals: { ...globals.browser } },
     rules: shared
   }
 ];

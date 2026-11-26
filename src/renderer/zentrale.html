@@ -434,6 +434,20 @@
       <br>
       <label class="switch" style="margin-top:10px"><input type="checkbox" id="cfgAutostart"><span></span> Aura beim Anmelden automatisch im Hintergrund starten</label>
     </div>
+
+    <div class="card form">
+      <h3>Datenschutz, Telemetrie &amp; Verbesserungsprogramm</h3>
+      <p class="small muted" style="margin-top:0">Du entscheidest transparent (DSGVO-konform), was Aura an deine Aura Admin Console überträgt. Ohne deine Zustimmung bleibt alles rein lokal auf diesem PC.</p>
+      <label class="switch" style="margin-top:8px"><input type="checkbox" id="cfgTelemetryMetrics"><span></span> Stufe 1: Anonyme Nutzungs- &amp; Performance-Statistiken (Latenzen, Tool-Erfolg, OS, RAM/VRAM – keine Chat-Inhalte)</label>
+      <br>
+      <label class="switch" style="margin-top:10px"><input type="checkbox" id="cfgTelemetryTraces"><span></span> Stufe 2: Geschwärzte Chat- &amp; Agent-Protokolle zur Systemverbesserung (E-Mails, Keys, Passwörter, Pfade &amp; IBANs werden lokal geschwärzt)</label>
+      <label for="cfgAdminApiUrl" style="margin-top:14px">Aura Admin Console URL (optional, z. B. Tailscale Funnel <code>https://aura-admin-prod.….ts.net</code>)</label>
+      <input id="cfgAdminApiUrl" type="url" placeholder="https://aura-admin-prod.tail….ts.net" spellcheck="false" autocorrect="off" autocapitalize="none">
+      <div class="row" style="margin-top:12px;align-items:center">
+        <button type="button" id="cfgDeleteRemoteData" class="danger">Alle meine Server-Protokolle löschen (DSGVO)</button>
+        <span id="cfgRemoteDelStatus" class="small muted" role="status" aria-live="polite"></span>
+      </div>
+    </div>
   </section>
 
   <!-- Übersicht -->
@@ -615,7 +629,7 @@
       <h1 id="fbHeading">Feedback an Aura senden</h1>
       <button type="button" id="fbCloseBtn" class="icon-btn" aria-label="Dialog schließen">✕</button>
     </div>
-    <p class="small muted" style="margin:0 0 12px">Dein Feedback landet direkt in den Aura-Issues auf GitHub (oder du kannst den Text direkt kopieren).</p>
+    <p class="small muted" style="margin:0 0 12px">Dein Feedback landet direkt in der Aura Admin Console (oder als Fallback auf GitHub bzw. zum Kopieren).</p>
     <fieldset class="fb-fieldset">
       <legend>Worum geht es?</legend>
       <div class="fb-radios">
@@ -630,14 +644,18 @@
     <textarea id="fbMessage" name="fbMessage" rows="5" required placeholder="Was hat gut geklappt, was hat gehakt oder was fehlt dir noch?" autofocus></textarea>
     <label class="check" style="margin-top:10px">
       <input type="checkbox" id="fbSysInfo" name="fbSysInfo" checked>
-      <span>Harmlose Systeminfos anhängen (Aura-Version, Betriebssystem, Modell, RAM/VRAM – keine Schlüssel oder Chats)</span>
+      <span>Harmlose Systeminfos anhängen (Aura-Version, Betriebssystem, Modell, RAM/VRAM – keine Schlüssel)</span>
+    </label>
+    <label class="check" style="margin-top:6px">
+      <input type="checkbox" id="fbAttachTrace" name="fbAttachTrace">
+      <span>Aktuellen Chat-Verlauf (automatisch geschwärzt) als Diagnose-Protokoll anhängen</span>
     </label>
     <div id="fbStatus" class="small" role="status" aria-live="polite" style="min-height:18px;margin-top:8px"></div>
     <div class="dlg-actions" style="margin-top:12px">
       <button type="button" id="fbCopyBtn">Text kopieren</button>
       <span class="grow"></span>
       <button type="button" id="fbCancelBtn">Abbrechen</button>
-      <button type="submit" id="fbSubmitBtn" class="primary">Auf GitHub senden ↗</button>
+      <button type="submit" id="fbSubmitBtn" class="primary">Feedback senden</button>
     </div>
   </form>
 </dialog>

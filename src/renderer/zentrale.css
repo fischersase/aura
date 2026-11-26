@@ -691,7 +691,7 @@ button.primary:hover { filter: brightness(1.08); }
 button.small { padding: 5px 12px; font-size: 12.5px; }
 button.danger { color: var(--bad); }
 
-input[type=text], input[type=search], input[type=password], input[type=email], input[type=datetime-local], input[type=number], textarea, select {
+input[type=text], input[type=url], input[type=search], input[type=password], input[type=email], input[type=datetime-local], input[type=number], textarea, select {
   width: 100%;
   padding: 10px 14px;
   border-radius: 12px;
@@ -1158,3 +1158,8 @@ dialog.native-dlg textarea {
   resize: vertical;
   min-height: 96px;
 }
+
+.zchat-rate-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); flex-wrap: wrap; }
+.zchat-rate-btn { background: transparent; border: 1px solid var(--line); color: var(--muted); border-radius: 999px; padding: 3px 10px; font-size: 12px; cursor: pointer; }
+.zchat-rate-btn:hover { color: var(--text); border-color: var(--blue); }
+.zchat-rate-btn.active { color: var(--blue); border-color: var(--blue); background: rgba(168, 199, 250, .14); }

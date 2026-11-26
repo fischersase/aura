@@ -1,0 +1,71 @@
+# Eigene Abfragen des postgres-exporter für Aura-Zeitreihen (spaltenweise grafana_ro-Grants).
+aura_installations_by_os:
+  query: |
+    SELECT os_platform, consent_tier, COUNT(*)::bigint AS total
+    FROM installations
+    GROUP BY os_platform, consent_tier
+  cache_seconds: 30
+  metrics:
+    - os_platform:
+        usage: "LABEL"
+        description: "Betriebssystem der Aura-Installation"
+    - consent_tier:
+        usage: "LABEL"
+        description: "Datenschutz-Zustimmungsstufe (none/metrics/traces)"
+    - total:
+        usage: "GAUGE"
+        description: "Anzahl registrierter Installationen"
+
+aura_active_installations:
+  query: |
+    SELECT
+      COUNT(*) FILTER (WHERE last_seen >= NOW() - INTERVAL '1 day')::bigint AS dau,
+      COUNT(*) FILTER (WHERE last_seen >= NOW() - INTERVAL '7 days')::bigint AS wau,
+      COUNT(*) FILTER (WHERE last_seen >= NOW() - INTERVAL '30 days')::bigint AS mau
+    FROM installations
+  cache_seconds: 30
+  metrics:
+    - dau:
+        usage: "GAUGE"
+        description: "Daily Active Installations (24h)"
+    - wau:
+        usage: "GAUGE"
+        description: "Weekly Active Installations (7d)"
+    - mau:
+        usage: "GAUGE"
+        description: "Monthly Active Installations (30d)"
+
+aura_feedback_queue:
+  query: |
+    SELECT s.status, COALESCE(f.n, 0)::bigint AS depth
+    FROM unnest(ARRAY['pending', 'exporting', 'created', 'commented', 'rejected', 'failed']) AS s(status)
+    LEFT JOIN (SELECT jira_status, COUNT(*) AS n FROM user_feedback GROUP BY jira_status) AS f
+      ON f.jira_status = s.status
+  cache_seconds: 30
+  metrics:
+    - status:
+        usage: "LABEL"
+        description: "Jira-Export-Status in user_feedback"
+    - depth:
+        usage: "GAUGE"
+        description: "Anzahl Rückmeldungen je Jira-Status"
+
+aura_sessions_quality:
+  query: |
+    SELECT
+      COUNT(*)::bigint AS total_24h,
+      COUNT(*) FILTER (WHERE has_error)::bigint AS error_24h,
+      COALESCE(AVG(judge_score), 0)::double precision AS avg_judge_score_24h
+    FROM chat_sessions
+    WHERE created_at >= NOW() - INTERVAL '24 hours'
+  cache_seconds: 30
+  metrics:
+    - total_24h:
+        usage: "GAUGE"
+        description: "Eingegangene Chat-Sessions in den letzten 24h"
+    - error_24h:
+        usage: "GAUGE"
+        description: "Fehlerhafte Chat-Sessions in den letzten 24h"
+    - avg_judge_score_24h:
+        usage: "GAUGE"
+        description: "Durchschnittlicher Qualitäts-Score (1-5) der letzten 24h"

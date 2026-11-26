@@ -1,0 +1,65 @@
+# postgres-exporter (Headhunter-Muster): stellt Datenbank-Zeitreihen auf :9187 für Prometheus bereit.
+# Verwendet dieselbe Read-Only-Rolle grafana_ro wie Grafana.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-exporter
+  labels:
+    app: postgres-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-exporter
+  template:
+    metadata:
+      labels:
+        app: postgres-exporter
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: postgres-exporter
+          image: quay.io/prometheuscommunity/postgres-exporter:v0.20.1
+          args:
+            - "--extend.query-path=/etc/postgres-exporter/queries.yaml"
+            - "--no-collector.wal"
+            - "--web.listen-address=:9187"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - containerPort: 9187
+          env:
+            - name: DATA_SOURCE_URI
+              value: "postgres-service:5432/aura_admin?sslmode=disable"
+            - name: DATA_SOURCE_USER
+              value: "grafana_ro"
+            - name: DATA_SOURCE_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-secrets
+                  key: GRAFANA_DB_PASSWORD
+                  optional: true
+          volumeMounts:
+            - name: queries
+              mountPath: /etc/postgres-exporter
+              readOnly: true
+          resources:
+            requests:
+              cpu: "25m"
+              memory: "32Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+      volumes:
+        - name: queries
+          configMap:
+            name: postgres-exporter-queries
