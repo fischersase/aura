@@ -7,8 +7,9 @@ const crypto = require('crypto');
 const redact = require('./redact');
 
 const MAX_BATCH = 25;
-const FLUSH_INTERVAL_MS = 30_000;
+const FLUSH_INTERVAL_MS = 5_000;
 const REQUEST_TIMEOUT_MS = 8_000;
+const DEFAULT_ADMIN_URL = 'https://aura-prod.tailc7b22c.ts.net';
 
 /**
  * Validiert eine Admin-API-Basis-URL. Erlaubt HTTPS (z. B. Tailscale Funnel) oder Loopback-HTTP für lokale Tests.
@@ -77,7 +78,13 @@ function createTelemetryClient(deps) {
 
   function adminBaseUrl() {
     const s = deps.getSettings() || {};
-    const candidate = s.adminApiUrl || deps.envAdminUrl || process.env.AURA_ADMIN_URL || '';
+    if (
+      String(s.adminApiUrl || '')
+        .trim()
+        .toLowerCase() === 'off'
+    )
+      return '';
+    const candidate = s.adminApiUrl || deps.envAdminUrl || process.env.AURA_ADMIN_URL || DEFAULT_ADMIN_URL;
     return normalizeAdminUrl(candidate);
   }
 
