@@ -127,6 +127,71 @@ class _DdgHtmlParser(HTMLParser):
             self._cur_snippet.append(data)
 
 
+class _DdgLiteParser(HTMLParser):
+    """Fallback-Parser für lite.duckduckgo.com, wenn html.duckduckgo.com gedrosselt wird."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.results: list[dict[str, str]] = []
+        self._in_link = False
+        self._in_snippet = False
+        self._cur_title: list[str] = []
+        self._cur_url = ""
+        self._cur_snippet: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attr_map = dict(attrs)
+        cls = attr_map.get("class") or ""
+        if tag == "a" and "result-link" in cls:
+            self._in_link = True
+            self._cur_title = []
+            raw_href = attr_map.get("href") or ""
+            if "uddg=" in raw_href:
+                qs = parse_qs(urlparse(raw_href).query)
+                self._cur_url = unquote(qs.get("uddg", [raw_href])[0])
+            else:
+                self._cur_url = raw_href
+        elif tag == "td" and "result-snippet" in cls:
+            self._in_snippet = True
+            self._cur_snippet = []
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "a" and self._in_link:
+            self._in_link = False
+            title = " ".join("".join(self._cur_title).split())
+            if title and self._cur_url.startswith(("http://", "https://")):
+                self.results.append({"title": title, "url": self._cur_url, "snippet": ""})
+        elif tag == "td" and self._in_snippet:
+            self._in_snippet = False
+            snippet = " ".join("".join(self._cur_snippet).split())
+            if self.results and not self.results[-1]["snippet"]:
+                self.results[-1]["snippet"] = snippet
+
+    def handle_data(self, data: str) -> None:
+        if self._in_link:
+            self._cur_title.append(data)
+        elif self._in_snippet:
+            self._cur_snippet.append(data)
+
+
+def _parse_bing_rss(raw_xml: str, limit: int) -> list[dict[str, str]]:
+    """Extrahiert Treffer aus Bings RSS-Suchausgabe (ohne XML-Parser-Risiken)."""
+    results: list[dict[str, str]] = []
+    for m in re.finditer(
+        r"<item>\s*<title>(.*?)</title>\s*<link>(.*?)</link>\s*<description>(.*?)</description>",
+        raw_xml,
+        re.DOTALL,
+    ):
+        title = " ".join(html.unescape(re.sub(r"<[^>]+>", "", m.group(1))).split())
+        url = html.unescape(m.group(2)).strip()
+        snippet = " ".join(html.unescape(re.sub(r"<[^>]+>", "", m.group(3))).split())
+        if title and url.startswith(("http://", "https://")):
+            results.append({"title": title, "url": url, "snippet": snippet})
+            if len(results) >= limit:
+                break
+    return results
+
+
 class _ReadableHtmlParser(HTMLParser):
     """Converts HTML into compact readable text while stripping scripts/styles."""
 
@@ -235,6 +300,18 @@ async def web_search(query: str, max_results: int = 8) -> dict[str, Any]:
             parser.feed(resp.text)
             results = parser.results[:limit]
             if not results:
+                lite_resp = await client.post("https://lite.duckduckgo.com/lite/", data={"q": q})
+                lite_parser = _DdgLiteParser()
+                lite_parser.feed(lite_resp.text)
+                results = lite_parser.results[:limit]
+            if not results:
+                bing_resp = await client.get(
+                    "https://www.bing.com/search",
+                    params={"format": "rss", "q": q},
+                )
+                if bing_resp.status_code == 200:
+                    results = _parse_bing_rss(bing_resp.text, limit)
+            if not results:
                 api_resp = await client.get(
                     "https://api.duckduckgo.com/",
                     params={"q": q, "format": "json", "no_html": "1", "skip_disambig": "1"},
@@ -260,6 +337,88 @@ async def web_search(query: str, max_results: int = 8) -> dict[str, Any]:
             return {"query": q, "count": len(results), "results": results[:limit]}
     except httpx.HTTPError as e:
         return {"error": f"Websuche fehlgeschlagen: {e}"}
+
+
+@aura_tool(
+    _search_tier,
+    label=lambda a: (
+        f"Reddit{(' r/' + str(a['subreddit'])) if a.get('subreddit') else ''}: {str(a.get('query', ''))[:70]}"
+    ),
+)
+async def reddit_search(
+    query: str,
+    subreddit: str = "",
+    sort: str = "relevance",
+    time_filter: str = "year",
+    max_results: int = 10,
+) -> dict[str, Any]:
+    """Durchsucht Reddit (Community-Tipps, Flug-Tricks, Error Fares, Erfahrungsberichte) über die öffentliche JSON-API.
+
+    Args:
+      query: Suchbegriffe, z. B. "cheap flights Japan sakura cherry blossom Europe" oder "Japan Flug Trick".
+      subreddit: Optionaler Subreddit-Name ohne r/, z. B. "flights", "JapanTravel", "TravelHacks", "de".
+      sort: "relevance", "top", "new" oder "comments".
+      time_filter: "day", "week", "month", "year" oder "all".
+      max_results: Maximale Anzahl Treffer (1–20, Standard 10).
+    """
+    q = query.strip()
+    if not q:
+        return {"error": "Bitte gib einen Suchbegriff (query) an."}
+    sub = re.sub(r"^/?r/", "", subreddit.strip()).strip("/")
+    if sub and not re.fullmatch(r"[A-Za-z0-9_]{2,40}", sub):
+        return {"error": "Ungültiger Subreddit-Name."}
+    sort_norm = sort.strip().lower()
+    if sort_norm not in ("relevance", "top", "new", "comments"):
+        sort_norm = "relevance"
+    t_norm = time_filter.strip().lower()
+    if t_norm not in ("hour", "day", "week", "month", "year", "all"):
+        t_norm = "year"
+    limit = max(1, min(20, int(max_results)))
+    url = f"https://www.reddit.com/r/{sub}/search.json" if sub else "https://www.reddit.com/search.json"
+    params: dict[str, Any] = {"q": q, "sort": sort_norm, "t": t_norm, "limit": limit}
+    if sub:
+        params["restrict_sr"] = "1"
+    headers = {
+        "User-Agent": "AuraDesktopAssistant/0.19 (read-only research; +https://github.com/fischersase/aura)"
+    }
+    try:
+        async with httpx.AsyncClient(timeout=12.0, follow_redirects=True, headers=headers) as client:
+            resp = await client.get(url, params=params)
+            if resp.status_code < 400:
+                payload = resp.json()
+                children = (payload.get("data") or {}).get("children") or []
+                posts: list[dict[str, Any]] = []
+                for child in children[:limit]:
+                    d = (child or {}).get("data") or {}
+                    permalink = str(d.get("permalink") or "")
+                    posts.append(
+                        {
+                            "title": str(d.get("title") or "").strip(),
+                            "subreddit": str(d.get("subreddit") or ""),
+                            "score": int(d.get("score") or 0),
+                            "num_comments": int(d.get("num_comments") or 0),
+                            "url": f"https://www.reddit.com{permalink}"
+                            if permalink
+                            else str(d.get("url") or ""),
+                            "snippet": " ".join(str(d.get("selftext") or "").split())[:320],
+                        }
+                    )
+                return {"query": q, "subreddit": sub or "all", "count": len(posts), "results": posts}
+            # Fallback über Websuche, falls Reddit die JSON-API für diese IP mit 403/429 drosselt.
+            fallback_q = f"reddit r/{sub} {q}" if sub else f"reddit {q}"
+            fb = await web_search(fallback_q, max_results=limit)
+            if not fb.get("error"):
+                return {
+                    "query": q,
+                    "subreddit": sub or "all",
+                    "fallback": "web_search",
+                    "count": fb.get("count", 0),
+                    "results": fb.get("results", []),
+                    "note": f"Reddit JSON-API antwortete mit HTTP {resp.status_code}; Ergebnisse per Websuche geladen (für volle Threads nutze browser).",
+                }
+            return {"error": f"Reddit-Suche fehlgeschlagen (HTTP {resp.status_code})."}
+    except (httpx.HTTPError, ValueError) as e:
+        return {"error": f"Reddit-Suche fehlgeschlagen: {e}"}
 
 
 def _fetch_tier(a: dict[str, Any]) -> tuple[Tier, str]:

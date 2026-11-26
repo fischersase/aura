@@ -11,7 +11,7 @@ from google.adk.models.base_llm import BaseLlm
 from google.adk.tools.agent_tool import AgentTool
 from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 
-from ..tools.browser import BROWSER_INSTRUCTION, make_login_tools, request_takeover
+from ..tools.browser import BROWSER_INSTRUCTION, make_login_tools, make_overlay_tools, request_takeover
 
 
 def browser_agent(model: BaseLlm, toolset: McpToolset) -> AgentTool:
@@ -19,12 +19,13 @@ def browser_agent(model: BaseLlm, toolset: McpToolset) -> AgentTool:
         name="browser",
         model=model,
         description=(
-            "Bedient Webseiten in einem eigenen Chrome-Fenster: suchen, klicken, Formulare ausfüllen, Musik oder Videos "
-            "auf Webseiten starten (z. B. YouTube Music), Informationen von Seiten lesen. Gib eine klare, vollständige "
-            "Aufgabe als request mit, z. B. „Öffne YouTube Music, suche nach Bad Bunny und starte den ersten Song.“"
+            "Bedient Webseiten in einem eigenen Chrome-Fenster (Accessibility-Baum + Vision-Hybrid, automatisches "
+            "Cookie-/Popup-Schließen, Scrollen, Hover, Multi-Tab): suchen, klicken, Formulare und Flug-/Preis-Kalender "
+            "ausfüllen, Live-Preise auf Google Flights/Skyscanner/MyDealz prüfen, Musik/Videos starten. "
+            "Gib eine klare, vollständige Aufgabe als request mit."
         ),
         instruction=BROWSER_INSTRUCTION,
-        tools=[toolset, request_takeover, *make_login_tools(toolset)],
+        tools=[toolset, request_takeover, *make_overlay_tools(toolset), *make_login_tools(toolset)],
     )
     return AgentTool(agent=agent)
 

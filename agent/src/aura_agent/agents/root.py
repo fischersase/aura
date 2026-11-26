@@ -25,6 +25,7 @@ from ..tools.apps import list_apps
 from ..tools.connectors import make_connector_tools
 from ..tools.context import ContextService, make_context_tools
 from ..tools.desktop import launch_app, list_windows, open_target, window_action
+from ..tools.device import audio_device, bluetooth, brightness, device_mode, wifi
 from ..tools.files import edit_file, find_files, list_dir, move_path, read_file, trash, write_file
 from ..tools.interaction import ask_user, todo_write
 from ..tools.memory import make_memory_tools
@@ -36,7 +37,7 @@ from ..tools.screen import screenshot
 from ..tools.shell import run_command
 from ..tools.system import media_control, media_status, now_text, system_info, volume
 from ..tools.ui import ui_act, ui_set_text, ui_snapshot
-from ..tools.web import download_file, web_fetch, web_search
+from ..tools.web import download_file, reddit_search, web_fetch, web_search
 
 if IS_WINDOWS:
     from ..tools.win_settings import dark_mode, settings
@@ -56,6 +57,7 @@ TOOLS = [
     todo_write,
     ask_user,
     web_search,
+    reddit_search,
     web_fetch,
     download_file,
     search_software,
@@ -80,6 +82,11 @@ TOOLS = [
     media_status,
     media_control,
     volume,
+    brightness,
+    bluetooth,
+    audio_device,
+    wifi,
+    device_mode,
     dark_mode,
     settings,
     system_info,
@@ -185,13 +192,14 @@ def instruction(
                 "## Werkzeuge (immer das passende eigene Werkzeug vor der Shell)\n"
                 "- Programme prüfen & öffnen: list_apps, launch_app (prüft, ob das Fenster erscheint). Webseiten, Dateien, Ordner: open_target.\n"
                 "- Software suchen & installieren: search_software (Flatpak, APT, Snap, Winget, Homebrew durchsuchen), install_software (geprüftes Paket installieren), download_file (Installationspaket oder Datei mit SHA-256 herunterladen).\n"
-                "- Web-Recherche (schnell ohne Browser-Fenster): web_search (Suchmaschine), web_fetch (Webseite/Dokumentation als Text lesen).\n"
+                "- Web-Recherche (schnell ohne Browser-Fenster): web_search (Suchmaschine), reddit_search (Community-Tipps, Flug-/Deal-Tricks, Subreddits), web_fetch (Webseite/Dokumentation als Text lesen).\n"
                 "- Netzwerk- & VPN-Verifikation: network_status (prüft aktive VPN-Tunnel, Schnittstellen sowie öffentliche IP-Adresse, Land, Stadt und Provider).\n"
                 "- Fenster & Desktop-Steuerung (Computer-Use): list_windows, window_action (focus, minimize, maximize, close), ui_snapshot, ui_act, ui_set_text sowie visuell über screenshot, click_at, move_mouse, drag_mouse, scroll_at, type_text, press_keys und clipboard.\n"
                 "- Hintergrundprozesse: start_background_process (für langlaufende Dienste, VPN-Clients, Server), manage_background_process (list, status, output, send_input, stop).\n"
                 "- Subagenten (Antigravity-Architektur): invoke_subagent (Typen: 'research', 'computer', 'system', 'self' oder parallel über subagents=[...]) und define_subagent (eigenen Spezial-Subagenten definieren).\n"
                 "- Musik und Videos: media_status, media_control (play, pause, next, previous); nie per Tastatur oder Prozess-Kill.\n"
-                f"- Lautstärke: volume. Dunkelmodus: dark_mode. Andere Einstellungen ({SETTINGS_EXAMPLES}): settings.\n"
+                "- Geräte- & Hardware-Kontrolle (direkt wie im Kontrollzentrum): volume (Lautstärke), brightness (Bildschirmhelligkeit absolut oder +/- relativ), bluetooth (Kopfhörer/Lautsprecher auflisten, verbinden, trennen, an/aus), audio_device (Ausgabegerät/Mikrofon umschalten), wifi (WLAN-Status, scannen, verbinden/trennen), device_mode (dnd = Nicht stören, night_light = Nachtlicht, power_saver = Energiesparmodus, lock_screen, sleep), dark_mode.\n"
+                f"- Weitere Systemeinstellungen ({SETTINGS_EXAMPLES}): settings.\n"
                 "- Dateien: list_dir, find_files, read_file; schreiben mit write_file, kleine Änderungen mit edit_file, "
                 f"verschieben oder kopieren mit move_path (beide legen fehlende Ordner selbst an). Löschen nur mit trash (Papierkorb), nie mit {DELETE_CMD}.\n"
                 + (
@@ -237,6 +245,16 @@ def instruction(
                 "   - Nennt der Nutzer ein konkretes Desktop-Programm, öffne es mit launch_app und bediene seine Oberfläche (über ui_snapshot/ui_act/ui_set_text oder visuell über screenshot/click_at/drag_mouse/scroll_at/clipboard).\n"
                 "   - Nennt der Nutzer ein Ziel (z. B. VPN nach Spanien), wähle den zuverlässigsten Weg (GUI-App oder System-/Hintergrundprozess via start_background_process) und stelle die Verbindung her.\n"
                 "4. **End-to-End-Verifikation**: Prüfe das Endergebnis objektiv (z. B. bei VPN-Aufgaben zwingend mit network_status prüfen, ob der VPN-Tunnel aktiv ist und public_ip/country dem Zielland entspricht; bei Programmen per ui_snapshot/screenshot oder Dateiprüfung), bevor du Vollzug meldest."
+            ),
+            (
+                "## Tiefenrecherche & Deal-Hunting (Flüge, Reisen, Schnäppchen, Produktvergleiche)\n"
+                "Wenn der Nutzer nach den besten Deals, günstigsten Flügen oder Geheimtipps fragt (z. B. „günstigste Flüge nach Japan zur Kirschblütenzeit mit allen Tricks“):\n"
+                "1. **Parallele Multi-Quellen-Jagd** (mit `invoke_subagent(subagents=[...])` parallel starten):\n"
+                "   - **Deal-Portale & Error-Fare-Seiten:** direkt mit `web_fetch` durchsuchen (`https://www.mydealz.de/search?q=<Begriff>`, `https://travel-dealz.de/?s=<Begriff>`, `https://www.secretflying.com/?s=<Begriff>`) sowie ergänzend per `web_search` (auch Urlaubspiraten, Fly4Free) und die vielversprechendsten Deal-Seiten im Detail lesen.\n"
+                "   - **Community-Tricks auf Reddit:** `reddit_search` in passenden Subreddits (`flights`, `JapanTravel`, `TravelHacks`, `awardtravel`, `de`) nach aktuellen Routen-Tricks, günstigen Airlines, Positionierungsflughäfen und Buchungsfenstern.\n"
+                "   - **Flug- & Spar-Tricks systematisch anwenden:** flexible Daten (±3 Tage), **EU-Positionierungs-Hubs** (z. B. AMS, MXP, BUD, WAW, PRG, VIE, ZRH, CDG, ARN statt nur Heimatflughafen), **Gabelflüge / Open-Jaw** (z. B. hin Tokio HND/NRT, zurück Osaka KIX), **2-Ticket-Splits / Self-Transfer** über günstige Asien-Hubs (z. B. Peking/Shanghai/Seoul/Taipei → Japan), Multi-Airport-Suche und Gepäck-/Gesamtpreisvergleich.\n"
+                "2. **Live-Preis-Verifikation im Browser:** Nutze den `browser`-Spezialisten, um die vielversprechendsten Routen & Deal-Links live (z. B. Google Flights, Skyscanner, Travel-Dealz/MyDealz-Links) zu prüfen – inklusive automatischem Wegklicken von Cookie-Bannern (`browser_dismiss_overlays`).\n"
+                "3. **Strukturierte Antwort:** Liefere eine klare Vergleichstabelle / Übersicht mit **nur echt verifizierten** Preisen, Abflughäfen, Airlines, Gepäck-Hinweisen, angewandten Tricks und direkten Links zu den Quellen."
             ),
         ]
         parts.append(

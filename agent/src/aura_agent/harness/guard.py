@@ -149,7 +149,73 @@ def compact_json(text: str, limit: int = MAX_RESULT_CHARS) -> str | None:
     return None
 
 
-def _clip_text(text: str) -> str:
+def compact_browser_snapshot(text: str, limit: int = 18000) -> str | None:
+    """Kürzt große Playwright-Snapshots intelligent: behält Header, offene Dialoge/Cookie-Banner und
+    interaktive Haupt-Elemente, statt blind die Mitte wegzuschneiden.
+    """
+    if len(text) <= limit or "[ref=" not in text:
+        return None
+    lines = text.splitlines()
+    header: list[str] = []
+    dialogs: list[str] = []
+    important: list[str] = []
+    rest: list[str] = []
+    in_dialog_indent: int | None = None
+    in_yaml = False
+    for line in lines:
+        stripped = line.lstrip()
+        indent = len(line) - len(stripped)
+        if not in_yaml:
+            header.append(line)
+            if stripped.startswith("- "):
+                in_yaml = True
+            continue
+        if in_dialog_indent is not None:
+            if stripped and indent <= in_dialog_indent:
+                in_dialog_indent = None
+            else:
+                dialogs.append(line)
+                continue
+        if re.match(r"-\s+(dialog|alertdialog)\b", stripped):
+            in_dialog_indent = indent
+            dialogs.append(line)
+            continue
+        if re.match(
+            r"-\s+(button|textbox|searchbox|combobox|heading|main|article|row|table|option|checkbox|radio|switch|tab)\b",
+            stripped,
+        ) or ("€" in line or "EUR" in line or "USD" in line or "$" in line):
+            important.append(line)
+        else:
+            rest.append(line)
+
+    out_parts: list[str] = []
+    budget = limit
+
+    def add_section(title: str, sec_lines: list[str], cap: int) -> None:
+        nonlocal budget
+        if not sec_lines or budget <= 200:
+            return
+        chunk = "\n".join(sec_lines)
+        if len(chunk) > min(cap, budget):
+            chunk = chunk[: min(cap, budget) - 60] + "\n  … (gekürzt)"
+        block = f"{title}\n{chunk}" if title else chunk
+        out_parts.append(block)
+        budget -= len(block) + 2
+
+    add_section("", header[:30], 2500)
+    if dialogs:
+        add_section("### Aktive Dialoge / Banner", dialogs, 6000)
+    add_section(
+        "### Wichtige Elemente (Buttons, Felder, Überschriften, Preise)", important, max(4000, budget - 2500)
+    )
+    if budget > 600 and rest:
+        add_section("### Weitere Seite (Auszug)", rest, budget)
+    return "\n\n".join(out_parts)
+
+
+def _clip_text(text: str, *, is_browser_snapshot: bool = False) -> str:
+    if is_browser_snapshot and (snap := compact_browser_snapshot(text)) is not None:
+        return snap
     if len(text) <= MAX_RESULT_CHARS:
         return text
     stripped = text.strip()
@@ -174,14 +240,14 @@ def mask(value: Any, secrets: set[str]) -> Any:
     return value
 
 
-def _clip_result(result: Any) -> Any:
+def _clip_result(result: Any, *, is_browser_snapshot: bool = False) -> Any:
     if (d := _as_dict(result)) is not None:
-        return {k: _clip_result(v) for k, v in d.items()}
+        return {k: _clip_result(v, is_browser_snapshot=is_browser_snapshot) for k, v in d.items()}
     if isinstance(result, list):
         # MCP results are {"content": [{"type": "text", "text": …}]}: the texts sit inside a list.
-        return [_clip_result(v) for v in cast("list[Any]", result)]
+        return [_clip_result(v, is_browser_snapshot=is_browser_snapshot) for v in cast("list[Any]", result)]
     if isinstance(result, str):
-        return _clip_text(result)
+        return _clip_text(result, is_browser_snapshot=is_browser_snapshot)
     return result
 
 
@@ -474,7 +540,7 @@ class GuardPlugin(BasePlugin):
                 task.plan_cancelled = True
             elif answer and not MODIFY_ANSWER.search(answer):
                 task.plan_confirmed = True
-        out = mask(_clip_result(result), task.masked)
+        out = mask(_clip_result(result, is_browser_snapshot=(tool.name == "browser_snapshot")), task.masked)
         notes: list[str] = []
         if not failed and (tool.name in TAINT_TOOLS or tool.name.startswith(TAINT_PREFIXES)):
             if tool.name not in task.tainted_by:

@@ -64,7 +64,7 @@ class TaskController:
         host: Host,
         audit: AuditLog,
         home: str,
-        max_llm_calls: int = 60,
+        max_llm_calls: int = 90,
         on_finished: Callable[[str], None] | None = None,
         episodes_db: Path | None = None,
         aura_dir: Path | None = None,
