@@ -64,19 +64,22 @@ function createAuth(db, opts = {}) {
     };
   }
 
-  async function upsertAdminUser(profile) {
-    const allow = isBootstrapAdmin(profile.email);
+  async function upsertAdminUser(profile, { allowDevBypass = false } = {}) {
+    const allow = allowDevBypass || isBootstrapAdmin(profile.email);
+    if (!allow) {
+      return null;
+    }
     const r = await db.query(
       `INSERT INTO admin_users (google_id, email, name, avatar_url, is_admin, last_login_at)
-       VALUES ($1, $2, $3, $4, $5, NOW())
+       VALUES ($1, $2, $3, $4, true, NOW())
        ON CONFLICT (email) DO UPDATE SET
          google_id = COALESCE(EXCLUDED.google_id, admin_users.google_id),
          name = EXCLUDED.name,
          avatar_url = COALESCE(EXCLUDED.avatar_url, admin_users.avatar_url),
-         is_admin = admin_users.is_admin OR EXCLUDED.is_admin,
+         is_admin = true,
          last_login_at = NOW()
        RETURNING id, email, name, avatar_url, is_admin`,
-      [profile.googleId || null, profile.email, profile.name || '', profile.avatarUrl || null, allow]
+      [profile.googleId || null, profile.email, profile.name || '', profile.avatarUrl || null]
     );
     return r.rows[0];
   }

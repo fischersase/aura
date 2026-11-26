@@ -1,4 +1,4 @@
-# Tailscale Funnel für die Integrations-/Test-Umgebung (aura-admin-int).
+# Tailscale Funnel für die Integrations-/Test-Umgebung (aura-int).
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -61,7 +61,7 @@ spec:
                   name: tailscale-authkey
                   key: authkey
             - name: TS_HOSTNAME
-              value: aura-admin-int
+              value: aura-int
             - name: TS_KUBE_SECRET
               value: ""
             - name: TS_STATE_DIR

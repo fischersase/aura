@@ -135,12 +135,13 @@ function createApp({ db, auth, metrics, jiraClient, jiraWorker }) {
     if (!auth.devLoginEnabled()) return res.status(404).json({ error: 'Not found.' });
     const token = req.body && req.body.token;
     if (!auth.devTokenMatches(token)) return res.status(401).json({ error: 'Ungültiges Dev-Token.' });
-    const user = await auth.upsertAdminUser({
-      email: 'dev@aura.local',
-      name: 'Local Dev Admin'
-    });
-    // In Dev-Modus automatisch Admin-Flag setzen
-    await db.query('UPDATE admin_users SET is_admin = true WHERE id = $1', [user.id]);
+    const user = await auth.upsertAdminUser(
+      {
+        email: 'dev@aura.local',
+        name: 'Local Dev Admin'
+      },
+      { allowDevBypass: true }
+    );
     await auth.createSession(user.id, res);
     return res.json({ authenticated: true, user: { email: user.email, name: user.name, isAdmin: true } });
   });

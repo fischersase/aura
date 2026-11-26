@@ -84,6 +84,8 @@ spec:
               value: "https://fischersase-1752739551638.atlassian.net"
             - name: JIRA_PROJECT_KEY
               value: "AURA"
+            - name: JIRA_ISSUE_TYPE_IDS
+              value: "bug:10085,idea:10084,feedback:10086"
             - name: JIRA_EMAIL
               valueFrom:
                 secretKeyRef:
@@ -95,12 +97,6 @@ spec:
                 secretKeyRef:
                   name: aura-admin-secrets
                   key: JIRA_API_TOKEN
-                  optional: true
-            - name: JIRA_ISSUE_TYPE_IDS
-              valueFrom:
-                secretKeyRef:
-                  name: aura-admin-secrets
-                  key: JIRA_ISSUE_TYPE_IDS
                   optional: true
           readinessProbe:
             httpGet:
