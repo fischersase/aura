@@ -25,7 +25,8 @@ const PRELOADS = {
   'preload-overlay.js': ['overlay.html'],
   'preload-rambler.js': ['rambler.html'],
   'preload-stt.js': ['stt.html'],
-  'preload-zentrale.js': ['zentrale.html']
+  'preload-zentrale.js': ['zentrale.html'],
+  'preload-update.js': ['update.html']
 };
 
 // Minimal ipcMain double: on/once/removeListener from EventEmitter, handle → a map for invoke().
@@ -41,15 +42,27 @@ const from = (name, extra = {}) => ({ senderFrame: { url: page(name), parent: nu
 test('sensitive channels only from their windows', () => {
   assert.strictEqual(sec.ipcAllowed(page('zentrale.html'), 'z:saveServer', DIR), true);
   assert.strictEqual(sec.ipcAllowed(page('zentrale.html'), 'z:setSecret', DIR), true);
-  for (const p of ['panel.html', 'overlay.html', 'rambler.html', 'stt.html', 'setup.html', 'settings.html']) {
+  for (const p of [
+    'panel.html',
+    'overlay.html',
+    'rambler.html',
+    'stt.html',
+    'setup.html',
+    'settings.html',
+    'update.html'
+  ]) {
     assert.strictEqual(sec.ipcAllowed(page(p), 'z:saveServer', DIR), false, p);
     assert.strictEqual(sec.ipcAllowed(page(p), 'z:setSecret', DIR), false, p);
   }
-  for (const p of ['overlay.html', 'rambler.html', 'stt.html', 'zentrale.html']) {
+  for (const p of ['overlay.html', 'rambler.html', 'stt.html', 'zentrale.html', 'update.html']) {
     for (const ch of ['settings:save', 'settings:get', 'chat:send', 'agent:approval', 'open:external', 'live:config']) {
       assert.strictEqual(sec.ipcAllowed(page(p), ch, DIR), false, `${p} ${ch}`);
     }
   }
+  assert.strictEqual(sec.ipcAllowed(page('update.html'), 'update:install', DIR), true);
+  assert.strictEqual(sec.ipcAllowed(page('panel.html'), 'update:install', DIR), false);
+  assert.strictEqual(sec.ipcAllowed(page('setup.html'), 'setup:readClipboardKey', DIR), true);
+  assert.strictEqual(sec.ipcAllowed(page('panel.html'), 'setup:readClipboardKey', DIR), false);
   assert.strictEqual(sec.ipcAllowed(page('panel.html'), 'agent:approval', DIR), true);
   assert.strictEqual(sec.ipcAllowed(page('settings.html'), 'agent:approval', DIR), false);
   assert.strictEqual(sec.ipcAllowed(page('panel.html'), 'unknown:channel', DIR), false);
@@ -151,6 +164,7 @@ test('windows load the preload the tests assume', () => {
   assert.match(main, /overlay = baseWindow\(\{[^}]*preload: 'preload-overlay\.js'/);
   assert.match(main, /ramblerBar = baseWindow\(\{[^}]*preload: 'preload-rambler\.js'/);
   assert.match(main, /preload: path\.join\(__dirname, 'preload-stt\.js'\)/);
+  assert.match(main, /preload: path\.join\(__dirname, 'preload-update\.js'\)/);
   assert.match(main, /security\.guardIpc\(ipcMain\)/);
   assert.match(read('zentrale.js'), /preload: path\.join\(__dirname, 'preload-zentrale\.js'\)/);
   // Guard installed before the first registration.

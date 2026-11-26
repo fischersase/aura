@@ -41,6 +41,21 @@ function OllamaPanel(root, settings) {
   let installed = [];
   let recommended = [];
   let pulling = false;
+  let hw = null;
+
+  function modelFits(m) {
+    if (!hw) return { ok: true, badge: '' };
+    const vram = Number(hw.vramGb || 0);
+    const ram = Number(hw.ramGb || 0);
+    const minVram = Number(m && m.minVramGb) || 6;
+    const minRam = Number(m && m.minRamGb) || 12;
+    if (vram >= minVram) return { ok: true, badge: 'passt in VRAM ✓' };
+    if (ram >= minRam) return { ok: true, badge: 'läuft über RAM' };
+    return {
+      ok: false,
+      badge: `zu wenig VRAM/RAM (braucht ${minVram} GB VRAM oder ${minRam} GB RAM)`
+    };
+  }
 
   q('.ol-url').value = settings.ollamaUrl || 'http://127.0.0.1:11434';
   q('.ol-whisper').value = settings.whisperModel || WHISPER_MODELS[1].id;
@@ -53,39 +68,55 @@ function OllamaPanel(root, settings) {
     const opts = [];
     for (const m of installed) {
       const r = recommended.find((x) => x.name === m.name);
+      const fit = modelFits(r || m);
       const opt = document.createElement('option');
       opt.value = m.name;
-      opt.textContent = `${m.name} · installiert${r && !r.vision ? ' · nur Text' : ''}`;
+      opt.disabled = !fit.ok;
+      opt.textContent = `${m.name} · installiert${r && !r.vision ? ' · nur Text' : ''}${fit.badge ? ` · ${fit.badge}` : ''}`;
       opts.push(opt);
     }
     for (const r of recommended) {
       if (!names.has(r.name)) {
+        const fit = modelFits(r);
         const opt = document.createElement('option');
         opt.value = r.name;
-        opt.textContent = `${r.label} · laden (${r.ram})`;
+        opt.disabled = !fit.ok;
+        opt.textContent = fit.ok
+          ? `${r.label} · laden (${r.ram})${fit.badge ? ` · ${fit.badge}` : ''}`
+          : `${r.label} — ${fit.badge}`;
         opts.push(opt);
       }
     }
     sel.replaceChildren(...opts);
+    const enabledOpts = opts.filter((o) => !o.disabled);
     sel.value =
-      selected && [...sel.options].some((o) => o.value === selected)
+      selected && enabledOpts.some((o) => o.value === selected)
         ? selected
-        : (installed[0] || recommended[0] || {}).name || '';
+        : (enabledOpts[0] || opts[0] || {}).value || '';
     updateHint();
   }
 
   function updateHint() {
-    const name = q('.ol-model').value;
+    const sel = q('.ol-model');
+    const name = sel.value;
+    const curOpt = sel.options[sel.selectedIndex];
     const isInstalled = installed.some((m) => m.name === name);
     const r = recommended.find((x) => x.name === name);
     q('.ol-pull').classList.toggle('hidden', isInstalled);
+    q('.ol-pull').disabled = !!(curOpt && curOpt.disabled);
+    const hwText = hw ? ` · Dein PC: ${hw.summary}` : '';
     q('.ol-hint').textContent = r
-      ? `${r.label}. Empfohlen: ${r.ram}.${r.vision ? '' : ' Versteht keine Bilder, Live und „Bildschirm“ gehen damit nicht.'}`
-      : '';
+      ? `${r.label}. Empfohlen: ${r.ram}.${r.vision ? '' : ' Versteht keine Bilder, Live und „Bildschirm“ gehen damit nicht.'}${hwText}`
+      : hwText.replace(/^ · /, '');
   }
 
   async function check() {
     st('Prüfe Ollama …');
+    if (!hw && window.api.hardwareInfo) {
+      try {
+        hw = await window.api.hardwareInfo();
+      } catch {}
+    }
     const r = await window.api.ollamaStatus(q('.ol-url').value.trim());
     recommended = r.recommended || [];
     installed = r.ok ? r.models : [];

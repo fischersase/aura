@@ -36,6 +36,7 @@ const DEFAULTS = {
   autostart: true,
   monthlyBudgetUsd: 10, // lokales Limit; Spend-Cap in AI Studio zusätzlich empfohlen
   setupDone: false,
+  skippedUpdateVersion: '',
   includeScreenInChat: false,
   apiKeyEnc: ''
 };

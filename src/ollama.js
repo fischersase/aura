@@ -3,19 +3,70 @@ const DEFAULT_URL = 'http://127.0.0.1:11434';
 
 // Vorschläge für die Auswahl; alle außer DeepSeek verstehen Bilder (für Live und Bildschirm im Chat).
 const RECOMMENDED = [
-  { name: 'gemma4:e4b', label: 'Gemma 4 E4B (Google)', ram: '16 GB RAM oder 8 GB Grafikspeicher', vision: true },
-  { name: 'gemma4:e2b', label: 'Gemma 4 E2B (Google, klein)', ram: '8 GB RAM', vision: true },
-  { name: 'qwen3.5:9b', label: 'Qwen 3.5 9B (Alibaba)', ram: '16 GB RAM oder 8 GB Grafikspeicher', vision: true },
+  {
+    name: 'gemma4:e4b',
+    label: 'Gemma 4 E4B (Google)',
+    ram: '16 GB RAM oder 8 GB Grafikspeicher',
+    minVramGb: 8,
+    minRamGb: 16,
+    vision: true
+  },
+  {
+    name: 'gemma4:e2b',
+    label: 'Gemma 4 E2B (Google, klein)',
+    ram: '8 GB RAM oder 4 GB Grafikspeicher',
+    minVramGb: 4,
+    minRamGb: 8,
+    vision: true
+  },
+  {
+    name: 'qwen3.5:9b',
+    label: 'Qwen 3.5 9B (Alibaba)',
+    ram: '16 GB RAM oder 8 GB Grafikspeicher',
+    minVramGb: 8,
+    minRamGb: 16,
+    vision: true
+  },
   {
     name: 'qwen3-vl:8b',
     label: 'Qwen3-VL 8B (Alibaba, stark beim Zeigen)',
     ram: '16 GB RAM oder 8 GB Grafikspeicher',
+    minVramGb: 8,
+    minRamGb: 16,
     vision: true
   },
-  { name: 'gemma4:26b', label: 'Gemma 4 26B (Google, groß)', ram: '24 GB Grafikspeicher oder 32 GB RAM', vision: true },
-  { name: 'qwen3.6:27b', label: 'Qwen 3.6 27B (Alibaba, stark als Agent)', ram: '24 GB Grafikspeicher', vision: true },
-  { name: 'gemma4:31b', label: 'Gemma 4 31B (Google, stark als Agent)', ram: '24 GB Grafikspeicher', vision: true },
-  { name: 'deepseek-r1:8b', label: 'DeepSeek R1 8B (nur Text)', ram: '16 GB RAM', vision: false }
+  {
+    name: 'gemma4:26b',
+    label: 'Gemma 4 26B (Google, groß)',
+    ram: '20 GB Grafikspeicher oder 32 GB RAM',
+    minVramGb: 20,
+    minRamGb: 32,
+    vision: true
+  },
+  {
+    name: 'qwen3.6:27b',
+    label: 'Qwen 3.6 27B (Alibaba, stark als Agent)',
+    ram: '20 GB Grafikspeicher oder 32 GB RAM',
+    minVramGb: 20,
+    minRamGb: 32,
+    vision: true
+  },
+  {
+    name: 'gemma4:31b',
+    label: 'Gemma 4 31B (Google, stark als Agent)',
+    ram: '24 GB Grafikspeicher oder 32 GB RAM',
+    minVramGb: 24,
+    minRamGb: 32,
+    vision: true
+  },
+  {
+    name: 'deepseek-r1:8b',
+    label: 'DeepSeek R1 8B (nur Text)',
+    ram: '16 GB RAM oder 8 GB Grafikspeicher',
+    minVramGb: 8,
+    minRamGb: 16,
+    vision: false
+  }
 ];
 
 class OllamaError extends Error {}

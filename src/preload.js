@@ -18,6 +18,10 @@ contextBridge.exposeInMainWorld('api', {
 
   // Einrichtung und Kosten
   setupDone: () => ipcRenderer.send('setup:done'),
+  readClipboardKey: () => ipcRenderer.invoke('setup:readClipboardKey'),
+  hardwareInfo: () => ipcRenderer.invoke('hardware:info'),
+  checkUpdate: () => ipcRenderer.invoke('update:check'),
+  openFeedback: () => ipcRenderer.send('feedback:open'),
   getUsage: () => ipcRenderer.invoke('usage:get'),
   onUsage: on('usage:update'),
   liveUsage: (secs) => ipcRenderer.send('live:usage', secs),

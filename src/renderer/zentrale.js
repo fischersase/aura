@@ -1401,6 +1401,10 @@ function connectDialog(id) {
 // From the corner panel or tray: open a specific page or hand over the active chat directly.
 window.api.onNavigate?.(async (nav) => {
   if (!S) await load();
+  if (nav && nav.feedback) {
+    openFeedbackDialog();
+    return;
+  }
   if (nav && nav.chatId) {
     await openChatInZentrale(nav.chatId);
     return;
@@ -2138,7 +2142,114 @@ $('saveRules').onclick = async () => {
 // ---------- Einstellungen & Modelle (integriert in Aura Zentrale) ----------
 
 let currentSettingsData = null;
+let cachedHardwareInfo = null;
 const HOTKEY_MODIFIERS = new Set(['Control', 'Alt', 'Shift', 'Meta']);
+
+async function ensureHardwareInfo() {
+  if (cachedHardwareInfo) return cachedHardwareInfo;
+  if (typeof z.hardwareInfo !== 'function') return null;
+  try {
+    cachedHardwareInfo = await z.hardwareInfo();
+    return cachedHardwareInfo;
+  } catch {
+    return null;
+  }
+}
+
+function estimateLocalRequirements(item) {
+  if (item && typeof item.minVramGb === 'number' && typeof item.minRamGb === 'number') {
+    return { minVramGb: item.minVramGb, minRamGb: item.minRamGb };
+  }
+  const name = typeof item === 'string' ? item : String((item && item.name) || '');
+  const size = item && typeof item.size === 'number' ? item.size : 0;
+  if (size > 0) {
+    const sizeGb = size / 1024 ** 3;
+    return {
+      minVramGb: Math.max(2, Math.ceil(sizeGb * 1.25)),
+      minRamGb: Math.max(8, Math.ceil(sizeGb * 1.6))
+    };
+  }
+  const m = /([0-9.]+)b\b/i.exec(name);
+  const b = m ? Number(m[1]) : NaN;
+  if (Number.isFinite(b) && b > 0) {
+    if (b >= 60) return { minVramGb: 40, minRamGb: 64 };
+    if (b >= 24) return { minVramGb: 20, minRamGb: 32 };
+    if (b >= 12) return { minVramGb: 12, minRamGb: 24 };
+    if (b >= 7) return { minVramGb: 8, minRamGb: 16 };
+    return { minVramGb: 4, minRamGb: 8 };
+  }
+  return { minVramGb: 6, minRamGb: 12 };
+}
+
+function checkLocalModelFit(item, hw) {
+  if (!hw) return { available: true, badge: '' };
+  const req = estimateLocalRequirements(item);
+  const vram = Number(hw.vramGb || 0);
+  const ram = Number(hw.ramGb || 0);
+  if (vram >= req.minVramGb) return { available: true, badge: `passt in VRAM (${vram} GB) ✓` };
+  if (ram >= req.minRamGb) return { available: true, badge: vram > 0 ? `teils RAM` : `über RAM (${ram} GB)` };
+  return {
+    available: false,
+    badge: `nicht verfügbar · braucht ${req.minVramGb} GB VRAM oder ${req.minRamGb} GB RAM`
+  };
+}
+
+function renderGeminiModelAvailability(s, hw) {
+  const hasKey = Boolean(s && (s.hasApiKey || s.apiKeyFromEnv));
+  const grid = $('cfgGeminiModelsGrid');
+  const hint = $('cfgGeminiLockHint');
+  const models = (hw && Array.isArray(hw.geminiModels) && hw.geminiModels) || [
+    { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', note: 'Schnell & günstig (Standard)' },
+    { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', note: 'Stärkstes Denken & Code' },
+    { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite', note: 'Sehr schnell & sparsam' }
+  ];
+  const activeId = ($('cfgChatModel') && $('cfgChatModel').value.trim()) || (s && s.chatModel) || 'gemini-2.5-flash';
+
+  for (const id of [
+    'cfgChatModel',
+    'cfgLiveModel',
+    'cfgRamblerModel',
+    'cfgDictationModel',
+    'cfgLiveVoice',
+    'cfgLiveFps'
+  ]) {
+    const el = $(id);
+    if (!el) continue;
+    el.disabled = !hasKey;
+    el.title = hasKey ? '' : 'Bitte zuerst einen Gemini API-Key hinterlegen.';
+  }
+
+  if (hint) {
+    if (!hasKey) {
+      hint.textContent =
+        'Gemini-Modelle sind ausgegraut, solange kein Gemini API-Key gespeichert ist. Key oben eingeben und auf „Testen“ klicken, um sie freizuschalten.';
+      hint.classList.remove('hidden');
+    } else {
+      hint.textContent = '';
+      hint.classList.add('hidden');
+    }
+  }
+
+  if (!grid) return;
+  grid.innerHTML = '';
+  for (const m of models) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'model-chip' + (hasKey && activeId === m.id ? ' active' : '');
+    btn.disabled = !hasKey;
+    btn.dataset.modelId = m.id;
+    btn.title = hasKey ? `${m.label} (${m.id}) wählen` : 'Kein Gemini API-Key vorhanden';
+    btn.innerHTML = `<strong>${esc(m.label)}</strong><span class="chip-meta">${esc(
+      hasKey ? m.note || m.id : 'API-Key fehlt'
+    )}</span>`;
+    btn.onclick = () => {
+      if (!hasKey) return;
+      if ($('cfgChatModel')) $('cfgChatModel').value = m.id;
+      grid.querySelectorAll('.model-chip').forEach((b) => b.classList.toggle('active', b === btn));
+    };
+    grid.appendChild(btn);
+  }
+}
 
 function eventToAccelerator(e) {
   if (HOTKEY_MODIFIERS.has(e.key)) return null;
@@ -2179,26 +2290,55 @@ async function refreshOllamaInZentrale(preferredModel) {
   if (!statusEl) return;
   statusEl.textContent = 'Prüfe Ollama …';
   statusEl.className = 'small muted';
-  const st = await z.ollamaStatus($('cfgOllamaUrl') ? $('cfgOllamaUrl').value : '');
+  const [st, hw] = await Promise.all([
+    z.ollamaStatus($('cfgOllamaUrl') ? $('cfgOllamaUrl').value : ''),
+    ensureHardwareInfo()
+  ]);
   const select = $('cfgOllamaModel');
   if (!select) return;
   select.innerHTML = '';
   const current = preferredModel ?? (currentSettingsData && currentSettingsData.ollamaModel) ?? 'gemma4:e4b';
-  const installed = Array.isArray(st && st.models)
-    ? st.models.map((m) => (typeof m === 'string' ? m : m.name)).filter(Boolean)
-    : [];
-  const recommended = Array.isArray(st && st.recommended)
-    ? st.recommended.map((r) => (typeof r === 'string' ? r : r.name)).filter(Boolean)
-    : ['gemma4:e4b', 'gemma4:e2b'];
+  const installedRaw = Array.isArray(st && st.models) ? st.models : [];
+  const recommendedRaw = Array.isArray(st && st.recommended) ? st.recommended : [];
+  const recommendedByName = new Map();
+  for (const r of recommendedRaw) {
+    if (r && typeof r === 'object' && r.name) recommendedByName.set(r.name, r);
+    else if (typeof r === 'string') recommendedByName.set(r, { name: r });
+  }
+  const installed = installedRaw.map((m) => (typeof m === 'string' ? { name: m } : m)).filter((m) => m && m.name);
+  const recommended =
+    recommendedRaw.length > 0
+      ? recommendedRaw.map((r) => (typeof r === 'string' ? { name: r } : r)).filter((r) => r && r.name)
+      : [
+          { name: 'gemma4:e4b', minVramGb: 6, minRamGb: 12 },
+          { name: 'gemma4:e2b', minVramGb: 4, minRamGb: 8 }
+        ];
+
+  const syncPullDisabled = () => {
+    const pullBtn = $('cfgOllamaPull');
+    if (!pullBtn) return;
+    const curOpt = select.options[select.selectedIndex];
+    pullBtn.disabled = Boolean(curOpt && curOpt.disabled);
+  };
 
   if (!st || !st.ok) {
-    for (const name of [...new Set([current, ...recommended].filter(Boolean))]) {
+    const names = [...new Set([current, ...recommended.map((r) => r.name)].filter(Boolean))];
+    for (const name of names) {
+      const meta = recommendedByName.get(name) || { name };
+      const fit = checkLocalModelFit(meta, hw);
       const opt = document.createElement('option');
       opt.value = name;
-      opt.textContent = `${name} (Ollama nicht erreichbar)`;
+      opt.disabled = !fit.available;
+      opt.textContent = fit.available ? `${name} (Ollama nicht erreichbar)` : `${name} — ${fit.badge}`;
       select.appendChild(opt);
     }
-    select.value = current;
+    const enabled = [...select.options].filter((o) => !o.disabled);
+    select.value =
+      current && enabled.some((o) => o.value === current)
+        ? current
+        : (enabled[0] || select.options[0] || {}).value || current;
+    select.onchange = syncPullDisabled;
+    syncPullDisabled();
     statusEl.textContent =
       'Ollama läuft nicht oder ist unter dieser Adresse nicht erreichbar. Starte Ollama oder lade es unter ollama.com herunter.';
     statusEl.className = 'bad small';
@@ -2206,42 +2346,65 @@ async function refreshOllamaInZentrale(preferredModel) {
   }
 
   const seen = new Set();
-  for (const name of installed) {
-    seen.add(name);
+  for (const m of installed) {
+    seen.add(m.name);
+    const meta = recommendedByName.get(m.name) || m;
+    const fit = checkLocalModelFit(meta, hw);
     const opt = document.createElement('option');
-    opt.value = name;
-    opt.textContent = `${name} (installiert)`;
+    opt.value = m.name;
+    opt.disabled = !fit.available;
+    opt.textContent = `${m.name} (installiert${fit.badge ? ` · ${fit.badge}` : ''})`;
     select.appendChild(opt);
   }
-  for (const name of recommended) {
-    if (seen.has(name)) continue;
-    seen.add(name);
+  for (const r of recommended) {
+    if (seen.has(r.name)) continue;
+    seen.add(r.name);
+    const fit = checkLocalModelFit(r, hw);
     const opt = document.createElement('option');
-    opt.value = name;
-    opt.textContent = `${name} (herunterladen mit „Herunterladen“)`;
+    opt.value = r.name;
+    opt.disabled = !fit.available;
+    opt.textContent = fit.available
+      ? `${r.label || r.name} (herunterladen${fit.badge ? ` · ${fit.badge}` : ''})`
+      : `${r.label || r.name} — ${fit.badge}`;
     select.appendChild(opt);
   }
   if (current && !seen.has(current)) {
+    const fit = checkLocalModelFit({ name: current }, hw);
     const opt = document.createElement('option');
     opt.value = current;
-    opt.textContent = `${current} (nicht installiert)`;
+    opt.disabled = !fit.available;
+    opt.textContent = fit.available ? `${current} (nicht installiert)` : `${current} — ${fit.badge}`;
     select.appendChild(opt);
   }
-  select.value = current || installed[0] || recommended[0] || 'gemma4:e4b';
-  if (!installed.length) {
-    statusEl.textContent =
-      'Ollama läuft, aber es ist noch kein Modell geladen. Wähle ein Modell und klicke auf „Herunterladen“.';
+
+  const enabledOpts = [...select.options].filter((o) => !o.disabled);
+  select.value =
+    current && enabledOpts.some((o) => o.value === current)
+      ? current
+      : (enabledOpts[0] || select.options[0] || {}).value || 'gemma4:e4b';
+  select.onchange = syncPullDisabled;
+  syncPullDisabled();
+
+  const hwSuffix = hw && hw.summary ? ` · Dein PC: ${hw.summary}` : '';
+  if (!enabledOpts.length) {
+    statusEl.textContent = `Keines der verfügbaren lokalen Modelle passt in deinen Speicher${hwSuffix}. Nutze stattdessen Gemini per API-Key.`;
+    statusEl.className = 'bad small';
+  } else if (!installed.length) {
+    statusEl.textContent = `Ollama läuft, aber es ist noch kein Modell geladen. Wähle ein verfügbares Modell und klicke auf „Herunterladen“.${hwSuffix}`;
     statusEl.className = 'small muted';
   } else {
-    statusEl.textContent = `Verbunden (Ollama ${st.version || ''}) — ${installed.length} Modell(e) installiert.`;
+    statusEl.textContent = `Verbunden (Ollama ${st.version || ''}) — ${installed.length} Modell(e) installiert.${hwSuffix}`;
     statusEl.className = 'ok small';
   }
 }
 
 async function loadSettingsPage() {
   if (!$('cfgProvider')) return;
-  const s = await z.getSettings();
+  const [s, hw] = await Promise.all([z.getSettings(), ensureHardwareInfo()]);
   currentSettingsData = s;
+  if ($('cfgHardwareInfo')) {
+    $('cfgHardwareInfo').textContent = (hw && hw.summary) || 'Hardware erkannt';
+  }
   $('cfgProvider').value = s.provider || 'gemini';
   updateProviderVisibility($('cfgProvider').value);
   if ($('cfgApiKey')) {
@@ -2266,6 +2429,7 @@ async function loadSettingsPage() {
   if ($('cfgDictationModel')) $('cfgDictationModel').value = s.dictationModel || '';
   if ($('cfgLiveVoice')) $('cfgLiveVoice').value = s.liveVoice || '';
   if ($('cfgLiveFps')) $('cfgLiveFps').value = String(s.liveFps || 1);
+  renderGeminiModelAvailability(s, hw);
   const budgetVal = s.monthlyBudgetUsd !== undefined ? s.monthlyBudgetUsd : s.monthlyBudget;
   if ($('cfgMonthlyBudget')) $('cfgMonthlyBudget').value = budgetVal !== undefined ? String(budgetVal) : '10';
   if ($('cfgUsageText') && s.usage) {
@@ -2602,6 +2766,183 @@ if ($('deleteAllChats')) {
     activeChatHistory = [];
     renderZChatMessages();
     renderChats();
+  };
+}
+
+// ---------- Updates & natives Feedback-Modal (<dialog closedby="any">) ----------
+
+if ($('cfgChatModel')) {
+  $('cfgChatModel').addEventListener('input', () => {
+    const val = $('cfgChatModel').value.trim();
+    const grid = $('cfgGeminiModelsGrid');
+    if (!grid) return;
+    grid.querySelectorAll('.model-chip').forEach((b) => {
+      b.classList.toggle('active', !b.disabled && b.dataset.modelId === val);
+    });
+  });
+}
+
+if ($('cfgCheckUpdate')) {
+  $('cfgCheckUpdate').onclick = async () => {
+    const btn = $('cfgCheckUpdate');
+    const st = $('cfgUpdateStatus');
+    btn.disabled = true;
+    if (st) {
+      st.textContent = 'Prüfe auf neue Version …';
+      st.className = 'muted small';
+    }
+    try {
+      const res = typeof z.checkUpdate === 'function' ? await z.checkUpdate() : null;
+      if (st) {
+        if (res && res.updateAvailable) {
+          st.textContent = `Neue Version v${res.latestVersion} verfügbar!`;
+          st.className = 'ok small';
+        } else if (res && res.ok) {
+          st.textContent = `Aura v${res.currentVersion || ''} ist aktuell.`;
+          st.className = 'ok small';
+        } else {
+          st.textContent = (res && res.error) || 'Update-Prüfung fehlgeschlagen.';
+          st.className = 'bad small';
+        }
+      }
+    } catch (err) {
+      if (st) {
+        st.textContent = 'Fehler bei Update-Prüfung: ' + (err.message || err);
+        st.className = 'bad small';
+      }
+    } finally {
+      btn.disabled = false;
+    }
+  };
+}
+
+const feedbackDialog = $('feedbackDialog');
+const feedbackForm = $('feedbackForm');
+
+function openFeedbackDialog() {
+  if (!feedbackDialog) return;
+  if ($('fbStatus')) {
+    $('fbStatus').textContent = '';
+    $('fbStatus').className = 'small';
+  }
+  if (!feedbackDialog.open) feedbackDialog.showModal();
+  if ($('fbMessage')) $('fbMessage').focus();
+}
+
+if ($('openFeedbackBtn')) {
+  $('openFeedbackBtn').onclick = openFeedbackDialog;
+}
+
+if (feedbackDialog) {
+  feedbackDialog.addEventListener('close', () => {
+    feedbackDialog.returnValue = '';
+  });
+  if (!('closedBy' in HTMLDialogElement.prototype)) {
+    const outside = (e) => {
+      const r = feedbackDialog.getBoundingClientRect();
+      return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+    };
+    let pressedOutside = false;
+    feedbackDialog.addEventListener('pointerdown', (e) => {
+      pressedOutside = outside(e);
+    });
+    feedbackDialog.addEventListener('pointerup', (e) => {
+      if (pressedOutside && outside(e)) feedbackDialog.close();
+    });
+  }
+  if ($('fbCloseBtn')) $('fbCloseBtn').onclick = () => feedbackDialog.close();
+  if ($('fbCancelBtn')) $('fbCancelBtn').onclick = () => feedbackDialog.close();
+}
+
+function readFeedbackFields() {
+  const kindEl = feedbackForm ? feedbackForm.querySelector('input[name="fbKind"]:checked') : null;
+  return {
+    kind: (kindEl && kindEl.value) || 'feedback',
+    title: ($('fbTitleInput') && $('fbTitleInput').value.trim()) || '',
+    message: ($('fbMessage') && $('fbMessage').value.trim()) || '',
+    includeSystemInfo: $('fbSysInfo') ? $('fbSysInfo').checked : true
+  };
+}
+
+if (feedbackForm) {
+  feedbackForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const st = $('fbStatus');
+    const submitBtn = $('fbSubmitBtn');
+    const payload = readFeedbackFields();
+    if (!payload.message) {
+      if (st) {
+        st.textContent = 'Bitte beschreibe kurz dein Feedback.';
+        st.className = 'bad small';
+      }
+      if ($('fbMessage')) $('fbMessage').focus();
+      return;
+    }
+    if (submitBtn) submitBtn.disabled = true;
+    if (st) {
+      st.textContent = 'Öffne GitHub-Feedback …';
+      st.className = 'muted small';
+    }
+    try {
+      const res = await z.sendFeedback({ ...payload, openBrowser: true });
+      if (res && res.ok) {
+        if (st) {
+          st.textContent = 'Im Browser geöffnet – vielen Dank für dein Feedback!';
+          st.className = 'ok small';
+        }
+        if ($('fbTitleInput')) $('fbTitleInput').value = '';
+        if ($('fbMessage')) $('fbMessage').value = '';
+        setTimeout(() => {
+          if (feedbackDialog && feedbackDialog.open) feedbackDialog.close('submitted');
+        }, 900);
+      } else {
+        if (st) {
+          st.textContent = (res && res.error) || 'Konnte Feedback nicht erstellen.';
+          st.className = 'bad small';
+        }
+      }
+    } catch (err) {
+      if (st) {
+        st.textContent = 'Fehler: ' + (err.message || err);
+        st.className = 'bad small';
+      }
+    } finally {
+      if (submitBtn) submitBtn.disabled = false;
+    }
+  });
+}
+
+if ($('fbCopyBtn')) {
+  $('fbCopyBtn').onclick = async () => {
+    const st = $('fbStatus');
+    const payload = readFeedbackFields();
+    if (!payload.message) {
+      if (st) {
+        st.textContent = 'Bitte zuerst eine Nachricht eingeben.';
+        st.className = 'bad small';
+      }
+      if ($('fbMessage')) $('fbMessage').focus();
+      return;
+    }
+    try {
+      const res = await z.sendFeedback({ ...payload, openBrowser: false });
+      if (res && res.ok && res.clipboardText) {
+        if (typeof z.copyText === 'function') await z.copyText(res.clipboardText);
+        else if (navigator.clipboard) await navigator.clipboard.writeText(res.clipboardText);
+        if (st) {
+          st.textContent = 'Feedback-Text in die Zwischenablage kopiert!';
+          st.className = 'ok small';
+        }
+      } else if (st) {
+        st.textContent = (res && res.error) || 'Konnte Text nicht erzeugen.';
+        st.className = 'bad small';
+      }
+    } catch (err) {
+      if (st) {
+        st.textContent = 'Kopieren fehlgeschlagen: ' + (err.message || err);
+        st.className = 'bad small';
+      }
+    }
   };
 }
 

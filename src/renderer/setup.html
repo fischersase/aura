@@ -37,6 +37,21 @@
   .choice b { display: block; font-weight: 500; margin-bottom: 2px; }
   .choice span { color: var(--muted); font-size: 13.5px; }
   .choice.on { box-shadow: 0 0 0 2px var(--blue) inset; }
+  .choice:disabled { opacity: .48; cursor: not-allowed; filter: grayscale(.35); }
+  .choice .badge { display: inline-block; margin-top: 6px; font-size: 12px; padding: 2px 9px; border-radius: 999px; background: rgba(168,199,250,.14); color: var(--blue); }
+  .choice:disabled .badge { background: rgba(242,139,130,.14); color: #f28b82; }
+  .hw-pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: #18191c; border: 1px solid var(--line); font-size: 12.5px; color: var(--muted); margin-bottom: 14px; }
+  .guide-steps { display: grid; gap: 10px; margin: 12px 0 16px; }
+  .guide-card { display: flex; gap: 12px; align-items: flex-start; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
+  .guide-num { width: 24px; height: 24px; border-radius: 50%; background: rgba(168,199,250,.18); color: var(--blue); font-size: 13px; font-weight: 600; display: grid; place-items: center; flex-shrink: 0; margin-top: 1px; }
+  .guide-card b { display: block; font-weight: 500; margin-bottom: 2px; color: var(--text); }
+  .guide-card small { color: var(--muted); font-size: 13px; display: block; }
+  .cta-wide { width: 100%; padding: 12px 18px; font-size: 15px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 12px; }
+  .clip-banner { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: 12px; background: rgba(129,201,149,.12); border: 1px solid rgba(129,201,149,.32); color: #b7ebc6; font-size: 13px; margin-bottom: 10px; }
+  .clip-banner button { padding: 6px 12px; font-size: 12.5px; }
+  .key-actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  .icon-toggle { padding: 0 12px; min-width: 44px; }
+  input:focus-visible, button:focus-visible, select:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
   select { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: #141517; color: var(--text); font: inherit; }
   .hint { color: var(--muted); font-size: 13px; margin-top: 6px; } a { color: var(--link); text-decoration: none; }
   code { font-size: 12.5px; background: rgba(255,255,255,.08); padding: 1px 5px; border-radius: 5px; }
@@ -57,29 +72,56 @@
   </section>
 
   <section class="step" data-step="provider">
-    <h1>Welches Modell?</h1>
-    <button type="button" class="choice on" data-provider="gemini"><b>Gemini (Google)</b>
-      <span>Am besten, inklusive Live-Gespräch in Echtzeit. Braucht ein Google-Konto und einen API-Key, kostet nach Nutzung (Budget einstellbar).</span></button>
-    <button type="button" class="choice" data-provider="ollama"><b>Lokal auf diesem Rechner (Ollama)</b>
-      <span>Gemma 4, Qwen, DeepSeek und andere offene Modelle. Kostenlos und privat, braucht aber mindestens 16 GB RAM, besser eine Grafikkarte. Live wird zum Wechselgespräch.</span></button>
+    <h1 tabindex="-1">Welches Modell?</h1>
+    <div id="hwBanner" class="hw-pill">Hardware wird erkannt …</div>
+    <button type="button" class="choice on" data-provider="gemini"><b>Gemini (Google) · Empfohlen</b>
+      <span>Am stärksten, inklusive Live-Gespräch in Echtzeit und schnellem Start auf jedem PC. Braucht ein Google-Konto und einen kostenlosen/günstigen API-Key.</span>
+      <div class="badge" id="geminiChoiceBadge">Läuft auf jedem PC (Cloud)</div></button>
+    <button type="button" class="choice" id="ollamaChoiceBtn" data-provider="ollama"><b>Lokal auf diesem Rechner (Ollama)</b>
+      <span>Gemma 4, Qwen, DeepSeek und andere offene Modelle. Kostenlos und privat, braucht aber genügend Grafikspeicher (VRAM) oder mindestens 8–16 GB RAM.</span>
+      <div class="badge" id="ollamaChoiceBadge">Prüfe Speicher …</div></button>
   </section>
 
   <section class="step" data-step="ollama">
-    <h1>Lokale Modelle einrichten</h1>
+    <h1 tabindex="-1">Lokale Modelle einrichten</h1>
     <div id="ollamaBox"></div>
   </section>
 
   <section class="step" data-step="key">
-    <h1>API-Key holen</h1>
-    <ol>
-      <li><button class="link" data-url="https://aistudio.google.com/apikey">Google AI Studio öffnen</button> und mit deinem Google-Konto anmelden.</li>
-      <li>„API-Schlüssel erstellen“ klicken. AI Studio legt dabei automatisch ein Projekt an, du brauchst kein eigenes Google-Cloud-Projekt.</li>
-      <li>Falls verlangt: bei dem Projekt „Abrechnung einrichten“. Mit Google AI Pro bekommst du monatlich 10 $ Guthaben:
-        <button class="link" data-url="https://developers.google.com/program/my-benefits">hier aktivieren</button>.</li>
-      <li>Den Schlüssel (beginnt mit „AIza“) kopieren und hier einfügen:</li>
-    </ol>
-    <div class="row"><input id="apiKey" type="password" placeholder="AIza…" spellcheck="false"><button id="testKey">Testen</button></div>
-    <div id="keyStatus" class="status"></div>
+    <h1 tabindex="-1">Gemini API-Key in 60 Sekunden erstellen</h1>
+    <p>Damit Aura mit Google Gemini sprechen kann, brauchst du einmalig deinen persönlichen Schlüssel:</p>
+    <button type="button" class="primary cta-wide" data-url="https://aistudio.google.com/apikey">1. Google AI Studio öffnen &amp; Key erstellen ↗</button>
+    <div class="guide-steps">
+      <div class="guide-card">
+        <span class="guide-num">1</span>
+        <div><b>Mit Google-Konto anmelden &amp; „API-Schlüssel erstellen“ klicken</b>
+          <small>AI Studio legt alles automatisch an – du brauchst kein eigenes Google-Cloud-Projekt. Mit Google AI Pro gibt es 10 $/Monat Guthaben (<button type="button" class="link" data-url="https://developers.google.com/program/my-benefits">hier aktivieren</button>).</small></div>
+      </div>
+      <div class="guide-card">
+        <span class="guide-num">2</span>
+        <div><b>Schlüssel kopieren (beginnt mit <code>AIza…</code>)</b>
+          <small>Klicke in Google AI Studio einfach auf das Kopieren-Symbol neben deinem neuen Schlüssel.</small></div>
+      </div>
+      <div class="guide-card">
+        <span class="guide-num">3</span>
+        <div><b>Hier einfügen &amp; prüfen</b>
+          <small>Der Schlüssel wird verschlüsselt direkt in Windows/System-Schlüsselbund gespeichert und bleibt auch nach Updates erhalten.</small></div>
+      </div>
+    </div>
+    <div id="clipBanner" class="clip-banner hidden" role="status" aria-live="polite">
+      <span>Gemini-Key in der Zwischenablage erkannt!</span>
+      <button type="button" id="pasteClipBannerBtn" class="primary">Jetzt einfügen &amp; prüfen</button>
+    </div>
+    <label for="apiKey">Dein Gemini API-Key</label>
+    <div class="row">
+      <input id="apiKey" name="apiKey" type="password" placeholder="AIza…" spellcheck="false" autocorrect="off" autocapitalize="none" autocomplete="off" aria-describedby="keyStatus">
+      <button type="button" id="toggleKeyVis" class="icon-toggle" aria-pressed="false" title="Schlüssel anzeigen">👁</button>
+      <button type="button" id="testKey">Prüfen</button>
+    </div>
+    <div class="key-actions">
+      <button type="button" id="pasteKeyBtn">Aus Zwischenablage einfügen &amp; prüfen</button>
+    </div>
+    <div id="keyStatus" class="status" role="status" aria-live="polite"></div>
   </section>
 
   <section class="step" data-step="budget">

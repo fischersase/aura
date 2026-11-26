@@ -109,6 +109,12 @@
       <span id="navLocText">Aus deinem Profil</span>
     </button>
     <div class="nav-footer-row">
+      <button type="button" id="openFeedbackBtn" title="Fehler melden, Idee vorschlagen oder Feedback senden">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z"/><path d="M9 9h6M9 13h4"/></svg>
+        <span>Feedback geben</span>
+      </button>
+    </div>
+    <div class="nav-footer-row">
       <button type="button" id="openWeb" class="app-only" title="Öffnet die Zentrale in deinem Standardbrowser">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
         <span>Im Browser öffnen</span>
@@ -272,13 +278,18 @@
     <div class="head">
       <h1>Einstellungen &amp; Modelle</h1>
       <span class="grow"></span>
+      <span id="cfgUpdateStatus" class="muted small"></span>
+      <button type="button" id="cfgCheckUpdate">Nach Updates suchen</button>
       <span id="cfgSaveStatus" class="muted small"></span>
       <button type="button" id="cfgSaveBtn" class="primary">Speichern</button>
     </div>
     <p class="lead">KI-Modell (Gemini oder lokal über Ollama), API-Key, Kostenbudget, Tastenkürzel und Darstellung.</p>
 
     <div class="card form">
-      <h3>KI-Modell &amp; Anbieter</h3>
+      <div class="row" style="align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+        <h3 style="margin:0">KI-Modell &amp; Anbieter</h3>
+        <span id="cfgHardwareInfo" class="hw-badge">Hardware wird erkannt …</span>
+      </div>
       <label for="cfgProvider">Womit soll Aura arbeiten?</label>
       <select id="cfgProvider" style="width:100%">
         <option value="gemini">Gemini (Google API, per API-Key)</option>
@@ -290,11 +301,15 @@
       <h3>Gemini API &amp; Modelle</h3>
       <label for="cfgApiKey">Gemini API-Key</label>
       <div class="row" style="margin-bottom:6px">
-        <input id="cfgApiKey" type="password" placeholder="AIza…" spellcheck="false">
+        <input id="cfgApiKey" type="password" placeholder="AIza…" spellcheck="false" autocorrect="off" autocapitalize="none">
         <button type="button" id="cfgTestKey">Testen</button>
       </div>
-      <div id="cfgKeyStatus" class="small muted"></div>
+      <div id="cfgKeyStatus" class="small muted" role="status" aria-live="polite"></div>
       <p class="small muted">Key anlegen in <a href="#" data-url="https://aistudio.google.com/apikey">Google AI Studio</a>. Der Schlüssel wird verschlüsselt im System-Schlüsselbund gespeichert.</p>
+
+      <label>Schnellauswahl Chat- &amp; Agent-Modell</label>
+      <div id="cfgGeminiModelsGrid" class="model-chips"></div>
+      <div id="cfgGeminiLockHint" class="small muted hidden" style="margin-bottom:10px"></div>
 
       <div class="settings-grid">
         <div>
@@ -592,6 +607,40 @@
     <div id="chatList" class="list"></div>
   </section>
 </main>
+
+<!-- Natives Feedback-Modal (<dialog closedby="any">) -->
+<dialog id="feedbackDialog" class="native-dlg" closedby="any" aria-labelledby="fbHeading">
+  <form id="feedbackForm">
+    <div class="native-dlg-head">
+      <h1 id="fbHeading">Feedback an Aura senden</h1>
+      <button type="button" id="fbCloseBtn" class="icon-btn" aria-label="Dialog schließen">✕</button>
+    </div>
+    <p class="small muted" style="margin:0 0 12px">Dein Feedback landet direkt in den Aura-Issues auf GitHub (oder du kannst den Text direkt kopieren).</p>
+    <fieldset class="fb-fieldset">
+      <legend>Worum geht es?</legend>
+      <div class="fb-radios">
+        <label class="fb-radio"><input type="radio" name="fbKind" value="bug" checked> Fehler melden</label>
+        <label class="fb-radio"><input type="radio" name="fbKind" value="feature"> Idee / Wunsch</label>
+        <label class="fb-radio"><input type="radio" name="fbKind" value="feedback"> Rückmeldung</label>
+      </div>
+    </fieldset>
+    <label for="fbTitleInput">Kurzer Betreff (optional)</label>
+    <input id="fbTitleInput" name="fbTitle" type="text" placeholder="z. B. Kopfhörer-Verbindung unter Windows 11" maxlength="120">
+    <label for="fbMessage">Beschreibung <span aria-hidden="true">*</span></label>
+    <textarea id="fbMessage" name="fbMessage" rows="5" required placeholder="Was hat gut geklappt, was hat gehakt oder was fehlt dir noch?" autofocus></textarea>
+    <label class="check" style="margin-top:10px">
+      <input type="checkbox" id="fbSysInfo" name="fbSysInfo" checked>
+      <span>Harmlose Systeminfos anhängen (Aura-Version, Betriebssystem, Modell, RAM/VRAM – keine Schlüssel oder Chats)</span>
+    </label>
+    <div id="fbStatus" class="small" role="status" aria-live="polite" style="min-height:18px;margin-top:8px"></div>
+    <div class="dlg-actions" style="margin-top:12px">
+      <button type="button" id="fbCopyBtn">Text kopieren</button>
+      <span class="grow"></span>
+      <button type="button" id="fbCancelBtn">Abbrechen</button>
+      <button type="submit" id="fbSubmitBtn" class="primary">Auf GitHub senden ↗</button>
+    </div>
+  </form>
+</dialog>
 
 <!-- Dialog -->
 <div id="dlg" class="dlg hidden"><div class="dlg-box"><h2 id="dlgTitle"></h2><div id="dlgBody"></div>
