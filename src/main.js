@@ -14,7 +14,6 @@ const {
   Notification,
   safeStorage
 } = require('electron');
-const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const store = require('./store');
@@ -421,8 +420,8 @@ ipcMain.handle('update:install', async () => {
       }
     });
     if (process.platform === 'win32') {
-      const child = spawn(res.filePath, [], { detached: true, stdio: 'ignore' });
-      child.unref();
+      const openErr = await shell.openPath(res.filePath);
+      if (openErr) return { ok: false, error: `Installer konnte nicht gestartet werden: ${openErr}` };
       setTimeout(() => app.quit(), 450);
       return { ok: true, verified: res.verified };
     }

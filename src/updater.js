@@ -123,11 +123,16 @@ async function downloadAndVerify({ downloadUrl, sumsUrl = '', assetName, version
   if (!isAllowedDownloadUrl(downloadUrl)) {
     throw new Error('Download-Adresse liegt nicht auf GitHub Releases.');
   }
-  const safeVer = String(version || 'latest').replace(/[^0-9A-Za-z._-]/g, '');
-  const safeName = path.basename(String(assetName || 'Aura-Setup.exe'));
-  const dir = path.join(os.tmpdir(), `aura-update-${safeVer}`);
+  const safeVer = String(version || 'latest').replace(/[^0-9A-Za-z._-]/g, '') || 'latest';
+  const ALLOWED_ASSETS = new Set(['Aura-Setup.exe', 'aura_amd64.deb']);
+  const safeName = ALLOWED_ASSETS.has(assetName) ? assetName : 'Aura-Setup.exe';
+  const tmpRoot = path.resolve(os.tmpdir());
+  const dir = path.resolve(tmpRoot, `aura-update-${safeVer}`);
+  if (!dir.startsWith(tmpRoot + path.sep)) {
+    throw new Error('Ungültiges Zielverzeichnis für Update.');
+  }
   fs.mkdirSync(dir, { recursive: true });
-  const target = path.join(dir, safeName);
+  const target = path.resolve(dir, safeName);
 
   onProgress?.({ received: 0, total: 0, percent: 0, stage: 'download' });
   const res = await fetchImpl(downloadUrl, {
