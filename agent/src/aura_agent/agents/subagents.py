@@ -27,6 +27,7 @@ from ..harness.tiers import Tier, aura_tool
 from ..platform.base import IS_MACOS, IS_WINDOWS
 from ..tools.apps import list_apps
 from ..tools.desktop import launch_app, list_windows, open_target, window_action
+from ..tools.device import audio_device, bluetooth, brightness, device_mode, wifi
 from ..tools.files import edit_file, find_files, list_dir, move_path, read_file, trash, write_file
 from ..tools.packages import install_software, network_status, search_software
 from ..tools.pointer import click_at, clipboard, drag_mouse, move_mouse, press_keys, scroll_at, type_text
@@ -35,7 +36,7 @@ from ..tools.screen import screenshot
 from ..tools.shell import run_command
 from ..tools.system import dark_mode, media_control, media_status, settings, system_info, volume
 from ..tools.ui import ui_act, ui_set_text, ui_snapshot
-from ..tools.web import download_file, web_fetch, web_search
+from ..tools.web import download_file, reddit_search, web_fetch, web_search
 
 OS_LABEL = "Windows" if IS_WINDOWS else ("macOS" if IS_MACOS else "Linux")
 SAFE_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{1,40}$")
@@ -53,13 +54,13 @@ _CUSTOM_SUBAGENTS: dict[str, CustomSubagentSpec] = {}
 
 
 RESEARCH_PROMPT = f"""Du bist der Research-Subagent von Aura auf einem {OS_LABEL}-System.
-Deine Aufgabe ist gründliche, faktenbasierte Recherche im Web, in den Paketquellen und auf dem lokalen System.
+Deine Aufgabe ist gründliche, faktenbasierte Tiefenrecherche im Web, auf Deal-Portalen, Reddit, in Paketquellen und auf dem lokalen System.
 
 Vorgehen:
-1. Nutze web_search und web_fetch, um aktuelle Programme, kostenlose Dienste (z. B. VPN-Anbieter, Werkzeuge, Konfigurationen), Dokumentationen oder Lösungen zu finden.
+1. Nutze web_fetch direkt auf Deal-Suchseiten (z. B. https://www.mydealz.de/search?q=..., https://travel-dealz.de/?s=..., https://www.secretflying.com/?s=...), web_search und reddit_search (z. B. r/flights, r/JapanTravel, r/TravelHacks, r/de), um echte Angebote, Geheimtipps, Routen-Tricks, Programme oder Dokumentationen zu finden.
 2. Nutze search_software und list_apps, um zu prüfen, welche Programme bereits installiert oder direkt in den System-Paketquellen (Flatpak, APT, Snap, Winget, Homebrew) verfügbar sind.
 3. Nutze network_status und system_info, um den aktuellen Zustand des Systems und Netzwerks zu prüfen.
-4. Liefere dem Hauptagenten eine präzise, verifizierte Zusammenfassung mit konkreten Paket-IDs, Download-Links, Befehlen und Prüfkriterien."""
+4. Liefere dem Hauptagenten eine präzise, verifizierte Zusammenfassung mit konkreten Preisen, Links, Tricks, Paket-IDs und Quellen – erfinde niemals Daten."""
 
 
 COMPUTER_PROMPT = f"""Du bist der Computer-Use-Subagent von Aura auf einem {OS_LABEL}-System.
@@ -87,6 +88,7 @@ Vorgehen:
 
 READ_ONLY_TOOLS: list[Any] = [
     web_search,
+    reddit_search,
     web_fetch,
     search_software,
     network_status,
@@ -119,18 +121,29 @@ COMPUTER_TOOLS: list[Any] = [
     media_status,
     media_control,
     volume,
+    brightness,
+    bluetooth,
+    audio_device,
+    wifi,
+    device_mode,
     dark_mode,
     settings,
 ]
 
 SYSTEM_TOOLS: list[Any] = [
     web_search,
+    reddit_search,
     web_fetch,
     download_file,
     search_software,
     install_software,
     network_status,
     system_info,
+    bluetooth,
+    brightness,
+    audio_device,
+    wifi,
+    device_mode,
     list_apps,
     list_dir,
     find_files,

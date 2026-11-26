@@ -117,6 +117,7 @@ let panelOpen = false;
 let panelMinimized = false;
 let liveActive = false;
 let currentDisplay = null;
+let lastScreenshotDisplay = null;
 const ramblerState = {
   recording: false,
   processing: false,
@@ -1170,7 +1171,8 @@ const agentV2 = new AgentBridge({
       }),
     screenshot: async (maxWidth) => {
       noteAgentScreenshot();
-      return { mime: 'image/jpeg', data: await screenshotJpeg(currentDisplay, maxWidth) };
+      lastScreenshotDisplay = currentDisplay || displayUnderCursor();
+      return { mime: 'image/jpeg', data: await screenshotJpeg(lastScreenshotDisplay, maxWidth) };
     },
     // OAuth MCP servers (AURA-95): a fresh header per request; refresh tokens never leave this process.
     authHeader: async (req) => {
@@ -1180,10 +1182,10 @@ const agentV2 = new AgentBridge({
         return { error: err instanceof Error ? err.message : String(err) };
       }
     },
-    // Maus, Tastatur und Zwischenablage. x, y: 0–1000 im letzten Bildschirmfoto.
+    // Maus, Tastatur und Zwischenablage. x, y: 0–1000 im letzten Bildschirmfoto (oder click_abs in echten Pixeln).
     input: async (req) => {
       const toScreenPoint = (nx, ny) => {
-        const d = currentDisplay || displayUnderCursor();
+        const d = lastScreenshotDisplay || currentDisplay || displayUnderCursor();
         const dip = {
           x: d.bounds.x + (Number(nx) / 1000) * d.bounds.width,
           y: d.bounds.y + (Number(ny) / 1000) * d.bounds.height
@@ -1192,6 +1194,12 @@ const agentV2 = new AgentBridge({
         if (process.platform === 'darwin') return dip;
         return { x: dip.x * d.scaleFactor, y: dip.y * d.scaleFactor };
       };
+      if (req.action === 'click_abs') {
+        return agentInput.click(Number(req.x), Number(req.y), {
+          button: req.button === 'right' ? 'right' : 'left',
+          double: !!req.double
+        });
+      }
       if (req.action === 'click') {
         const p = toScreenPoint(req.x, req.y);
         return agentInput.click(p.x, p.y, { button: req.button === 'right' ? 'right' : 'left', double: !!req.double });

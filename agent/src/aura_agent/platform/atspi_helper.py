@@ -124,6 +124,18 @@ def _value(acc: Atspi.Accessible) -> float | None:
         return None
 
 
+def _box(acc: Atspi.Accessible) -> list[int] | None:
+    try:
+        if not acc.get_component_iface():
+            return None
+        r = Atspi.Component.get_extents(acc, Atspi.CoordType.SCREEN)
+        if r and r.width > 0 and r.height > 0:
+            return [int(r.x), int(r.y), int(r.width), int(r.height)]
+    except Exception:  # noqa: BLE001
+        pass
+    return None
+
+
 def _apps() -> list[Atspi.Accessible]:
     desk = Atspi.get_desktop(0)
     return [a for i in range(desk.get_child_count()) if (a := desk.get_child_at_index(i)) is not None]
@@ -203,6 +215,9 @@ def snapshot(p: dict) -> dict:
             acts = [a for a in _actions(acc) if a.lower() in STANDARD_ACTIONS]
             if acts:
                 item["actions"] = acts[:4]
+            box = _box(acc)
+            if box is not None:
+                item["box"] = box
             items.append(item)
         try:
             n = acc.get_child_count()

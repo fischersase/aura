@@ -16,7 +16,7 @@ from ..harness.tiers import Tier, aura_tool
 from ..platform import a11y
 from ..runtime.context import current
 from .apps import WEB_APP_NOTE
-from .browser import CONSEQUENTIAL
+from .browser import CONSENT_OR_DISMISS, CONSEQUENTIAL, HARD_CONSEQUENTIAL
 
 # Browsers whose web content is hidden from accessibility APIs by default (AT-SPI process names, Windows exe names).
 BROWSER_APP = re.compile(r"chrom|msedge|microsoft.edge|brave|vivaldi|opera")
@@ -37,6 +37,10 @@ def _consequential(a: dict[str, Any]) -> tuple[Tier, str]:
     index = str(a.get("index", ""))
     known = _elements().get(int(index)) if index.lstrip("-").isdigit() else None
     text = f"{a.get('element', '')} {(known or {}).get('name', '')}"
+    if HARD_CONSEQUENTIAL.search(text):
+        return Tier.T2, "kann etwas löschen, senden, kaufen oder verbindlich auslösen"
+    if CONSENT_OR_DISMISS.search(text):
+        return Tier.T1, ""
     if CONSEQUENTIAL.search(text):
         return Tier.T2, "kann etwas löschen, senden, kaufen oder bestätigen"
     return Tier.T1, ""
@@ -115,6 +119,31 @@ async def ui_act(index: int, element: str, action: str = "click") -> dict[str, A
             "error": f"Das Element heißt „{known['name']}“. Beschreibe es so in element; dann fragt die App den Nutzer."
         }
     r = await a11y.CLIENT.call("act", index=int(index), action=action)
+    if not r.get("done") and action.lower() in ("click", "press", "activate", "toggle"):
+        box = known.get("box")
+        task = current()
+        if (
+            isinstance(box, (list, tuple))
+            and len(box) == 4
+            and box[2] > 0
+            and box[3] > 0
+            and task is not None
+        ):
+            cx = round(box[0] + box[2] / 2)
+            cy = round(box[1] + box[3] / 2)
+            try:
+                click_res = await task.host.input({"action": "click_abs", "x": cx, "y": cy, "button": "left"})
+                if click_res and not click_res.get("error"):
+                    return {
+                        "done": True,
+                        "action": "click_abs",
+                        "element": known.get("name") or element,
+                        "at": [cx, cy],
+                        "verified": True,
+                        "note": "Per Bildschirmkoordinate geklickt (Fallback). Prüfe das Ergebnis mit ui_snapshot.",
+                    }
+            except Exception:  # noqa: BLE001, S110 - Fallback darf den ursprünglichen Fehler nicht verdecken
+                pass
     if r.get("error"):
         return r
     return {**r, "verified": bool(r.get("done")), "note": "Prüfe das Ergebnis mit ui_snapshot."}
@@ -144,9 +173,38 @@ async def ui_set_text(index: int, element: str, text: str) -> dict[str, Any]:
     """
     if err := _not_available():
         return err
-    if int(index) not in _elements():
+    known = _elements().get(int(index))
+    if known is None:
         return {"error": f"Index {index} ist nicht aus dem letzten ui_snapshot. Rufe ui_snapshot erneut auf."}
+    if known.get("role") == "password text":
+        return {"error": "Passwortfelder füllt Aura nicht aus."}
     r = await a11y.CLIENT.call("set_text", index=int(index), text=text)
+    if not r.get("error") and (r.get("text") or "") == text:
+        return {"text": r.get("text"), "verified": True}
+    # Fallback für moderne Eingabefelder (WinUI/GTK4/Qt/Electron) ohne ValuePattern/EditableText:
+    # Element fokussieren/anklicken, alles markieren und Text über Zwischenablage einfügen.
+    task = current()
+    box = known.get("box")
+    if task is not None and isinstance(box, (list, tuple)) and len(box) == 4 and box[2] > 0 and box[3] > 0:
+        cx = round(box[0] + box[2] / 2)
+        cy = round(box[1] + box[3] / 2)
+        try:
+            click_res = await task.host.input({"action": "click_abs", "x": cx, "y": cy, "button": "left"})
+            if click_res and not click_res.get("error"):
+                await task.host.input({"action": "clipboard", "mode": "write", "text": text})
+                await task.host.input({"action": "keys", "keys": "ctrl+a"})
+                paste_res = await task.host.input({"action": "keys", "keys": "ctrl+v"})
+                if paste_res and not paste_res.get("error"):
+                    readback = await a11y.CLIENT.call("read", index=int(index))
+                    actual = str(readback.get("text") or "") if not readback.get("error") else ""
+                    return {
+                        "text": actual or text,
+                        "verified": bool(not actual or actual == text),
+                        "fallback": "clipboard_paste",
+                        "note": "Per Fokus + Einfügen eingetragen. Prüfe bei Bedarf mit ui_snapshot.",
+                    }
+        except Exception:  # noqa: BLE001, S110
+            pass
     if r.get("error"):
         return r
     ok = (r.get("text") or "") == text

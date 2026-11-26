@@ -126,6 +126,7 @@ P = {
     "legacy": U.UIA_IsLegacyIAccessiblePatternAvailablePropertyId,
     "default_action": U.UIA_LegacyIAccessibleDefaultActionPropertyId,
     "class": U.UIA_ClassNamePropertyId,
+    "rect": U.UIA_BoundingRectanglePropertyId,
 }
 CACHE = AUTO.CreateCacheRequest()
 for _pid in P.values():
@@ -264,6 +265,11 @@ def snapshot(p: dict) -> dict:
             acts = _actions(el)
             if acts:
                 item["actions"] = acts[:4]
+            rect = _get(el, "rect")
+            if isinstance(rect, (tuple, list)) and len(rect) == 4:
+                rx, ry, rw, rh = (round(v) for v in rect)
+                if rw > 0 and rh > 0:
+                    item["box"] = [rx, ry, rw, rh]
             items.append(item)
         here = f"{path} › {name}" if name and role in CONTAINERS else path
         for c in _children(el):

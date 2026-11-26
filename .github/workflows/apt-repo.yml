@@ -39,6 +39,8 @@ jobs:
           (cd dist && grep ' aura_amd64.deb$' SHA256SUMS | sha256sum -c -)
           gh attestation verify dist/aura_amd64.deb -R "$GITHUB_REPOSITORY"
           echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+      - name: Install apt-utils
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends apt-utils
       - name: Build and sign the repository
         env:
           APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}

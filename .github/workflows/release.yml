@@ -221,6 +221,8 @@ jobs:
           gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p SHA256SUMS -D dist
           (cd dist && grep ' aura_amd64.deb$' SHA256SUMS | sha256sum -c -)
           gh attestation verify dist/aura_amd64.deb -R "$GITHUB_REPOSITORY"
+      - name: Install apt-utils
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends apt-utils
       # APT_SIGNING_KEY_NEXT lives only in the github-pages environment; during the key rotation both keys sign.
       - name: Build and sign the repository
         env:
