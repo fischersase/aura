@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <script>
+    try {
+      document.querySelector('meta[name="color-scheme"]').content = localStorage.getItem('color-scheme') ?? 'light dark';
+    } catch {}
+  </script>
+  <title>Aura Admin Console · Analytics, SRE &amp; Improvement Platform</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Login Gate (Google Identity Services + Dev-Token außerhalb Produktion) -->
+  <section id="loginGate" class="login-gate hidden" aria-labelledby="loginHeading">
+    <div class="login-card">
+      <div class="brand-row">
+        <span class="aura-ring" aria-hidden="true"></span>
+        <div>
+          <h1 id="loginHeading">Aura Admin Console</h1>
+          <p class="muted small">Product Analytics · SRE Golden Signals · Trace Explorer · Feedback &amp; Jira</p>
+        </div>
+      </div>
+      <div id="googleSignInWrap" class="login-block hidden">
+        <p class="small">Melde dich mit deinem freigegebenen Admin-Google-Konto an.</p>
+        <div id="googleBtnTarget"></div>
+      </div>
+      <form id="devLoginForm" class="login-block hidden">
+        <label for="devTokenInput">Lokales Dev-Admin-Token</label>
+        <input id="devTokenInput" name="devToken" type="password" placeholder="DEV_ADMIN_TOKEN" autocomplete="off" spellcheck="false" autocorrect="off" autocapitalize="none" required>
+        <button type="submit" class="btn primary" style="margin-top:10px;width:100%">Als Dev-Admin anmelden</button>
+      </form>
+      <div id="loginStatus" class="status-msg small" role="status" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <!-- Haupt-App (Google Cloud Console / Material 3 Dev Shell) -->
+  <div id="appShell" class="shell hidden">
+    <aside class="rail" aria-label="Admin-Navigation">
+      <div class="rail-brand">
+        <span class="aura-ring" aria-hidden="true"></span>
+        <div>
+          <div class="rail-title">Aura Admin</div>
+          <div class="rail-sub" id="envBadge">k3s · Tailscale</div>
+        </div>
+      </div>
+
+      <nav class="rail-nav">
+        <div class="nav-group">OBSERVABILITY</div>
+        <button type="button" class="nav-item active" data-view="analytics">
+          <span class="nav-dot" style="background:var(--accent)"></span>
+          <span>Product Analytics</span>
+        </button>
+        <button type="button" class="nav-item" data-view="performance">
+          <span class="nav-dot" style="background:var(--ok)"></span>
+          <span>SRE &amp; Performance</span>
+        </button>
+
+        <div class="nav-group">DIAGNOSE &amp; QUALITÄT</div>
+        <button type="button" class="nav-item" data-view="sessions">
+          <span class="nav-dot" style="background:var(--purple)"></span>
+          <span>Chat &amp; Trace Explorer</span>
+        </button>
+        <button type="button" class="nav-item" data-view="feedback">
+          <span class="nav-dot" style="background:var(--warn)"></span>
+          <span>Feedback-Inbox</span>
+          <span id="navUnreadBadge" class="pill-count hidden">0</span>
+        </button>
+        <button type="button" class="nav-item" data-view="improvements">
+          <span class="nav-dot" style="background:var(--cyan)"></span>
+          <span>Improvement Flywheel</span>
+        </button>
+
+        <div class="nav-group">FLOTTE &amp; SYSTEM</div>
+        <button type="button" class="nav-item" data-view="fleet">
+          <span class="nav-dot" style="background:var(--muted)"></span>
+          <span>Installationen &amp; HW</span>
+        </button>
+      </nav>
+
+      <div class="rail-foot">
+        <a id="grafanaLink" class="rail-ext hidden" href="#" target="_blank" rel="noopener noreferrer">Grafana Dashboards ↗</a>
+        <div class="user-chip">
+          <div class="user-meta">
+            <strong id="adminName">Admin</strong>
+            <span id="adminEmail" class="muted small"></span>
+          </div>
+          <button type="button" id="logoutBtn" class="btn ghost small">Abmelden</button>
+        </div>
+      </div>
+    </aside>
+
+    <div class="workspace">
+      <header class="topbar">
+        <div>
+          <h1 id="pageTitle">Product Analytics</h1>
+          <p id="pageSub" class="muted small">Nutzung, Onboarding-Funnel, Hardware/VRAM &amp; Modellverteilung</p>
+        </div>
+        <div class="topbar-actions">
+          <label for="daysSelect" class="sr-only">Zeitraum</label>
+          <select id="daysSelect" class="select-compact" aria-label="Zeitraum wählen">
+            <option value="7">Letzte 7 Tage</option>
+            <option value="14">Letzte 14 Tage</option>
+            <option value="30" selected>Letzte 30 Tage</option>
+            <option value="90">Letzte 90 Tage</option>
+          </select>
+          <button type="button" id="refreshBtn" class="btn">Aktualisieren</button>
+          <button type="button" id="themeToggleBtn" class="btn ghost" title="Hell/Dunkel umschalten">◐ Design</button>
+        </div>
+      </header>
+
+      <main class="content">
+
+        <!-- 1. Product Analytics -->
+        <section id="view-analytics" class="view">
+          <div id="analyticsKpis" class="kpi-grid"></div>
+
+          <div class="grid-2">
+            <article class="card">
+              <div class="card-head">
+                <h2>Tägliche Aktivität &amp; Fehler</h2>
+                <span class="muted small">Aktive Clients · Events · Fehler</span>
+              </div>
+              <div id="activityChart" class="chart-box"></div>
+            </article>
+            <article class="card">
+              <div class="card-head">
+                <h2>Onboarding- &amp; Aktivierungs-Funnel</h2>
+                <span class="muted small">Install → Opt-In → Chat → Agent v2</span>
+              </div>
+              <div id="funnelChart" class="bars-list"></div>
+            </article>
+          </div>
+
+          <div class="grid-3">
+            <article class="card">
+              <div class="card-head"><h2>Betriebssystem &amp; Version</h2></div>
+              <div id="osBars" class="bars-list"></div>
+              <h3 class="sub-h">Top Aura-Versionen</h3>
+              <div id="versionBars" class="bars-list"></div>
+            </article>
+            <article class="card">
+              <div class="card-head"><h2>Hardware &amp; VRAM-Klassen</h2></div>
+              <div id="hwBars" class="bars-list"></div>
+              <h3 class="sub-h">Modell-Mix (Gemini vs. Ollama)</h3>
+              <div id="modelBars" class="bars-list"></div>
+            </article>
+            <article class="card">
+              <div class="card-head"><h2>Feature-Adoption</h2></div>
+              <div id="featureBars" class="bars-list"></div>
+            </article>
+          </div>
+        </section>
+
+        <!-- 2. SRE Performance & Golden Signals -->
+        <section id="view-performance" class="view hidden">
+          <div id="perfKpis" class="kpi-grid"></div>
+
+          <div class="grid-2">
+            <article class="card">
+              <div class="card-head">
+                <h2>Latenz-Trend (p50 / p95) &amp; Fehlerrate</h2>
+                <span class="muted small">Google SRE Golden Signals</span>
+              </div>
+              <div id="perfTrendChart" class="chart-box"></div>
+            </article>
+            <article class="card">
+              <div class="card-head">
+                <h2>Häufigste Fehlercodes</h2>
+                <span class="muted small">Nach Feature &amp; Anzahl</span>
+              </div>
+              <div id="errorCodesList" class="bars-list"></div>
+            </article>
+          </div>
+
+          <article class="card">
+            <div class="card-head">
+              <h2 id="latencyTableCaption">Latenz-Perzentile nach Feature (ms)</h2>
+            </div>
+            <div tabindex="0" role="region" aria-labelledby="latencyTableCaption" class="table-wrapper">
+              <table class="data-table" style="--label-1:'Feature';--label-2:'Anfragen';--label-3:'Fehler';--label-4:'p50';--label-5:'p95';--label-6:'p99'">
+                <thead>
+                  <tr><th>Feature</th><th>Anfragen</th><th>Fehler</th><th>p50 (ms)</th><th>p95 (ms)</th><th>p99 (ms)</th></tr>
+                </thead>
+                <tbody id="latencyTableBody"></tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="card">
+            <div class="card-head">
+              <h2 id="toolTableCaption">Tool-Zuverlässigkeits-Matrix (Tool × OS)</h2>
+              <span class="muted small">Erfolgsquote &amp; Ø Dauer</span>
+            </div>
+            <div tabindex="0" role="region" aria-labelledby="toolTableCaption" class="table-wrapper">
+              <table class="data-table" style="--label-1:'Werkzeug';--label-2:'OS';--label-3:'Aufrufe';--label-4:'Erfolgsquote';--label-5:'Fehler';--label-6:'Ø Dauer'">
+                <thead>
+                  <tr><th>Werkzeug</th><th>OS</th><th>Aufrufe</th><th>Erfolgsquote</th><th>Fehler</th><th>Ø Dauer</th></tr>
+                </thead>
+                <tbody id="toolMatrixBody"></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+
+        <!-- 3. Chat-History & Agent Trace Explorer -->
+        <section id="view-sessions" class="view hidden">
+          <search>
+            <form id="sessionFilterForm" class="filter-bar">
+              <input id="sessionSearch" name="q" type="search" placeholder="Suche in geschwärzten Chats, Clustern oder Judge-Notizen …" spellcheck="false" autocomplete="off">
+              <select id="sessionRatingFilter" name="rating" aria-label="Bewertung">
+                <option value="">Alle Bewertungen</option>
+                <option value="down">👎 Nur negativ</option>
+                <option value="up">👍 Nur positiv</option>
+              </select>
+              <label class="check-inline"><input id="sessionErrOnly" type="checkbox"> Nur mit Fehlern</label>
+              <button type="submit" class="btn primary">Filtern</button>
+            </form>
+          </search>
+
+          <div class="trace-layout">
+            <div class="card trace-list-card">
+              <div class="card-head">
+                <h2>Abgelegte Protokolle</h2>
+                <span id="sessionCount" class="muted small">0</span>
+              </div>
+              <div id="sessionList" class="session-list"></div>
+            </div>
+
+            <div class="card trace-detail-card">
+              <div id="sessionDetailEmpty" class="empty-state">
+                Wähle links eine Session aus, um den vollständigen (geschwärzten) Chat-Verlauf, die Agent-Wasserfall-Spans und 1-Klick-Verbesserungsaktionen zu öffnen.
+              </div>
+              <div id="sessionDetail" class="hidden">
+                <div class="detail-header">
+                  <div>
+                    <h2 id="detTitle">Session</h2>
+                    <div id="detMeta" class="muted small"></div>
+                  </div>
+                  <div class="detail-actions">
+                    <button type="button" id="btnJudgeSession" class="btn">Mit Judge bewerten</button>
+                    <button type="button" id="btnExportEval" class="btn primary">Als Golden Eval exportieren</button>
+                  </div>
+                </div>
+                <div id="detJudgeBox" class="judge-box"></div>
+                <div class="detail-split">
+                  <div>
+                    <h3 class="sub-h">Konversation (DSGVO-geschwärzt)</h3>
+                    <div id="detMessages" class="chat-transcript"></div>
+                  </div>
+                  <div>
+                    <h3 class="sub-h">Agent Execution Waterfall (Spans)</h3>
+                    <div id="detSpans" class="waterfall"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 4. Feedback Inbox (Headhunter-Stil + Jira Triage/Dedupe) -->
+        <section id="view-feedback" class="view hidden">
+          <div id="jiraConfigBanner" class="info-banner hidden"></div>
+          <div id="feedbackSummaryBar" class="kpi-grid"></div>
+          <div class="seg-tabs" role="tablist" aria-label="Feedback-Filter">
+            <button type="button" class="seg-tab active" data-fb-filter="new">Ungelesen</button>
+            <button type="button" class="seg-tab" data-fb-filter="in_progress">In Arbeit</button>
+            <button type="button" class="seg-tab" data-fb-filter="done">Erledigt</button>
+            <button type="button" class="seg-tab" data-fb-filter="all">Alle</button>
+          </div>
+          <div id="feedbackList" class="feedback-list"></div>
+        </section>
+
+        <!-- 5. Closed-Loop Improvement Flywheel -->
+        <section id="view-improvements" class="view hidden">
+          <div class="section-bar">
+            <div>
+              <h2>Automatisch geclusterte Top Pain Points</h2>
+              <p class="muted small">Wiederkehrende Probleme aus Traces &amp; 👎-Bewertungen direkt in Evals oder Prompt-/Skill-Rollouts überführen.</p>
+            </div>
+            <button type="button" id="btnNewProposal" class="btn primary">+ Verbesserung / Canary anlegen</button>
+          </div>
+
+          <div id="clustersGrid" class="cluster-grid"></div>
+
+          <div class="grid-2" style="margin-top:16px">
+            <article class="card">
+              <div class="card-head">
+                <h2>Golden Eval-Cases (für <code>agent/evals/</code>)</h2>
+                <span id="evalCount" class="muted small">0</span>
+              </div>
+              <div id="evalList" class="stack-list"></div>
+            </article>
+            <article class="card">
+              <div class="card-head">
+                <h2>System-Verbesserungen &amp; Canary-Rollouts</h2>
+                <span class="muted small"><code>GET /api/config/remote</code></span>
+              </div>
+              <div id="proposalList" class="stack-list"></div>
+            </article>
+          </div>
+        </section>
+
+        <!-- 6. Fleet & Installations -->
+        <section id="view-fleet" class="view hidden">
+          <article class="card">
+            <div class="card-head">
+              <h2 id="fleetTableCaption">Aktive Installationen &amp; Hardware-Inventar</h2>
+              <span id="fleetCount" class="muted small">0</span>
+            </div>
+            <div tabindex="0" role="region" aria-labelledby="fleetTableCaption" class="table-wrapper">
+              <table class="data-table" style="--label-1:'Install-ID';--label-2:'OS / Arch';--label-3:'Version';--label-4:'RAM / VRAM';--label-5:'Anbieter';--label-6:'Opt-In';--label-7:'Zuletzt aktiv'">
+                <thead>
+                  <tr><th>Install-ID</th><th>OS / Arch</th><th>Version</th><th>RAM / VRAM</th><th>Anbieter</th><th>Opt-In</th><th>Zuletzt aktiv</th></tr>
+                </thead>
+                <tbody id="fleetTableBody"></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- Natives Dialog-Modal für neue Verbesserung / Canary Proposal -->
+  <dialog id="proposalDialog" class="native-dlg" closedby="any" aria-labelledby="propDlgTitle">
+    <form id="proposalForm">
+      <div class="dlg-head">
+        <h1 id="propDlgTitle">Systemverbesserung / Canary anlegen</h1>
+        <button type="button" class="btn ghost small" data-close-dlg="proposalDialog" aria-label="Schließen">✕</button>
+      </div>
+      <label for="propTitle">Titel <span aria-hidden="true">*</span></label>
+      <input id="propTitle" name="title" type="text" required maxlength="180" placeholder="z. B. Verbesserter Cookie-Banner-Dismiss für Flugportale" autofocus>
+      <div class="grid-2" style="margin-top:10px">
+        <div>
+          <label for="propTarget">Zielbereich</label>
+          <select id="propTarget" name="targetType">
+            <option value="system_prompt">System-Prompt</option>
+            <option value="browser_rule">Browser-Regel</option>
+            <option value="skill">Starter-Skill</option>
+            <option value="tool_policy">Tool-Policy</option>
+            <option value="model_default">Modell-Standard</option>
+          </select>
+        </div>
+        <div>
+          <label for="propRollout">Canary-Rollout (%)</label>
+          <select id="propRollout" name="rolloutPct">
+            <option value="0">0 % (Entwurf)</option>
+            <option value="5">5 % (Canary)</option>
+            <option value="25">25 % (Ramp-Up)</option>
+            <option value="100">100 % (Aktiv)</option>
+          </select>
+        </div>
+      </div>
+      <label for="propCluster">Cluster-Tag (optional)</label>
+      <input id="propCluster" name="clusterTag" type="text" placeholder="z. B. browser:cookie-overlay" spellcheck="false" autocorrect="off" autocapitalize="none">
+      <label for="propRationale">Begründung &amp; gewünschte Änderung</label>
+      <textarea id="propRationale" name="rationale" rows="3" placeholder="Warum hilft diese Änderung? Auf welchen Traces basiert sie?"></textarea>
+      <label for="propPatch">Config-Patch (JSON)</label>
+      <textarea id="propPatch" name="configPatch" rows="4" spellcheck="false" style="font-family:var(--mono)">{}</textarea>
+      <div class="dlg-actions">
+        <button type="button" class="btn" data-close-dlg="proposalDialog">Abbrechen</button>
+        <button type="submit" class="btn primary">Speichern</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Natives Dialog-Modal für exportierten Golden Eval-Case -->
+  <dialog id="evalDialog" class="native-dlg" closedby="any" aria-labelledby="evalDlgTitle">
+    <div class="dlg-head">
+      <h1 id="evalDlgTitle">Golden Eval-Case exportiert</h1>
+      <button type="button" class="btn ghost small" data-close-dlg="evalDialog" aria-label="Schließen">✕</button>
+    </div>
+    <p class="small muted">Direkt kompatibel mit <code>agent/evals/</code> – kopiere oder lade die Datei herunter, um diesen Fehler dauerhaft als Regressionstest abzusichern.</p>
+    <pre id="evalJsonPre" class="code-box"></pre>
+    <div class="dlg-actions">
+      <button type="button" id="btnCopyEval" class="btn">JSON kopieren</button>
+      <button type="button" id="btnDownloadEval" class="btn primary">Als .json laden</button>
+      <button type="button" class="btn ghost" data-close-dlg="evalDialog">Schließen</button>
+    </div>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>

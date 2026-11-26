@@ -158,7 +158,11 @@ $('next').onclick = async () => {
     await window.api.saveSettings(olPanel.values());
   }
   if (step === flow().length - 1) {
-    await window.api.saveSettings({ autostart: $('autostart').checked });
+    await window.api.saveSettings({
+      autostart: $('autostart').checked,
+      telemetryMetricsOptIn: Boolean($('optMetrics') && $('optMetrics').checked),
+      telemetryTracesOptIn: Boolean($('optTraces') && $('optTraces').checked)
+    });
     window.api.setupDone();
     return;
   }

@@ -249,7 +249,7 @@ function renderZChatMessages() {
     return;
   }
   listEl.innerHTML = activeChatHistory
-    .map((m) => {
+    .map((m, idx) => {
       const text = (m.parts || [])
         .map((p) => p.text)
         .filter(Boolean)
@@ -257,9 +257,40 @@ function renderZChatMessages() {
       if (m.role === 'user') {
         return `<div class="zchat-msg user">${esc(text)}</div>`;
       }
-      return `<div class="zchat-msg model">${zMarkdown(text)}</div>`;
+      const isLast = idx === activeChatHistory.length - 1;
+      const actions = isLast
+        ? `<div class="zchat-rate-row">
+             <button type="button" class="zchat-rate-btn" data-rate="up" title="Gute Antwort">👍 Hilfreich</button>
+             <button type="button" class="zchat-rate-btn" data-rate="down" title="Verbesserungswürdig">👎 Nicht hilfreich</button>
+             <span class="zchat-rate-status small muted" aria-live="polite"></span>
+           </div>`
+        : '';
+      return `<div class="zchat-msg model">${zMarkdown(text)}${actions}</div>`;
     })
     .join('');
+  listEl.querySelectorAll('[data-rate]').forEach((btn) => {
+    btn.onclick = async () => {
+      const rating = btn.dataset.rate;
+      const row = btn.closest('.zchat-rate-row');
+      const status = row && row.querySelector('.zchat-rate-status');
+      const flatMsgs = activeChatHistory.map((m) => ({
+        role: m.role === 'model' ? 'assistant' : 'user',
+        text: (m.parts || []).map((p) => p.text || '').join('\n')
+      }));
+      if (typeof z.rateSession === 'function') {
+        await z.rateSession({ sessionId: activeChatId, rating, mode: 'zentrale', messages: flatMsgs });
+      }
+      if (row) {
+        row.querySelectorAll('[data-rate]').forEach((b) => b.classList.toggle('active', b === btn));
+      }
+      if (status) {
+        status.textContent = rating === 'up' ? 'Danke für deine Rückmeldung!' : 'Danke! Möchtest du Details melden?';
+      }
+      if (rating === 'down') {
+        if ($('fbAttachTrace')) $('fbAttachTrace').checked = true;
+      }
+    };
+  });
   listEl.scrollTop = listEl.scrollHeight;
 }
 
@@ -2454,6 +2485,9 @@ async function loadSettingsPage() {
   if ($('cfgLanguage')) $('cfgLanguage').value = s.language || 'Deutsch';
   if ($('cfgGlowStay')) $('cfgGlowStay').checked = s.glowStay !== false;
   if ($('cfgAutostart')) $('cfgAutostart').checked = Boolean(s.autostart);
+  if ($('cfgTelemetryMetrics')) $('cfgTelemetryMetrics').checked = Boolean(s.telemetryMetricsOptIn);
+  if ($('cfgTelemetryTraces')) $('cfgTelemetryTraces').checked = Boolean(s.telemetryTracesOptIn);
+  if ($('cfgAdminApiUrl')) $('cfgAdminApiUrl').value = s.adminApiUrl || '';
 }
 
 if ($('cfgProvider')) {
@@ -2596,7 +2630,10 @@ if ($('cfgSaveBtn')) {
       panelCorner: ($('cfgPanelCorner') && $('cfgPanelCorner').value) || 'bottom-right',
       language: ($('cfgLanguage') && $('cfgLanguage').value.trim()) || 'Deutsch',
       glowStay: $('cfgGlowStay') ? $('cfgGlowStay').checked : true,
-      autostart: $('cfgAutostart') ? $('cfgAutostart').checked : true
+      autostart: $('cfgAutostart') ? $('cfgAutostart').checked : true,
+      telemetryMetricsOptIn: $('cfgTelemetryMetrics') ? $('cfgTelemetryMetrics').checked : false,
+      telemetryTracesOptIn: $('cfgTelemetryTraces') ? $('cfgTelemetryTraces').checked : false,
+      adminApiUrl: ($('cfgAdminApiUrl') && $('cfgAdminApiUrl').value.trim()) || ''
     };
     const typedKey = $('cfgApiKey') ? $('cfgApiKey').value.trim() : '';
     if (typedKey) patch.apiKey = typedKey;
@@ -2856,11 +2893,57 @@ if (feedbackDialog) {
 
 function readFeedbackFields() {
   const kindEl = feedbackForm ? feedbackForm.querySelector('input[name="fbKind"]:checked') : null;
+  const attachTrace = $('fbAttachTrace') ? $('fbAttachTrace').checked : false;
+  const traceMessages =
+    attachTrace && Array.isArray(activeChatHistory) && activeChatHistory.length
+      ? activeChatHistory.map((m) => ({
+          role: m.role === 'model' ? 'assistant' : 'user',
+          text: (m.parts || []).map((p) => p.text || '').join('\n')
+        }))
+      : null;
   return {
     kind: (kindEl && kindEl.value) || 'feedback',
     title: ($('fbTitleInput') && $('fbTitleInput').value.trim()) || '',
     message: ($('fbMessage') && $('fbMessage').value.trim()) || '',
-    includeSystemInfo: $('fbSysInfo') ? $('fbSysInfo').checked : true
+    includeSystemInfo: $('fbSysInfo') ? $('fbSysInfo').checked : true,
+    attachTrace,
+    sessionId: attachTrace ? activeChatId : null,
+    traceMessages
+  };
+}
+
+if ($('cfgDeleteRemoteData')) {
+  $('cfgDeleteRemoteData').onclick = async () => {
+    const btn = $('cfgDeleteRemoteData');
+    const st = $('cfgRemoteDelStatus');
+    btn.disabled = true;
+    if (st) {
+      st.textContent = 'Lösche gespeicherte Server-Protokolle …';
+      st.className = 'small muted';
+    }
+    try {
+      const res = typeof z.deleteRemoteTelemetry === 'function' ? await z.deleteRemoteTelemetry() : null;
+      await loadSettingsPage();
+      if (st) {
+        if (res && res.ok) {
+          st.textContent = 'Alle Server-Protokolle dieser Installation wurden gelöscht und Telemetrie deaktiviert.';
+          st.className = 'ok small';
+        } else if (res && res.skipped) {
+          st.textContent = 'Kein Admin-Server verbunden; lokale Opt-Ins wurden deaktiviert.';
+          st.className = 'small muted';
+        } else {
+          st.textContent = (res && res.error) || 'Löschen fehlgeschlagen.';
+          st.className = 'bad small';
+        }
+      }
+    } catch (err) {
+      if (st) {
+        st.textContent = 'Fehler: ' + (err.message || err);
+        st.className = 'bad small';
+      }
+    } finally {
+      btn.disabled = false;
+    }
   };
 }
 
@@ -2880,14 +2963,17 @@ if (feedbackForm) {
     }
     if (submitBtn) submitBtn.disabled = true;
     if (st) {
-      st.textContent = 'Öffne GitHub-Feedback …';
+      st.textContent = 'Sende Feedback …';
       st.className = 'muted small';
     }
     try {
       const res = await z.sendFeedback({ ...payload, openBrowser: true });
       if (res && res.ok) {
         if (st) {
-          st.textContent = 'Im Browser geöffnet – vielen Dank für dein Feedback!';
+          st.textContent =
+            res.delivered === 'admin'
+              ? 'Direkt in der Aura Admin Console eingegangen – vielen Dank!'
+              : 'Im Browser auf GitHub geöffnet – vielen Dank für dein Feedback!';
           st.className = 'ok small';
         }
         if ($('fbTitleInput')) $('fbTitleInput').value = '';

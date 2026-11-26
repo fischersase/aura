@@ -1,0 +1,100 @@
+# Tailscale Funnel — öffentliche HTTPS-Tür für Aura Desktop Clients & Admin-Zugang (exakt nach Headhunter-Vorbild).
+#
+#   https://aura-admin-prod.<tailnet>.ts.net  ->  frontend-service-prod:80
+#
+# EINMALIGES SETUP (im Cluster-Namespace aura-admin-prod):
+#   kubectl create secret generic tailscale-authkey \
+#     --from-literal=authkey=tskey-auth-xxxxx -n aura-admin-prod
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tailscale-state-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 100Mi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tailscale-serve-config
+data:
+  serve.json: |
+    {
+      "TCP": { "443": { "HTTPS": true } },
+      "Web": {
+        "${TS_CERT_DOMAIN}:443": {
+          "Handlers": { "/": { "Proxy": "http://frontend-service-prod:80" } }
+        }
+      },
+      "AllowFunnel": { "${TS_CERT_DOMAIN}:443": true }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tailscale-funnel
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: tailscale-funnel
+  template:
+    metadata:
+      labels:
+        app: tailscale-funnel
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: tailscale
+          image: tailscale/tailscale:v1.98.4
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: TS_AUTHKEY
+              valueFrom:
+                secretKeyRef:
+                  name: tailscale-authkey
+                  key: authkey
+            - name: TS_HOSTNAME
+              value: aura-admin-prod
+            - name: TS_KUBE_SECRET
+              value: ""
+            - name: TS_STATE_DIR
+              value: /var/lib/tailscale
+            - name: TS_USERSPACE
+              value: "true"
+            - name: TS_ACCEPT_DNS
+              value: "false"
+            - name: TS_SERVE_CONFIG
+              value: /config/serve.json
+          volumeMounts:
+            - name: state
+              mountPath: /var/lib/tailscale
+            - name: serve-config
+              mountPath: /config
+              readOnly: true
+          resources:
+            requests:
+              cpu: "25m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+      volumes:
+        - name: state
+          persistentVolumeClaim:
+            claimName: tailscale-state-pvc
+        - name: serve-config
+          configMap:
+            name: tailscale-serve-config
