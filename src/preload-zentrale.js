@@ -62,6 +62,8 @@ contextBridge.exposeInMainWorld('api', {
       'hardwareInfo',
       'checkUpdate',
       'sendFeedback',
+      'rateSession',
+      'deleteRemoteTelemetry',
       'copyText',
       'openPath',
       'openUrl',

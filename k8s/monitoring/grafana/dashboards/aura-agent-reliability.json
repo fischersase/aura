@@ -1,0 +1,59 @@
+{
+  "uid": "aura-agent-reliability",
+  "title": "Aura · Agent Reliability, Quality & Jira Feedback Queue",
+  "tags": ["aura", "agent", "jira", "quality"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": { "from": "now-7d", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Agent Quality Score (24h Avg, 1-5)",
+      "type": "gauge",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 0, "w": 8, "h": 6 },
+      "fieldConfig": { "defaults": { "min": 1, "max": 5 } },
+      "targets": [
+        { "expr": "aura_sessions_quality_avg_judge_score_24h", "legendFormat": "Avg Judge Score" }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Feedback -> Jira Export Queue",
+      "type": "bargauge",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 8, "y": 0, "w": 16, "h": 6 },
+      "targets": [
+        { "expr": "aura_feedback_queue_depth", "legendFormat": "{{status}}" }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Tool Calls by Tool, OS & Status",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 6, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum by (tool, os, status) (increase(aura_tool_calls_total[1h]))",
+          "legendFormat": "{{tool}} [{{os}}] ({{status}})"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Top Pain-Point Clusters (PostgreSQL)",
+      "type": "table",
+      "datasource": { "type": "postgres", "uid": "postgres" },
+      "gridPos": { "x": 12, "y": 6, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT cluster_tag, COUNT(*) AS sessions, ROUND(AVG(judge_score)::numeric, 2) AS avg_score, COUNT(*) FILTER (WHERE user_rating = 'down') AS thumbs_down, COUNT(*) FILTER (WHERE has_error) AS errors FROM chat_sessions WHERE cluster_tag IS NOT NULL AND $__timeFilter(created_at) GROUP BY 1 ORDER BY sessions DESC LIMIT 20"
+        }
+      ]
+    }
+  ]
+}

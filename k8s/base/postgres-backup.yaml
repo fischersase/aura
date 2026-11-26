@@ -1,0 +1,72 @@
+# Tägliches automatisches PostgreSQL-Backup (pg_dump) auf lokales PVC (Headhunter-Muster)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-backup-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-backup
+spec:
+  schedule: "30 3 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: postgres-backup
+        spec:
+          automountServiceAccountToken: false
+          restartPolicy: OnFailure
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: backup
+              image: postgres:16-alpine
+              securityContext:
+                allowPrivilegeEscalation: false
+              env:
+                - name: PGHOST
+                  value: "postgres-service"
+                - name: PGDATABASE
+                  value: "aura_admin"
+                - name: PGUSER
+                  value: "aura_admin"
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: aura-admin-secrets
+                      key: POSTGRES_PASSWORD
+              command:
+                - /bin/sh
+                - -ec
+                - |
+                  TS=$(date -u +%Y%m%dT%H%M%SZ)
+                  pg_dump -Fc -f "/backups/aura_admin_${TS}.dump"
+                  find /backups -name 'aura_admin_*.dump' -mtime +14 -delete
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+              resources:
+                requests:
+                  cpu: "50m"
+                  memory: "128Mi"
+                limits:
+                  cpu: "500m"
+                  memory: "512Mi"
+          volumes:
+            - name: backups
+              persistentVolumeClaim:
+                claimName: postgres-backup-pvc

@@ -37,6 +37,10 @@ const DEFAULTS = {
   monthlyBudgetUsd: 10, // lokales Limit; Spend-Cap in AI Studio zusätzlich empfohlen
   setupDone: false,
   skippedUpdateVersion: '',
+  installId: '',
+  adminApiUrl: '', // z. B. https://aura-admin-prod.<tailnet>.ts.net (oder AURA_ADMIN_URL)
+  telemetryMetricsOptIn: false, // Stufe 1: Anonyme Nutzungs- & Performance-Statistiken
+  telemetryTracesOptIn: false, // Stufe 2: Geschwärzte Chat- & Agent-Protokolle zur Verbesserung
   includeScreenInChat: false,
   apiKeyEnc: ''
 };

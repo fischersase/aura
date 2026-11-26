@@ -22,6 +22,7 @@ const ollama = require('./ollama');
 const hardware = require('./hardware');
 const updater = require('./updater');
 const feedback = require('./feedback');
+const telemetry = require('./telemetry');
 const keys = require('./keys');
 const usage = require('./usage');
 const chats = require('./chats');
@@ -116,6 +117,13 @@ if (IS_LINUX) {
 app.commandLine.appendSwitch('enable-features', features.join(','));
 
 let overlay, panel, ramblerBar, setupWin, sttWin, updateWin, tray;
+
+const telemetryClient = telemetry.createTelemetryClient({
+  getSettings: () => store.load(),
+  saveSettings: (patch) => store.save(patch),
+  getVersion: () => app.getVersion(),
+  getHardware: () => hardware.detectHardware()
+});
 let pendingUpdate = null;
 let panelOpen = false;
 let panelMinimized = false;
@@ -898,7 +906,13 @@ function saveSettingsPatch(patch) {
       keyError = err instanceof Error ? err.message : String(err); // no keyring: the key is not stored (AURA-93)
     }
   }
+  if (rest.adminApiUrl !== undefined) {
+    rest.adminApiUrl = telemetry.normalizeAdminUrl(rest.adminApiUrl);
+  }
   store.save(rest);
+  if (rest.telemetryMetricsOptIn || rest.telemetryTracesOptIn || rest.adminApiUrl) {
+    telemetryClient.sendHeartbeat().catch(() => {});
+  }
   ollama.setContextSize(store.load().ollamaContext);
   const failed = registerHotkeys();
   applyAutostart();
@@ -1771,29 +1785,99 @@ Object.assign(zentrale.API, {
     clipboard.writeText(String(text || ''));
     return { ok: true };
   },
-  sendFeedback: async ({ kind, title, message, includeSystemInfo, openBrowser = true } = {}) => {
+  sendFeedback: async ({
+    kind,
+    title,
+    message,
+    includeSystemInfo,
+    attachTrace = false,
+    sessionId = null,
+    traceMessages = null,
+    openBrowser = true,
+    forceGithub = false
+  } = {}) => {
     try {
       const s = store.load();
       const hw = await hardware.detectHardware();
+      const ctx = {
+        version: app.getVersion(),
+        platform: process.platform,
+        arch: process.arch,
+        provider: s.provider,
+        model: s.provider === 'ollama' ? s.ollamaModel : s.chatModel,
+        hardwareSummary: hardware.formatHardwareSummary(hw),
+        ramGb: hw.ramGb,
+        vramGb: hw.vramGb
+      };
       const built = feedback.buildFeedback({
         kind,
         title,
         message,
         includeSystemInfo,
-        context: {
-          version: app.getVersion(),
-          platform: process.platform,
-          arch: process.arch,
-          provider: s.provider,
-          model: s.provider === 'ollama' ? s.ollamaModel : s.chatModel,
-          hardwareSummary: hardware.formatHardwareSummary(hw)
-        }
+        context: ctx
       });
+      if (!forceGithub && openBrowser && telemetryClient.adminBaseUrl()) {
+        const trace =
+          attachTrace && Array.isArray(traceMessages) && traceMessages.length
+            ? {
+                mode: 'zentrale',
+                provider: s.provider,
+                model: ctx.model,
+                messages: traceMessages
+              }
+            : null;
+        const sent = await telemetryClient.submitFeedbackToAdmin({
+          kind,
+          title,
+          message,
+          sessionId,
+          context: includeSystemInfo !== false ? ctx : null,
+          trace
+        });
+        if (sent.ok) {
+          return {
+            ok: true,
+            delivered: 'admin',
+            feedbackId: sent.data && sent.data.id,
+            ...built
+          };
+        }
+      }
       if (openBrowser && /^https:\/\//.test(built.githubUrl)) shell.openExternal(built.githubUrl);
-      return { ok: true, ...built };
+      return { ok: true, delivered: openBrowser ? 'github' : 'clipboard', ...built };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
+  },
+  rateSession: async ({ sessionId, rating, mode = 'zentrale', messages = [], latencyMs = 0 } = {}) => {
+    try {
+      const s = store.load();
+      const model = s.provider === 'ollama' ? s.ollamaModel : s.chatModel;
+      telemetryClient.recordEvent({
+        eventType: 'session_rating',
+        feature: mode,
+        provider: s.provider,
+        model,
+        status: rating === 'down' ? 'thumbs_down' : 'thumbs_up'
+      });
+      const res = await telemetryClient.recordSessionTrace({
+        sessionId: sessionId || `rate-${Date.now()}`,
+        mode,
+        provider: s.provider,
+        model,
+        messages,
+        totalLatencyMs: latencyMs,
+        userRating: rating === 'down' ? 'down' : 'up'
+      });
+      return { ok: true, synced: Boolean(res.ok) };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  },
+  deleteRemoteTelemetry: async () => {
+    const res = await telemetryClient.deleteMyRemoteData();
+    store.save({ telemetryMetricsOptIn: false, telemetryTracesOptIn: false });
+    return res;
   },
   ollamaStatus: async (url) => {
     const u = url || store.load().ollamaUrl;
@@ -1818,10 +1902,12 @@ Object.assign(zentrale.API, {
   },
   // Built-in Gemini Chat inside Aura Zentrale
   askChat: async ({ chatId, history } = {}) => {
+    const started = Date.now();
+    const s = store.load();
+    const modelName = store.isLocal() ? s.ollamaModel : s.chatModel;
     try {
       const over = budgetError();
       if (over) return { error: over };
-      const s = store.load();
       const contents = JSON.parse(JSON.stringify(Array.isArray(history) ? history : []));
       if (!contents.length) return { error: 'Keine Nachricht angegeben.' };
       let text = '';
@@ -1863,10 +1949,45 @@ Object.assign(zentrale.API, {
         usage.addTokens(s.chatModel, res.usage);
         broadcastUsage();
       }
+      const latencyMs = Date.now() - started;
       const nextHistory = [...contents, { role: 'model', parts: [{ text }] }];
       if (chatId) chats.save({ id: String(chatId), history: nextHistory });
+      telemetryClient.recordEvent({
+        eventType: 'chat_turn',
+        feature: s.agentEnabled ? 'agent_v2' : 'zentrale_chat',
+        provider: s.provider,
+        model: modelName,
+        latencyMs,
+        status: 'ok'
+      });
+      if (s.telemetryTracesOptIn) {
+        const flatMsgs = nextHistory.map((m) => ({
+          role: m.role === 'model' ? 'assistant' : 'user',
+          text: (m.parts || []).map((p) => p.text || '').join('\n')
+        }));
+        telemetryClient
+          .recordSessionTrace({
+            sessionId: String(chatId || `zchat-${started}`),
+            mode: s.agentEnabled ? 'agent_v2' : 'zentrale_chat',
+            provider: s.provider,
+            model: modelName,
+            messages: flatMsgs,
+            totalLatencyMs: latencyMs,
+            hasError: false
+          })
+          .catch(() => {});
+      }
       return { text, history: nextHistory };
     } catch (err) {
+      telemetryClient.recordEvent({
+        eventType: 'chat_turn',
+        feature: s.agentEnabled ? 'agent_v2' : 'zentrale_chat',
+        provider: s.provider,
+        model: modelName,
+        latencyMs: Date.now() - started,
+        status: 'error',
+        errorCode: String((err && err.code) || 'chat_error').slice(0, 64)
+      });
       return { error: String(err.message || err) };
     }
   }
@@ -2274,6 +2395,10 @@ app.whenReady().then(() => {
   else if (!handleArgs(process.argv) && failed.length) openSettings();
   preloadStt().catch(() => {});
   scheduler.start();
+  // Opt-In Telemetrie-Heartbeat an die Aura Admin Console (Stufe 1/2, sonst no-op).
+  setTimeout(() => {
+    if (store.load().setupDone) telemetryClient.sendHeartbeat().catch(() => {});
+  }, 4000);
   // Automatisches Update-Popup (v. a. unter Windows bei neuer GitHub-Release-.exe) beim Start & alle 6 Stunden.
   if (app.isPackaged || process.env.AURA_CHECK_UPDATES === '1') {
     setTimeout(() => {
@@ -2294,6 +2419,8 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', (e) => e.preventDefault());
 app.on('will-quit', () => {
+  telemetryClient.flush().catch(() => {});
+  telemetryClient.stop();
   globalShortcut.unregisterAll();
   keys.shutdown();
 });

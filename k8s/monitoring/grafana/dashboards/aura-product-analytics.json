@@ -1,0 +1,61 @@
+{
+  "uid": "aura-product-analytics",
+  "title": "Aura · Product & Hardware Analytics",
+  "tags": ["aura", "analytics", "product"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "1m",
+  "time": { "from": "now-30d", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Active Installations (DAU / WAU / MAU)",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 6 },
+      "targets": [
+        { "expr": "aura_active_installations_dau", "legendFormat": "DAU" },
+        { "expr": "aura_active_installations_wau", "legendFormat": "WAU" },
+        { "expr": "aura_active_installations_mau", "legendFormat": "MAU" }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Installations by OS & Consent Tier",
+      "type": "bargauge",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 6 },
+      "targets": [
+        { "expr": "aura_installations_by_os_total", "legendFormat": "{{os_platform}} ({{consent_tier}})" }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Daily Active Clients & Events (PostgreSQL)",
+      "type": "timeseries",
+      "datasource": { "type": "postgres", "uid": "postgres" },
+      "gridPos": { "x": 0, "y": 6, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT date_trunc('day', created_at) AS time, COUNT(DISTINCT install_id) AS active_clients, COUNT(*) AS events FROM telemetry_events WHERE $__timeFilter(created_at) GROUP BY 1 ORDER BY 1"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Hardware VRAM Tiers & Aura Versions (PostgreSQL)",
+      "type": "table",
+      "datasource": { "type": "postgres", "uid": "postgres" },
+      "gridPos": { "x": 12, "y": 6, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT os_platform, app_version, gpu_tier, COUNT(*) AS installs, ROUND(AVG(ram_gb)) AS avg_ram_gb, ROUND(AVG(vram_gb)) AS avg_vram_gb FROM installations GROUP BY 1,2,3 ORDER BY installs DESC LIMIT 25"
+        }
+      ]
+    }
+  ]
+}

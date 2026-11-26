@@ -93,6 +93,8 @@
     'hardwareInfo',
     'checkUpdate',
     'sendFeedback',
+    'rateSession',
+    'deleteRemoteTelemetry',
     'copyText',
     'openPath',
     'openUrl',
