@@ -8,8 +8,15 @@ let mic = null;
 let chunks = [];
 let startedAt = 0;
 let maxTimer = null;
+let sessionId = 0;
+let active = false;
+let stopRequested = false;
 
 function show(state, opts = {}) {
+  if (state === 'abort' || state === 'idle') {
+    cancelRecording(false);
+    return;
+  }
   if (state === 'listening') {
     bar.classList.add('hidden');
     void bar.offsetWidth;
@@ -43,12 +50,28 @@ function show(state, opts = {}) {
   }
 }
 
+function closeMic() {
+  clearTimeout(maxTimer);
+  maxTimer = null;
+  if (mic) {
+    try {
+      mic.close();
+    } catch {}
+  }
+  mic = null;
+}
+
 async function startRecording(selection) {
+  closeMic();
+  const mySession = ++sessionId;
+  active = true;
+  stopRequested = false;
   chunks = [];
   startedAt = Date.now();
   show('listening', { selection });
   try {
-    mic = await Audio16.openMic((samples, rms) => {
+    const opened = await Audio16.openMic((samples, rms) => {
+      if (mySession !== sessionId || !active) return;
       chunks.push(samples);
       const t = Date.now() / 110;
       const v = Math.min(1, rms * 9);
@@ -60,43 +83,98 @@ async function startRecording(selection) {
         b.style.height = Math.round(Math.min(22, idle + active)) + 'px';
       });
     });
+    // Falls während des Mikrofon-Starts bereits gestoppt oder abgebrochen wurde, sofort schließen.
+    if (mySession !== sessionId || !active) {
+      try {
+        opened.close();
+      } catch {}
+      if (stopRequested) {
+        stopRequested = false;
+        window.api.ramblerAudio('');
+      }
+      return;
+    }
+    mic = opened;
     clearTimeout(maxTimer);
     maxTimer = setTimeout(stopRecording, MAX_MS);
   } catch (err) {
+    if (mySession !== sessionId) return;
+    active = false;
+    stopRequested = false;
     window.api.ramblerError('Mikrofon nicht verfügbar: ' + err.message);
   }
 }
 
-function closeMic() {
-  clearTimeout(maxTimer);
-  if (mic) mic.close();
-  mic = null;
-}
-
 function stopRecording() {
-  if (!mic) return;
+  if (!active && !mic) {
+    window.api.ramblerAudio('');
+    return;
+  }
+  const hadMic = !!mic;
+  active = false;
+  if (!hadMic) {
+    // Mikrofon wird gerade noch geöffnet: direkt abbrechen und Hauptprozess informieren.
+    stopRequested = true;
+    sessionId++;
+    chunks = [];
+    window.api.ramblerAudio('');
+    return;
+  }
+  sessionId++;
   closeMic();
   if (Date.now() - startedAt < 300 || !chunks.length) {
+    chunks = [];
     window.api.ramblerAudio('');
     return;
   }
   show('processing');
-  window.api.ramblerAudio(Audio16.wavBase64(chunks));
+  const wav = Audio16.wavBase64(chunks);
   chunks = [];
+  window.api.ramblerAudio(wav);
+}
+
+function cancelRecording(notifyMain = true) {
+  sessionId++;
+  active = false;
+  stopRequested = false;
+  closeMic();
+  chunks = [];
+  bar.classList.add('hidden');
+  if (notifyMain) window.api.ramblerCancel();
+}
+
+// Auf Windows fressen focusable:false-Fenster (WS_EX_NOACTIVATE) teilweise click-Events.
+// pointerdown löst zuverlässig beim allerersten Klick aus; click bleibt als Tastatur-Fallback.
+function bindButton(el, handler) {
+  let handledAt = 0;
+  el.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    handledAt = Date.now();
+    handler();
+  });
+  el.addEventListener('click', (e) => {
+    if (Date.now() - handledAt < 400) return;
+    e.preventDefault();
+    handler();
+  });
 }
 
 window.api.onRamblerStart(({ selection }) => startRecording(selection));
 window.api.onRamblerStop(stopRecording);
 window.api.onRamblerState((s) => show(s.state, s));
 
-$('stop').onclick = stopRecording;
-$('cancel').onclick = () => {
-  closeMic();
-  chunks = [];
-  window.api.ramblerCancel();
-};
-$('undo').onclick = () => window.api.ramblerUndo();
-$('full').onclick = () => window.api.ramblerFull();
+bindButton($('stop'), stopRecording);
+bindButton($('cancel'), () => cancelRecording(true));
+bindButton($('undo'), () => window.api.ramblerUndo());
+bindButton($('full'), () => window.api.ramblerFull());
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    cancelRecording(true);
+  }
+});
 
 // Lokales Whisper lädt beim ersten Diktat sein Modell herunter.
 window.api.onSttProgress((p) => {

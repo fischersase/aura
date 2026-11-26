@@ -196,7 +196,7 @@ const EDIT_PROMPT = (selection) =>
 const TEXT_SCHEMA = { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] };
 
 // Rambler: Transkript (von Whisper) bereinigen oder als Anweisung auf die Markierung anwenden.
-async function rambler({ url, model, transcript, selection, language }) {
+async function rambler({ url, model, transcript, selection, language, signal }) {
   const messages = selection
     ? [
         { role: 'system', content: EDIT_PROMPT(selection) },
@@ -206,7 +206,7 @@ async function rambler({ url, model, transcript, selection, language }) {
         { role: 'system', content: CLEAN_PROMPT(language) },
         { role: 'user', content: transcript }
       ];
-  const raw = await chat({ url, model, messages, format: TEXT_SCHEMA });
+  const raw = await chat({ url, model, messages, format: TEXT_SCHEMA, signal });
   const j = parseJson(raw);
   const text = String((j && j.text) || '').trim();
   return { transcript, text: text || (selection ? '' : transcript) };

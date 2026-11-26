@@ -71,7 +71,7 @@ const RAMBLER_PROMPT = (language, selection) =>
       `Bevorzugte Sprache: ${language}. Erfinde nichts dazu. ` +
       'Gib in "transcript" das wörtliche Transkript und in "text" den bereinigten Text zurück.';
 
-async function rambler({ apiKey, model, wavBase64, selection, language }) {
+async function rambler({ apiKey, model, wavBase64, selection, language, signal }) {
   const res = await fetch(`${BASE}/models/${model}:generateContent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
@@ -93,7 +93,8 @@ async function rambler({ apiKey, model, wavBase64, selection, language }) {
           required: ['transcript', 'text']
         }
       }
-    })
+    }),
+    signal
   });
   await check(res);
   const j = await res.json();

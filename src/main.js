@@ -119,12 +119,17 @@ let liveActive = false;
 let currentDisplay = null;
 const ramblerState = {
   recording: false,
+  processing: false,
   busy: false,
   saved: null,
   selection: '',
   last: null,
   targetAuraWin: null,
-  activeWinId: ''
+  activeWinId: '',
+  abortCtrl: null,
+  stopGuardTimer: null,
+  hideTimer: null,
+  escapeRegistered: false
 };
 
 if (!app.requestSingleInstanceLock({ version: app.getVersion() })) app.quit();
@@ -270,7 +275,7 @@ function createRamblerBar() {
     alwaysOnTop: true,
     preload: 'preload-rambler.js'
   });
-  ramblerBar.setAlwaysOnTop(true, 'screen-saver');
+  ramblerBar.setAlwaysOnTop(true, 'pop-up-menu');
   ramblerBar.setContentProtection(true);
   ramblerBar.loadFile(R('rambler.html'));
 }
@@ -433,20 +438,64 @@ function ramblerSend(channel, data) {
   if (ramblerBar && !ramblerBar.isDestroyed()) ramblerBar.webContents.send(channel, data);
 }
 
+// Globales Escape nur solange Rambler aktiv ist, damit Abbrechen unter Windows (focusable:false) immer sofort greift.
+function registerRamblerEscape(on) {
+  if (on && !ramblerState.escapeRegistered) {
+    try {
+      if (globalShortcut.register('Escape', () => cancelRambler())) ramblerState.escapeRegistered = true;
+    } catch {}
+  } else if (!on && ramblerState.escapeRegistered) {
+    try {
+      globalShortcut.unregister('Escape');
+    } catch {}
+    ramblerState.escapeRegistered = false;
+  }
+}
+
+function cancelRambler() {
+  clearTimeout(ramblerState.hideTimer);
+  clearTimeout(ramblerState.stopGuardTimer);
+  ramblerState.recording = false;
+  ramblerState.processing = false;
+  ramblerState.busy = false;
+  if (ramblerState.abortCtrl) {
+    try {
+      ramblerState.abortCtrl.abort(new Error('Abgebrochen'));
+    } catch {}
+    ramblerState.abortCtrl = null;
+  }
+  registerRamblerEscape(false);
+  ramblerSend('rambler:state', { state: 'abort' });
+  if (ramblerBar && !ramblerBar.isDestroyed()) ramblerBar.hide();
+}
+
 async function toggleRambler() {
   if (ramblerState.busy) return;
   if (!store.ready()) {
     openSetup();
     return;
   }
+  // Läuft gerade eine Transkription/Verarbeitung, bricht ein erneutes Kürzel sofort sauber ab.
+  if (ramblerState.processing) {
+    cancelRambler();
+    return;
+  }
   if (ramblerState.recording) {
     ramblerState.recording = false;
     ramblerSend('rambler:stop');
+    // Falls der Renderer (z. B. beim Öffnen des Mikrofons) nicht innerhalb von 1,5 s antwortet, hart aufräumen.
+    clearTimeout(ramblerState.stopGuardTimer);
+    ramblerState.stopGuardTimer = setTimeout(() => {
+      if (!ramblerState.recording && !ramblerState.processing && ramblerBar && !ramblerBar.isDestroyed() && ramblerBar.isVisible()) {
+        cancelRambler();
+      }
+    }, 1500);
     return;
   }
   ramblerState.busy = true;
   try {
     clearTimeout(ramblerState.hideTimer);
+    clearTimeout(ramblerState.stopGuardTimer);
     ramblerState.selection = '';
     ramblerState.targetAuraWin = BrowserWindow.getFocusedWindow() || null;
     ramblerState.activeWinId = '';
@@ -468,6 +517,7 @@ async function toggleRambler() {
     placeRamblerBar();
     ramblerBar.showInactive();
     ramblerState.recording = true;
+    registerRamblerEscape(true);
     ramblerSend('rambler:start', { selection: false });
   } finally {
     ramblerState.busy = false;
@@ -502,16 +552,36 @@ async function pasteText(text) {
 function hideRamblerBarSoon(ms) {
   clearTimeout(ramblerState.hideTimer);
   ramblerState.hideTimer = setTimeout(() => {
-    if (!ramblerState.recording) ramblerBar.hide();
+    if (!ramblerState.recording && !ramblerState.processing) {
+      registerRamblerEscape(false);
+      if (ramblerBar && !ramblerBar.isDestroyed()) ramblerBar.hide();
+    }
   }, ms);
 }
 
+const RAMBLER_TIMEOUT_MS = 45000;
+
 ipcMain.on('rambler:audio', async (_e, { wavBase64 }) => {
+  clearTimeout(ramblerState.stopGuardTimer);
   ramblerState.recording = false;
   if (!wavBase64) {
-    ramblerBar.hide();
+    cancelRambler();
     return;
   }
+  if (ramblerState.abortCtrl) {
+    try {
+      ramblerState.abortCtrl.abort();
+    } catch {}
+  }
+  const ctrl = new AbortController();
+  ramblerState.abortCtrl = ctrl;
+  ramblerState.processing = true;
+  let timedOut = false;
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    ctrl.abort();
+  }, RAMBLER_TIMEOUT_MS);
+
   ramblerSend('rambler:state', { state: 'processing' });
   try {
     const over = budgetError();
@@ -520,6 +590,7 @@ ipcMain.on('rambler:audio', async (_e, { wavBase64 }) => {
     let out;
     if (store.isLocal()) {
       const transcript = await transcribe(wavBase64, whisperLanguage(s.language));
+      if (ctrl.signal.aborted) return;
       if (!transcript || !transcript.trim()) throw new Error('Nichts verstanden.');
       try {
         out = await ollama.rambler({
@@ -527,9 +598,11 @@ ipcMain.on('rambler:audio', async (_e, { wavBase64 }) => {
           model: s.ollamaModel,
           transcript,
           selection: ramblerState.selection,
-          language: s.language
+          language: s.language,
+          signal: ctrl.signal
         });
-      } catch {
+      } catch (err) {
+        if (ctrl.signal.aborted) return;
         out = { text: transcript.trim(), transcript: transcript.trim() };
       }
     } else {
@@ -538,13 +611,17 @@ ipcMain.on('rambler:audio', async (_e, { wavBase64 }) => {
         model: s.ramblerModel,
         wavBase64,
         selection: ramblerState.selection,
-        language: s.language
+        language: s.language,
+        signal: ctrl.signal
       });
+      if (ctrl.signal.aborted) return;
       usage.addTokens(s.ramblerModel, out.usage);
       broadcastUsage();
     }
+    if (ctrl.signal.aborted) return;
     if (!out.text) throw new Error('Nichts verstanden.');
     const pasted = await pasteText(out.text);
+    if (ctrl.signal.aborted) return;
     ramblerState.last = { ...out, fullAvailable: !ramblerState.selection };
     if (!pasted) {
       ramblerBar.showInactive();
@@ -555,34 +632,47 @@ ipcMain.on('rambler:audio', async (_e, { wavBase64 }) => {
       hideRamblerBarSoon(7000);
       return;
     }
+    registerRamblerEscape(false);
     ramblerSend('rambler:state', { state: 'done', fullAvailable: !ramblerState.selection });
     ramblerBar.hide();
   } catch (err) {
-    ramblerBar.showInactive();
-    ramblerSend('rambler:state', { state: 'error', message: String(err.message || err) });
+    if (ctrl.signal.aborted && !timedOut) return;
+    const msg = timedOut ? 'Zeitüberschreitung bei der Spracherkennung.' : String(err.message || err);
+    if (ramblerBar && !ramblerBar.isDestroyed()) ramblerBar.showInactive();
+    ramblerSend('rambler:state', { state: 'error', message: msg });
     hideRamblerBarSoon(5000);
+  } finally {
+    clearTimeout(timeout);
+    if (ramblerState.abortCtrl === ctrl) {
+      ramblerState.abortCtrl = null;
+      ramblerState.processing = false;
+    }
   }
 });
 
 ipcMain.on('rambler:cancel', () => {
-  ramblerState.recording = false;
-  ramblerBar.hide();
+  cancelRambler();
 });
 
 ipcMain.on('rambler:undo', async () => {
+  registerRamblerEscape(false);
   ramblerBar.hide();
   await keys.send('^z', ramblerState.activeWinId);
 });
 
 ipcMain.on('rambler:full', async () => {
   if (!ramblerState.last) return;
+  registerRamblerEscape(false);
   ramblerBar.hide();
   await keys.send('^z', ramblerState.activeWinId);
   await pasteText(ramblerState.last.transcript);
 });
 
 ipcMain.on('rambler:error', (_e, message) => {
+  clearTimeout(ramblerState.stopGuardTimer);
   ramblerState.recording = false;
+  ramblerState.processing = false;
+  registerRamblerEscape(false);
   ramblerSend('rambler:state', { state: 'error', message });
   hideRamblerBarSoon(5000);
 });
@@ -1905,6 +1995,7 @@ function normalizeAccelerator(raw) {
 
 function registerHotkeys() {
   globalShortcut.unregisterAll();
+  ramblerState.escapeRegistered = false;
   const s = store.load();
   const failed = [];
   const reg = (acc, fn, name) => {
@@ -1921,6 +2012,7 @@ function registerHotkeys() {
   reg(s.hotkeyLive, toggleLive, 'Live');
   stopKeyOn = null;
   registerStopHotkey();
+  if (ramblerState.recording || ramblerState.processing) registerRamblerEscape(true);
   return failed;
 }
 
@@ -1973,7 +2065,9 @@ function createTray() {
     Menu.buildFromTemplate([
       { label: `Aura öffnen\t${s().hotkeyGemini}`, click: () => openPanel() },
       { label: `Live\t${s().hotkeyLive}`, click: () => toggleLive() },
-      { label: `Rambler: ${s().hotkeyRambler} im Textfeld`, enabled: false },
+      ...(ramblerState.recording || ramblerState.processing
+        ? [{ label: 'Rambler stoppen\tEsc', click: () => cancelRambler() }]
+        : [{ label: `Rambler: ${s().hotkeyRambler} im Textfeld`, enabled: false }]),
       { type: 'separator' },
       store.isLocal()
         ? { label: `Lokal über Ollama: ${s().ollamaModel}`, enabled: false }
