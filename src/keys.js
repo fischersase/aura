@@ -110,11 +110,19 @@ function send(keys, winId = '') {
   if (!p) return Promise.resolve(false);
   return new Promise((resolve) => {
     const t = setTimeout(() => resolve(true), 3000);
-    queue.push(() => {
+    const done = () => {
       clearTimeout(t);
       resolve(true);
-    });
-    p.stdin.write(keys + '\n');
+    };
+    queue.push(done);
+    try {
+      p.stdin.write(keys + '\n');
+    } catch {
+      const idx = queue.indexOf(done);
+      if (idx >= 0) queue.splice(idx, 1);
+      clearTimeout(t);
+      resolve(false);
+    }
   });
 }
 
