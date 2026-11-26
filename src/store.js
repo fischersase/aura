@@ -38,7 +38,7 @@ const DEFAULTS = {
   setupDone: false,
   skippedUpdateVersion: '',
   installId: '',
-  adminApiUrl: '', // z. B. https://aura-admin-prod.<tailnet>.ts.net (oder AURA_ADMIN_URL)
+  adminApiUrl: 'https://aura-prod.tailc7b22c.ts.net', // Standard-Endpunkt (nur aktiv bei Opt-In oder Feedback)
   telemetryMetricsOptIn: false, // Stufe 1: Anonyme Nutzungs- & Performance-Statistiken
   telemetryTracesOptIn: false, // Stufe 2: Geschwärzte Chat- & Agent-Protokolle zur Verbesserung
   includeScreenInChat: false,

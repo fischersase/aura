@@ -1,10 +1,10 @@
 # Tailscale Funnel — öffentliche HTTPS-Tür für Aura Desktop Clients & Admin-Zugang (exakt nach Headhunter-Vorbild).
 #
-#   https://aura-admin-prod.<tailnet>.ts.net  ->  frontend-service-prod:80
+#   https://aura-prod.tailc7b22c.ts.net  ->  frontend-service-prod:80
 #
-# EINMALIGES SETUP (im Cluster-Namespace aura-admin-prod):
+# EINMALIGES SETUP (im Cluster-Namespace aura-prod):
 #   kubectl create secret generic tailscale-authkey \
-#     --from-literal=authkey=tskey-auth-xxxxx -n aura-admin-prod
+#     --from-literal=authkey=tskey-auth-xxxxx -n aura-prod
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -67,7 +67,7 @@ spec:
                   name: tailscale-authkey
                   key: authkey
             - name: TS_HOSTNAME
-              value: aura-admin-prod
+              value: aura-prod
             - name: TS_KUBE_SECRET
               value: ""
             - name: TS_STATE_DIR

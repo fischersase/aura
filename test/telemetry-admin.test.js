@@ -334,9 +334,14 @@ test('UI & Headhunter K8s/Grafana/Tailscale wiring integrity checks', () => {
     assert.ok(parsed.uid && Array.isArray(parsed.panels) && parsed.panels.length >= 4, dash);
   }
 
-  // Tailscale Funnel proxies to suffixed prod/int frontend service
-  assert.match(read('k8s/overlays/prod/tailscale-funnel.yaml'), /frontend-service-prod:80/);
-  assert.match(read('k8s/overlays/int/tailscale-funnel.yaml'), /frontend-service-int:80/);
+  // Tailscale Funnel proxies to suffixed prod/int frontend service with aura-prod / aura-int hostnames
+  const prodFunnel = read('k8s/overlays/prod/tailscale-funnel.yaml');
+  const intFunnel = read('k8s/overlays/int/tailscale-funnel.yaml');
+  assert.match(prodFunnel, /frontend-service-prod:80/);
+  assert.match(prodFunnel, /value:\s*aura-prod\b/);
+  assert.match(intFunnel, /frontend-service-int:80/);
+  assert.match(intFunnel, /value:\s*aura-int\b/);
   assert.match(read('k8s/overlays/prod/patches/env.yaml'), /backend-service-prod:3001/);
   assert.match(read('k8s/overlays/int/patches/env.yaml'), /backend-service-int:3001/);
+  assert.match(read('src/store.js'), /https:\/\/aura-prod\.tailc7b22c\.ts\.net/);
 });
